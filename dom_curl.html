@@ -1,0 +1,1473 @@
+<!DOCTYPE html>
+<html lang="pt">
+
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1" />
+	<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate, max-age=0" />
+	<meta http-equiv="expires" content="0" />
+	<meta http-equiv="pragma" content="no-cache" />
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Gercon | Gerenciamento de consultas</title>
+
+	<meta name="description" content="Sistema de regulação de consultas especializadas do SUS, desenvolvido pela Procempa para a Secretaria Municipal da Saúde de Porto Alegre/RS">
+	<meta name="keywords" content="saúde, regulação, consultas especializadas, SUS, Procempa, SMS, Porto Alegre, RS">
+
+	<script type="text/javascript">
+		if (location.hostname !== 'gercon.procempa.com.br') {
+			var meta = document.createElement('meta');
+			meta.name = "robots";
+			meta.content = "noindex";
+			document.head.appendChild(meta);
+		}
+	</script>
+
+	<link href='libs/fullcalendar-3.10.0/fullcalendar.css' rel='stylesheet' />
+
+	<link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,600,700" rel="stylesheet">
+	<link rel="stylesheet" href="css/bootstrap.css" type="text/css">
+	<link rel="stylesheet" href="libs/font-awesome/4.7.0/css/font-awesome.min.css">
+	<link rel="stylesheet" href="css/estilos.css?v=20260306-004512" type="text/css">
+	<link rel="stylesheet" href="libs/ng-table/0.5.5/ng-table.min.css">
+
+	<!--favicon-->
+	<link rel="icon" href="favicon.ico" sizes="any"><!-- 32×32 -->
+	<link rel="icon" href="icon.svg" type="image/svg+xml">
+	<link rel="apple-touch-icon" href="apple-touch-icon.png"><!-- 180×180 -->
+	<link rel="manifest" href="manifest.webmanifest">
+	<!--favicon-->
+
+	<script type="text/javascript" src="libs/jquery/1.11.2/jquery.min.js"></script>
+	<script type="text/javascript" src="libs/keycloak/1.6.1/keycloak.js"></script>
+	<script type="text/javascript" src="libs/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular.min.js"></script>
+	<script type="text/javascript" src="libs/jquery-barcode/2.0.3/jquery-barcode.min.js"></script>
+	<script type="text/javascript" src="libs/jquery-meiomask/1.1/meiomask.min.js"></script>
+	<script type="text/javascript" src="libs/ng-mask/ng-mask.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular-route.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.0.8/i18n/angular-locale_pt-br.js"></script>
+	<script type="text/javascript" src="libs/angular-ui-bootstrap/0.12.1/ui-bootstrap.min.js"></script>
+	<script type="text/javascript" src="libs/angular-ui-bootstrap/0.12.1/ui-bootstrap-tpls.min.js"></script>
+	<script type="text/javascript" src="libs/ng-table/0.5.5/ng-table.min.js"></script>
+	<script type="text/javascript" src="libs/googlechart/ng-google-chart.js"></script>
+	<script type="text/javascript" src="libs/jquery-inputmask/jquery.inputmask.bundle.min.js"></script>
+	<script type="text/javascript" src="libs/ngStorage/ngStorage.js"></script>
+	<script type="text/javascript" src="libs/crumble/crumble.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/FileSaver.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.javascript.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.from_html.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.split_text_to_size.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.standard_fonts_metrics.js"></script>
+	<script type="text/javascript" src="libs/interact/interact.js"></script>
+	<script type="text/javascript" src="libs/moment/moment.js"></script>
+	<script type="text/javascript" src="libs/moment/moment-precise-range.js"></script>
+
+	<script type="text/javascript" src='libs/fullcalendar-3.10.0/fullcalendar.js'></script>
+	<script type="text/javascript" src='libs/fullcalendar-3.10.0/locale/pt-br.js'></script>
+	<script type="text/javascript" src="libs/angular-ui-calendar/calendar.js"></script>
+
+	<link href="libs/summernote-0.8.18-dist/summernote.min.css" rel="stylesheet">
+	<script src="libs/summernote-0.8.18-dist/summernote.min.js"></script>
+	<script src="libs/angular-summernote-master/src/angular-summernote.js"></script>
+
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular-touch.js"></script>
+	<link rel="stylesheet" href="libs/angular-bootstrap-calendar/0.17.6/angular-bootstrap-calendar.min.css" type="text/css">
+	<script type="text/javascript" src="libs/angular-bootstrap-calendar/0.17.6/angular-bootstrap-calendar-tpls.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular-sanitize.js"></script>
+	<script type="text/javascript" src="libs/table-fixed-header/table-fixed-header.js"></script>
+	<script type="text/javascript">
+		buildVersion = "20260306-004512";
+	</script>
+	<script type="text/javascript" src="loadWebApp.js?v=20260306-004512"></script>
+	<link rel="stylesheet" href="libs/angular-timeline/angular-timeline.css" />
+	<script type="text/javascript" src="libs/angular-timeline/angular-timeline.js"></script>
+
+	<script type="text/javascript">
+		loadWebApp([
+			'scripts',
+			'saude-commons.js',
+			'routes.js',
+			'app.js',
+			'filters',
+			'interceptors',
+			'directives',
+			'services',
+			'controllers',
+			'angularBootstrap()'
+		]);
+
+	</script>
+
+	<!-- Google Analytics -->
+	<script type="text/javascript">
+		(function(i, s, o, g, r, a, m) {
+			console.log('Google analytics setup');
+			i['GoogleAnalyticsObject'] = r;
+			i[r] = i[r] || function() {
+				(i[r].q = i[r].q || []).push(arguments)
+			}, i[r].l = 1 * new Date();
+			a = s.createElement(o),
+				m = s.getElementsByTagName(o)[0];
+			a.async = 1;
+			a.src = g;
+			m.parentNode.insertBefore(a, m)
+		})(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+	</script>
+	<!-- End Google Analytics -->
+	
+	<!-- Matomo -->
+	<script>
+	  var _paq = window._paq = window._paq || [];
+	  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+	  _paq.push(['trackPageView']);
+	  _paq.push(['enableHeartBeatTimer']);
+	  _paq.push(['enableLinkTracking']);
+	  (function() {
+	    var u="https://analytics.procempa.com.br/";
+	    if (u!='NAO_DEFINIDO') {
+		    console.log('Matomo analytics setup');
+		    _paq.push(['setTrackerUrl', u+'matomo.php']);
+		    _paq.push(['setSiteId', '22']);
+		    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+		    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+		}
+	  })();
+	</script>
+	<!-- End Matomo Code -->
+</head>
+
+<body ng-show="usuario.login!=null" ng-cloak>
+  
+	<div id="topoDaTela"></div>
+	<div id="pleaseWaitDialog" class="modal fade" role="dialog" data-backdrop="static" data-keyboard="false" data-backdrop-limit="1" tabindex="-1" aria-hidden="true">
+		<div class="loader"></div>
+	</div>
+	<div ng-controller="indexController as idxCtrl">
+		<div ng-if="idxCtrl.getClassAmbiente() != 'hide'" class="faixa-ambiente {{idxCtrl.getClassAmbiente()}}">
+			{{idxCtrl.getLabelAmbiente()}}
+		</div>
+	</div>
+
+	<header>
+		<div class="login container-fluid" ng-controller="loginController as loginCtrl">
+			<span class="pull-left" ng-hide="perfilNome==null" ng-cloak>
+				Olá, <strong id="nomeUsuarioLogado">{{ usuario.nome }}</strong>,
+				seu perfil é <strong id="perfilUsuarioLogado">{{perfilNome}}</strong>
+				em <strong id="estabelecimentoUsuarioLogado">{{estabNome | titlecase}} <span ng-if="municipioEstab != ''">({{ municipioEstab | titlecase }})</span></strong>
+			</span>
+			<span class="pull-right">
+				<span ng-show="novasNotificacoes.totalDados != null && novasNotificacoes.totalDados > 0 && perfilNome!=null && loginCtrl.perfilUsuarioIn(['prf-notificante']) == false" ng-cloak>
+					<a id="linkNotificacoes" class="label situacao vermelho" href="" ng-click="loginCtrl.redireciona('/documentosNovidadesSistema')"><i class="fa fa-lightbulb-o fa-fw"></i>Nova versão: veja o que mudou aqui!</a>
+				</span>
+				<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+				<span ng-hide="perfilNome==null || loginCtrl.perfilUsuarioIn(['prf-notificante']) == true" ng-cloak>
+					<a id="linkTrocarPerfil" href="" accesskey="t" ng-click="loginCtrl.trocarPerfil()">Trocar perfil</a> <i class="fa fa-exchange"></i>
+				</span>
+				<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+				<span>
+					<a id="linkSair" href="" ng-click="loginCtrl.logout();">Sair</a> <i class="fa fa-sign-out"></i>
+				</span>
+			</span>
+		</div>
+	</header>
+	<div ng-controller="indexController as idxCtrl">
+		<nav class="navbar navbar-default">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed menuitem" data-toggle="collapse" data-target="#menu-sistema" aria-expanded="false">
+					<span class="sr-only">Menu do sistema</span>
+					<i class="fa fa-bars menuicone"></i> Menu
+				</button>
+				<a href="" onclick="document.location.reload();" class="navbar-brand logo">
+					<img src="img/logo-gercon.svg" alt="Gercon - Gerenciamento de consultas" title="Gercon - Gerenciamento de consultas" class="logo" />
+				</a>
+				<a href="http://www2.portoalegre.rs.gov.br/" class="navbar-brand pmpa">
+					<img src="img/logo-sms.svg" alt="Prefeitura Municipal de Porto Alegre" title="Prefeitura Municipal de Porto Alegre" target="_blank" />
+				</a>
+			</div>
+
+			<div class="collapse navbar-collapse" id="menu-sistema">
+				<div class="progress" ng-show="!permissoesCarregadas && !selecionandoLocal" style="width:150px;margin-right:10px;margin-top:20px;margin-left:auto">
+					<div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="width:100%">Carregando...</div>
+				</div>
+
+				<ul class="nav navbar-nav" role="menu" ng-show="permissoesCarregadas" ng-cloak>
+					<li role="menuitem" ng-show="idxCtrl.mostrarExames() && idxCtrl.podeVerMenu('notificacaoCovid')">
+						<a id="menuNotificacaoCovid" href="notificacoes" class="dropdown-toggle" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastra-notificacao-covid','prm-edita-notificacao-covid', 'prm-consulta-notificacao-covid','prm-consultar-exames-covid']) && idxCtrl.usuarioDaCentralCMCE()" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="n">
+							<i class="fa fa-exclamation-circle menuicone"></i>
+							<span class="menuitem">COVID-19</span>
+						</a>
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem" ng-if="idxCtrl.temAlgumaPermissao(['prm-edita-notificacao-covid','prm-consulta-notificacao-covid']) && usuario.login != 'covid19'">
+								<a id="menuItemConsultaNotificacaoCovid" href="#/consultaNotificacaoCovid" ng-click="idxCtrl.redireciona('#/consultaNotificacaoCovid')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Notificações
+								</a>
+							</li>
+							<li role="menuitem" ng-if="idxCtrl.temPermissao('prm-consultar-exames-covid') && idxCtrl.getTipoUnidade()!=39">
+								<a id="menuItemConsultaExamesCovid" href="#/consultaExamesCovid" ng-click="idxCtrl.redireciona('#/consultaExamesCovid')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Exames
+								</a>
+							</li>
+							<li role="menuitem" ng-if="idxCtrl.temAlgumaPermissao(['prm-edita-grupo-risco-notificacao-covid'])">
+								<a id="menuItemGrupoRiscoNotificacaoCovid" href="#/consultaGrupoRiscoNotificacaoCovid" ng-click="idxCtrl.redireciona('#/consultaGrupoRiscoNotificacaoCovid')">
+									<i class="fa fa-users fa-fw"></i>
+									Grupo de risco
+								</a>
+							</li>
+							<li role="menuitem" ng-if="idxCtrl.temAlgumaPermissao(['prm-edita-grupo-vacinacao'])">
+								<a id="menuItemGrupoVacinacao" href="#/consultaGrupoVacinacao" ng-click="idxCtrl.redireciona('#/consultaGrupoVacinacao')">									
+									<i class="fa fa-medkit fa-fw"></i>
+									Grupo de Vacinação
+								</a>
+							</li><li role="menuitem" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastra-cadastroprioritariovacina'])">
+								<a id="menuItemGrupoVacinacao" href="#/consultaCadastroPrioritarioVacina" ng-click="idxCtrl.redireciona('#/consultaCadastroPrioritarioVacina')">									
+									<i class="fa fa-user-plus fa-fw"></i>
+									Cadastro prioritário vacinação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuLocaisSurto" href="#/locaisSurto" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastra-locais-surto'])" ng-click="idxCtrl.redireciona('#/locaisSurto')">
+									<i class="fa fa-book fa-fw"></i>
+									Locais de investigação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuImportacaoFilaExame" href="#/importaResultadosCovid" ng-if="idxCtrl.temAlgumaPermissao(['prm-importa-notificacao-covid'])" ng-click="idxCtrl.redireciona('#/importaResultadosCovid')">
+									<i class="fa fa-upload fa-fw"></i>
+									Upload de resultados
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuExportacaoEsusNotifica" href="#/exportacaoEsusNotifica" ng-if="idxCtrl.temAlgumaPermissao(['prm-consulta-relatorio-erros-esus-notifica'])" ng-click="idxCtrl.redireciona('#/exportacaoEsusNotifica')">
+									<i class="fa fa-cloud-download fa-fw"></i>
+									Exportação E-SUS Notifica
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioImportacaoResultadosCovid" href="#/relatorioImportacaoResultadosCovid" ng-if="idxCtrl.temPermissao('prm-importa-notificacao-covid')" ng-click="idxCtrl.redireciona('#/relatorioImportacaoResultadosCovid')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Importação de resultados COVID-19
+								</a>
+							</li>	
+							<li role="menuitem">
+								<a id="menuItemCadPriVac" href="#/importacaoCadastroPrioritarioVacina" ng-if="idxCtrl.temPermissao('prm-importa-cadastroprioritariovacina')" ng-click="idxCtrl.redireciona('#/importacaoCadastroPrioritarioVacina')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Importação de prioritários para vacinação
+								</a>
+							</li>						
+						</ul>
+					</li>
+
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('contrarreferencia')">
+						<a id="menuContrarreferencia" href="contrarreferencia" class="dropdown-toggle" ng-if="idxCtrl.temAlgumaPermissao(['prm-agendamento-contrarreferencia'])" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="n">
+							<i class="fa fa-child menuicone"></i>
+							<span class="menuitem">Contrarreferência</span>
+						</a>
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem" ng-if="idxCtrl.temPermissao('prm-agendamento-contrarreferencia')">
+								<a id="menuItemAgendamentoContrarreferencia" href="#/agendamentoContrarreferencia" ng-click="idxCtrl.redireciona('#/agendamentoContrarreferencia')">
+									<i class="fa fa-calendar fa-fw"></i>
+									Agendamento
+								</a>
+							</li>		
+							<li role="menuitem" ng-if="idxCtrl.temPermissao('prm-agendamento-contrarreferencia')">
+								<a id="menuItemListaAgendamentoContrarreferencia" href="#/listaAgendamentoContrarreferencia" ng-click="idxCtrl.redireciona('#/listaAgendamentoContrarreferencia')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Lista de agendamentos
+								</a>
+							</li>		
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('consultas')">
+						<a id="menuSolicitacoes" href="solicitacoes" class="dropdown-toggle" ng-if="idxCtrl.temAlgumaPermissao(['prm-visualizar-solicitacao','prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda'])" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="c">
+							<i class="fa fa-stethoscope menuicone"></i>
+							<span class="menuitem">Consultas</span>
+						</a>
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<a id="menuItemNovaSolicitacao" href="#/cadastraSolicitacao" ng-if="idxCtrl.temPermissao('prm-cadastrar-solicitacao') && (!idxCtrl.perfilAtencaoPrimaria())" ng-click="idxCtrl.redireciona('#/cadastraSolicitacao')">
+									<i class="fa fa-plus fa-fw"></i>
+									Nova solicitação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemSolicitacoes" href="#/consultaSolicitacoes" ng-if="idxCtrl.temPermissao('prm-visualizar-solicitacao') && (!idxCtrl.perfilAtencaoPrimaria() )" ng-click="idxCtrl.redireciona('#/consultaSolicitacoes')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Solicitações de consulta
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemSolicConf" href="#/listaSolicConfirmConsulta" ng-if="idxCtrl.temPermissao('prm-registrar-tentativa') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminAtencaoPrimaria()) && (!idxCtrl.perfilAdminExecutante()) && (!idxCtrl.perfilProfissionalExecutante())" ng-click="idxCtrl.redireciona('#/listaSolicConfirmConsulta')">
+									<i class="fa fa-phone fa-fw"></i>
+									Confirmação de consultas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemSolicitacoes" href="#/consultaSolicitacoesProvisorias" ng-if="idxCtrl.temPermissao('prm-visualizar-solicitacao') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminUnidadeSolicitante())" ng-click="idxCtrl.redireciona('#/consultaSolicitacoesProvisorias')">
+									<i class="fa fa-list-ul fa-fw"></i>Solicitações provisórias
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemConsultoria" href="#/consultoria" ng-if="idxCtrl.temPermissao('prm-registrar-consultoria')" ng-click="idxCtrl.redireciona('#/consultoria')">
+									<i class="fa fa-list-ul fa-fw"></i>Registro de consultoria
+								</a>
+							</li>
+							
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temPermissao('prm-regular-solicitacao') || idxCtrl.temPermissao('prm-visualizar-painel-solicitante') || idxCtrl.temPermissao('prm-visualizar-painel-executante') || idxCtrl.temPermissao('prm-visualizar-painel-nir') || idxCtrl.perfilApoioRegulacao()"></li>
+							<li role="menuitem">
+								<a id="menuItemRegulacao" href="#/dashboard" ng-if="idxCtrl.temPermissao('prm-regular-solicitacao')" ng-click="idxCtrl.redireciona('#/dashboard')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Dashboard da regulação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPainelRegulacao" href="#/painelRegulador" ng-if="idxCtrl.temPermissao('prm-regular-solicitacao') && !idxCtrl.perfilApoioRegulacao()" ng-click="idxCtrl.redireciona('#/painelRegulador')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Regulação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPainelRegulacao" href="#/painelMonitoramentoFilas" ng-if="idxCtrl.temPermissao('prm-monitorar-filas-consultas')" ng-click="idxCtrl.redireciona('#/painelMonitoramentoFilas')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Monitoramento das Filas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPainelApoioRegulacao" href="#/painelApoioRegulacao" ng-if="idxCtrl.perfilApoioRegulacao()" ng-click="idxCtrl.redireciona('#/painelApoioRegulacao')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Apoio à Regulação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemSolicitante" href="#/painelSolicitante" ng-if="idxCtrl.temPermissao('prm-visualizar-painel-solicitante')" ng-click="idxCtrl.redireciona('#/painelSolicitante')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Solicitante
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExecutante" href="#/painelExecutante" ng-if="idxCtrl.temPermissao('prm-visualizar-painel-executante')" ng-click="idxCtrl.redireciona('#/painelExecutante')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Executante
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemNIR" href="#/painelNIR" ng-if="idxCtrl.temPermissao('prm-visualizar-painel-nir')" ng-click="idxCtrl.redireciona('#/painelNIR')">
+									<i class="fa fa-th-large fa-fw"></i>
+									NIR
+								</a>
+							</li>
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda']) && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminAtencaoPrimaria())"></li>
+							<li role="menuitem">
+								<a id="menuItemTetos" href="#/consultaTetos" ng-if="idxCtrl.temPermissao('prm-visualizar-teto')" ng-click="idxCtrl.redireciona('#/consultaTetos')">
+									<i class="fa fa-file-text-o fa-fw"></i>
+									Tetos
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEscalas" href="#/consultaEscalasNovasDisp" ng-if="idxCtrl.temPermissao('prm-visualizar-escala') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS())" ng-click="idxCtrl.redireciona('#/consultaEscalasNovasDisp')">
+									<i class="fa fa-calendar-o fa-fw"></i>
+									Escalas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAgendas" href="#/consultaAgendas" ng-if="idxCtrl.temPermissao('prm-consultar-agenda') && (!idxCtrl.perfilAtencaoPrimaria()) && !idxCtrl.perfilExecutante()" ng-click="idxCtrl.redireciona('#/consultaAgendas')">
+									<i class="fa fa-calendar fa-fw"></i>
+									Agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAgendas" href="#/consultaAgendasExecutante" ng-if="idxCtrl.temPermissao('prm-consultar-agenda') && (idxCtrl.perfilGerenteAPS() || (!idxCtrl.perfilAtencaoPrimaria()) && idxCtrl.perfilExecutante())" ng-click="idxCtrl.redireciona('#/consultaAgendasExecutante')">
+									<i class="fa fa-calendar fa-fw"></i>
+									Agendas e sessões
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAgendas" href="#/consultaAgendas" ng-if="idxCtrl.temPermissao('prm-consultar-agenda') && idxCtrl.perfilDirecaoGeralAPS()" ng-click="idxCtrl.redireciona('#/consultaAgendas')">
+									<i class="fa fa-calendar fa-fw"></i>
+									Agendas atenção primária
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAgendas" href="#/consultaAgendasAPS" ng-if="!idxCtrl.perfilDirecaoGeralAPS() && idxCtrl.usuarioDaCentralCMCE() && ((idxCtrl.temPermissao('prm-consultar-agenda') && (idxCtrl.perfilAtencaoPrimaria() && !idxCtrl.perfilAdminUnidadeSolicitante()) || idxCtrl.perfilAdminAtencaoPrimaria()) || idxCtrl.perfilAtencaoPrimariaEspecializada() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])) " ng-click="idxCtrl.redireciona('#/consultaAgendas')">
+									<i class="fa fa-calendar fa-fw"></i>
+									Agendas atenção primária
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEscalasAtencaoPrimaria" href="#/consultaEscalasAtencaoPrimariaNovasDisp" ng-if="idxCtrl.usuarioDaCentralCMCE() && ((idxCtrl.perfilAtencaoPrimaria() && idxCtrl.usuarioDaCentralCMCE() && !idxCtrl.perfilMarcacaoAPS()) || idxCtrl.perfilAtencaoPrimariaEspecializada() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema']))" ng-click="idxCtrl.redireciona('#/consultaEscalasAtencaoPrimariaNovasDisp')">
+									<i class="fa fa-calendar-o fa-fw"></i>
+									Escalas atenção primária (calendário)
+								</a>
+							</li>
+
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-bloqueio-agenda','prm-excluir-agenda','prm-transferir-agenda']) && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS())"></li>
+
+							<li role="menuitem">
+								<a id="menuItemBloqueioAgendas" href="#/bloqueioAgendas" ng-if="idxCtrl.temPermissao('prm-bloqueio-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS())" ng-click="idxCtrl.redireciona('#/bloqueioAgendas')">
+									<i class="fa fa-calendar-times-o fa-fw"></i>
+									Bloqueio de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemLiberacaoAgendas" href="#/liberacaoAgendas" ng-if="idxCtrl.temPermissao('prm-bloqueio-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS())" ng-click="idxCtrl.redireciona('#/liberacaoAgendas')">
+									<i class="fa fa-calendar-check-o fa-fw"></i>
+									Liberação de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExclusaoAgenda" href="#/exclusaoAgenda" ng-if="idxCtrl.temPermissao('prm-excluir-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS())" ng-click="idxCtrl.redireciona('#/exclusaoAgenda')">
+									<i class="fa fa-calendar-minus-o fa-fw"></i>
+									Exclusão de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemTransferenciaoAgenda" href="#/transferenciaAgenda" ng-if="idxCtrl.temPermissao('prm-transferir-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS())" ng-click="idxCtrl.redireciona('#/transferenciaAgenda')">
+									<i class="fa fa-share fa-fw"></i>
+									Transferência de agendas
+								</a>
+							</li>
+							
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-importar-solicitacao', 'prm-consultar-importacao-solicitacao'])"></li>
+							
+							<li role="menuitem">
+								<a id="menuItemImportaSolicitacao" href="#/importaSolicitacao" ng-if="idxCtrl.temPermissao('prm-importar-solicitacao') && (idxCtrl.mostraImportacaoSolicitacao() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema']))" ng-click="idxCtrl.redireciona('#/importaSolicitacao')">
+									<i class="fa fa-upload fa-fw"></i>
+									Importar solicitações
+								</a>
+							</li>
+							
+							<li role="menuitem">
+								<a id="menuItemRelatorioImportacaoSolicitacao" ng-if="idxCtrl.temPermissao('prm-consultar-importacao-solicitacao')" href="#/relatorioImportacaoSolicitacao" ng-click="idxCtrl.redireciona('#/relatorioImportacaoSolicitacao')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Importação de solicitações
+								</a>
+							</li>
+						</ul>
+					</li>
+
+					<li role="menuitem" ng-show="idxCtrl.mostrarExames() && idxCtrl.podeVerMenu('exames')">
+						<a id="menuSolicitacoes" href="solicitacoes" class="dropdown-toggle" ng-if="idxCtrl.temAlgumaPermissao(['prm-visualizar-solicitacao','prm-cadastrar-consulta','prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda', 'prm-importar-solicitacao-exames', 'prm-consultar-importacao-solicitacao-exames'])" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="x">
+							<i class="fa fa fa-flask menuicone"></i>
+							<span class="menuitem">Exames</span>
+						</a>
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<a id="menuItemNovaSolicitacao" href="#/cadastraSolicitacaoExames" ng-if="idxCtrl.temPermissao('prm-cadastrar-solicitacao')" ng-click="idxCtrl.redireciona('#/cadastraSolicitacaoExames')">
+									<i class="fa fa-plus fa-fw"></i>
+									Nova solicitação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemSolicitacoes" href="#/consultaSolicitacoesExames" ng-if="idxCtrl.temPermissao('prm-visualizar-solicitacao')" ng-click="idxCtrl.redireciona('#/consultaSolicitacoesExames')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Solicitações de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemSolicConf" href="#/consultaSolicitacoesRealizacaoExames" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-cadastrar-consulta')" ng-click="idxCtrl.redireciona('#/consultaSolicitacoesRealizacaoExames')">
+									<i class="fa fa-flask fa-fw"></i>
+									Realização de exames
+								</a>
+							</li>
+
+							<li role="menuitem">
+								<a id="menuItemSolicConf" href="#/checkInExames" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-cadastrar-consulta')" ng-click="idxCtrl.redireciona('#/checkInExames')">
+									<i class="fa fa-home fa-fw"></i>
+									Check-in do paciente
+								</a>
+							</li>
+
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-regular-solicitacao','prm-visualizar-painel-solicitante','prm-visualizar-painel-executante','prm-visualizar-painel-nir',])"></li>
+
+							<li role="menuitem">
+								<a id="menuItemSolicitante" href="#/painelSolicitanteExames" ng-if="idxCtrl.temPermissao('prm-visualizar-painel-solicitante')" ng-click="idxCtrl.redireciona('#/painelSolicitanteExames')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Solicitante
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExecutante" href="#/painelExecutanteExames" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-visualizar-painel-executante')" ng-click="idxCtrl.redireciona('#/painelExecutanteExames')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Executante
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemNIR" href="#/painelNIRExames" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-visualizar-painel-nir')" ng-click="idxCtrl.redireciona('#/painelNIRExames')">
+									<i class="fa fa-th-large fa-fw"></i>
+									NIR
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPainelRegulacao" href="#/painelReguladorExames" ng-if="idxCtrl.temPermissao('prm-regular-solicitacao') && !idxCtrl.perfilApoioRegulacao()" ng-click="idxCtrl.redireciona('#/painelReguladorExames')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Regulação
+								</a>
+							</li>
+							
+							<li role="menuitem">
+								<a id="menuItemPainelApoioRegulacaoExames" href="#/painelApoioRegulacaoExames" ng-if="idxCtrl.perfilApoioRegulacao()" ng-click="idxCtrl.redireciona('#/painelApoioRegulacaoExames')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Apoio à Regulação
+								</a>
+							</li>							
+
+							<li role="menuitem" role="separator" class="divider" ng-if="(((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temAlgumaPermissao(['prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda'])) || idxCtrl.podeCadastrarGrupoExameCentral()) && !idxCtrl.perfilAtencaoPrimaria()"></li>
+
+							<li role="menuitem">
+								<a id="menuItemTetos" href="#/consultaTetosExames" ng-if="idxCtrl.temPermissao('prm-visualizar-teto')" ng-click="idxCtrl.redireciona('#/consultaTetosExames')">
+									<i class="fa fa-file-text-o fa-fw"></i>
+									Tetos
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEscalas" href="#/consultaEscalasExames" ng-if="((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-visualizar-escala')) || idxCtrl.podeCadastrarGrupoExameCentral()" ng-click="idxCtrl.redireciona('#/consultaEscalasExames')">
+									<i class="fa fa-calendar-o fa-fw"></i>
+									Escalas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAgendas" href="#/consultaAgendasExames" ng-if="((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-consultar-agenda')  && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral()" ng-click="idxCtrl.redireciona('#/consultaAgendasExames')">
+									<i class="fa fa-calendar fa-fw"></i>
+									Agendas
+								</a>
+							</li>
+							
+							<li role="menuitem" role="separator" class="divider" ng-if="(((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temAlgumaPermissao(['prm-bloqueio-agenda','prm-excluir-agenda'])) || idxCtrl.podeCadastrarGrupoExameCentral()) && !idxCtrl.perfilAtencaoPrimaria()"></li><!-- ,'prm-transferir-agenda' -->
+							
+							<li role="menuitem">
+								<a id="menuItemBloqueioAgendas" href="#/bloqueioAgendasExames" ng-if="((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-bloqueio-agenda') && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral()" ng-click="idxCtrl.redireciona('#/bloqueioAgendasExames')">
+									<i class="fa fa-calendar-times-o fa-fw"></i>
+									Bloqueio de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemLiberacaoAgendas" href="#/liberacaoAgendasExames" ng-if="((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-bloqueio-agenda') && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral()" ng-click="idxCtrl.redireciona('#/liberacaoAgendasExames')">
+									<i class="fa fa-calendar-check-o fa-fw"></i>
+									Liberação de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExclusaoAgenda" href="#/exclusaoAgendasExames" ng-if="((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissaoExclAgendaExame('prm-excluir-agenda')) || idxCtrl.podeCadastrarGrupoExameCentral()" ng-click="idxCtrl.redireciona('#/exclusaoAgendasExames')">
+									<i class="fa fa-calendar-minus-o fa-fw"></i>
+									Exclusão de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemTransferenciaoAgenda" href="#/transferenciaAgendaExames" ng-if="((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-transferir-agenda') && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral()" ng-click="idxCtrl.redireciona('#/transferenciaAgendaExames')">
+									<i class="fa fa-share fa-fw"></i>
+									Transferência de agendas
+								</a>
+							</li>
+							
+							<li role="menuitem" role="separator" class="divider" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temAlgumaPermissao(['prm-importa-resultado-exame', 'prm-cadastra-amostra-exame'])"></li>
+
+							<li role="menuitem">
+								<a id="menuAmostraExame" href="#/consultaAmostraExame" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-cadastra-amostra-exame')" ng-click="idxCtrl.redireciona('#/consultaAmostraExame')">
+									<i class="fa fa-medkit fa-fw"></i>
+									Amostra
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemIportaResultadoExame" href="#/importaResultadoExame" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-importa-resultado-exame')" ng-click="idxCtrl.redireciona('#/importaResultadoExame')">
+									<i class="fa fa-upload fa-fw"></i>
+									Upload de resultados
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioImportacaoResultadoExame" href="#/relatorioImportacaoResultadoExame" ng-if="(idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-importa-resultado-exame')" ng-click="idxCtrl.redireciona('#/relatorioImportacaoResultadoExame')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Importação de resultados de exames
+								</a>
+							</li>
+							
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-importar-solicitacao-exames', 'prm-consultar-importacao-solicitacao-exames'])"></li>
+							
+							<li role="menuitem">
+								<a id="menuItemImportaSolicitacaoExames" href="#/importaSolicitacaoExames" ng-if="idxCtrl.temPermissao('prm-importar-solicitacao-exames')" ng-click="idxCtrl.redireciona('#/importaSolicitacaoExames')">
+									<i class="fa fa-upload fa-fw"></i>
+									Importar solicitações
+								</a>
+							</li>
+							
+							<li role="menuitem">
+								<a id="menuItemRelatorioImportacaoSolicitacaoExames" ng-if="idxCtrl.temPermissao('prm-consultar-importacao-solicitacao-exames')" href="#/relatorioImportacaoSolicitacaoExames" ng-click="idxCtrl.redireciona('#/relatorioImportacaoSolicitacaoExames')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Importação de solicitações
+								</a>
+							</li>
+						</ul>
+					</li>
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('paciente')">
+						<a id="menuPaciente" href="paciente" class="dropdown-toggle" ng-if="idxCtrl.temAlgumaPermissao(['prm-agendamento-contrarreferencia', 'prm-visualizar-solicitacao', 'prm-visualizar-auditoria'])  || idxCtrl.perfisMenuPaciente()" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="p">
+							<i class="fa fa-user menuicone"></i>
+							<span class="menuitem">Paciente</span>
+						</a>
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<a id="menuItemUsuarioSUS" href="#/consultaUsuarioSUS" ng-click="idxCtrl.redireciona('#/consultaUsuarioSUS')">
+									<i class="fa fa-th-list fa-fw"></i>
+									Consulta usuário SUS
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemHistoricoPaciente" href="#/historicoPaciente" ng-if="(idxCtrl.temPermissao('prm-visualizar-solicitacao') || idxCtrl.perfisMenuPaciente())" ng-click="idxCtrl.redireciona('#/historicoPaciente')">
+									<i class="fa fa-clock-o fa-fw"></i>
+									Histórico do paciente no Gercon
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemgeradorQRCodeAps" href="#/geradorQRCodeAPS" ng-if="idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAtencaoPrimariaEspecializada()" ng-click="idxCtrl.redireciona('#/geradorQRCodeAPS')">
+									<i class="fa fa-home fa-fw"></i>
+									Liberação de acesso ao prontuário
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPesquisarProtocolo" href="#/pesquisaProtocolo" ng-if="idxCtrl.temPermissao('prm-visualizar-solicitacao')" ng-click="idxCtrl.redireciona('#/pesquisaProtocolo')">
+									<i class="fa fa-search fa-fw"></i>
+									Pesquisar protocolo
+								</a>
+							</li>
+							<li role="menuitem" ng-show="idxCtrl.podeVerMenu('programasDeSaude')">
+								<a id="menuItemProgramas" href="#/pesquisaPacientePrograma" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-profissional-solicitante','prf-profissional-executante','prf-administracao-aps','prf-coordenador-programas', 'prf-administrador-unidade-aps'])" ng-click="idxCtrl.redireciona('#/paciente/pesquisaPacientePrograma')">
+									<i class="fa fa-user-md fa-fw"></i>
+									Programas de saúde
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemUnidadeRefPaciente" href="#/unidadeRefPaciente" ng-if="idxCtrl.temPermissao('prm-agendamento-contrarreferencia') || ((idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && (idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAtencaoPrimariaEspecializada() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema']))) || idxCtrl.perfilCoordenadorProgramasDeSaude()" ng-click="idxCtrl.redireciona('#/unidadeRefPaciente')">
+									<i class="fa fa-home fa-fw"></i>
+									Unidade de referência do paciente no Gercon
+								</a>
+							</li>
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('programasDeSaude')">
+						<a id="menuPaciente" href="programasDeSaude" class="dropdown-toggle" ng-if="idxCtrl.perfisMenuProgramasDeSaude()" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="p">
+							<i class="fa fa-list-ul fa-fw"></i>
+							<span class="menuitem">Programas de saúde</span>
+						</a>
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<a id="menuItemPesquisaPaciente" href="#/pesquisaPacientePrograma" ng-if="idxCtrl.perfisMenuProgramasDeSaude()" ng-click="idxCtrl.redireciona('#/pesquisaPacientePrograma')">
+									<i class="fa fa-search fa-fw"></i>
+									Pesquisar Paciente
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemProgramaDeSaude" href="#/painelProgramasDeSaude" ng-if="idxCtrl.perfisMenuProgramasDeSaude()" ng-click="idxCtrl.redireciona('#/painelProgramasDeSaude')">
+									<i class="fa fa-th-large fa-fw"></i>
+									Programas de Saúde
+								</a>
+							</li>
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('gerenciamento')">
+						<a id="menuGerenciamento" href="gerenciamento" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastrar-exames', 'prm-cadastrar-programa-saude', 'prm-gerenciar-usuarios','prm-visualizar-parametros','prm-visualizar-criterio-classificacao','prm-visualizar-tabelas-auxiliares','prm-importar-cnes','prm-gerenciar-agenda','prm-rel-estat-fila-espera','prm-rel-estat-fila-espera-exames','prm-visualizar-programa-saude'])" accesskey="g">
+							<i class="fa fa-gear menuicone"></i>
+							<span class="menuitem">Gerenciamento</span>
+						</a>
+						
+						<ul class="dropdown-menu" role="menu">
+						
+							<li role="menuitem" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastrar-programa-saude', 'prm-vincular-cid-programa-saude', 'prm-vincular-medicamento-programa-saude', 'prm-vincular-perfil-programa-saude', 'prm-visualizar-programa-saude'])">
+								<a id="menuItemProgramas" href="#/consultaProgramaDeSaude" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastrar-programa-saude', 'prm-vincular-cid-programa-saude', 'prm-vincular-medicamento-programa-saude', 'prm-vincular-perfil-programa-saude', 'prm-visualizar-programa-saude'])" ng-click="idxCtrl.redireciona('#/consultaProgramaDeSaude')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Programas de saúde
+								</a>
+							</li>
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-cadastrar-programa-saude', 'prm-vincular-cid-programa-saude', 'prm-vincular-medicamento-programa-saude', 'prm-vincular-perfil-programa-saude']) && !idxCtrl.perfilCoordenadorProgramasDeSaude()"></li>
+						
+							<li role="menuitem">
+								<a id="menuItemProfissionais" href="#/consultaUsuarios" ng-if="idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.temPermissao('prm-gerenciar-profissionais')" ng-click="idxCtrl.redireciona('#/consultaUsuarios')">
+									<i class="fa fa-user-md fa-fw"></i>
+									Profissionais
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPermissoesPerfil" href="#/consultaPermPerfil" ng-if="idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.temPermissao('prm-gerenciar-profissionais')" ng-click="idxCtrl.redireciona('#/consultaPermPerfil')">
+									<i class="fa fa-unlock-alt fa-fw"></i>
+									Permissões por perfil
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemGerenciamentoPerfil" href="#/consultaGerenPerfil" ng-if="idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.temPermissao('prm-gerenciar-profissionais')" ng-click="idxCtrl.redireciona('#/consultaGerenPerfil')">
+									<i class="fa fa-unlock-alt fa-fw"></i>
+									Gerenciamento por perfil
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemWorkflowSolicitacao" href="#/workflowSolicitacao" ng-if="idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.podeVerPermissoesTrocaSituacaoConsulta()" ng-click="idxCtrl.redireciona('#/workflowSolicitacao')">
+									<i class="fa fa-refresh fa-fw"></i>
+									Permissões de troca de situação de consultas
+								</a>
+							</li>
+							<li role="menuitem" ng-if="idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-poa', 'prf-administrador-central-regulacao-rs', 'prf-admin-central'])">
+								<a id="menuItemWorkflowExames" href="#/workflowExames" ng-if="idxCtrl.temPermissao('prm-gerenciar-usuarios')" ng-click="idxCtrl.redireciona('#/workflowExames')">
+									<i class="fa fa-refresh fa-fw"></i>
+									Permissões de troca de situação de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemUsuariosIntegracao" href="#/usuariosIntegracao" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])" ng-click="idxCtrl.redireciona('#/usuariosIntegracao')">
+									<i class="fa fa-sitemap fa-fw"></i>
+									Usuários de integração com outros sistemas
+								</a>
+							</li>
+
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temPermissao('prm-gerenciar-usuarios')"></li>
+
+							<li role="menuitem">
+								<a id="menuItemEspecialidades" href="#/consultaEspecialidades" ng-if="idxCtrl.temPermissao('prm-visualizar-especialidades')" ng-click="idxCtrl.redireciona('#/consultaEspecialidades')">
+									<i class="fa fa-medkit fa-fw"></i>
+									Especialidades
+								</a>
+							</li>
+							<li role="menuitem" ng-if="idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa', 'prf-profissional-regulador', 'prf-coordenacao-laboratorial'])">
+								<a id="menuItemEspecialidades" href="#/consultaGruposExames" ng-if="idxCtrl.temAlgumaPermissao(['prm-visualizar-especialidades', 'prm-cadastrar-exames']) || idxCtrl.perfilUsuarioIn('prf-administrador-central-regulacao-rs')" ng-click="idxCtrl.redireciona('#/consultaGruposExames')">
+									<i class="fa fa-flask fa-fw"></i>
+									Exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuCadastroListaProcedimentos" href="#/consultaListaProcedimentos" ng-click="idxCtrl.redireciona('#/consultaListaProcedimentos')" ng-if="idxCtrl.perfilUsuarioIn(['prf-administrador-unidade','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa','prf-admin-sistema'])">
+									<i class="fa fa-plus fa-fw"></i>
+									Procedimentos
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEstabelecimentos" href="#/consultaEstabelecimentos" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaEstabelecimentos')">
+									<i class="fa fa-h-square fa-fw"></i>
+									Estabelecimentos
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRegionalizacao" href="#/consultaRegionalizacao" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaRegionalizacao')">
+									<i class="fa fa-map fa-fw"></i>
+									Regionalização Consultas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRegionalizacaoExames" href="#/consultaRegionalizacaoExames" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaRegionalizacaoExames')">
+									<i class="fa fa-map fa-fw"></i>
+									Regionalização Exames
+								</a>
+							</li>							<li role="menuitem">
+								<a id="menuItemRegiaoSaude" href="#/consultaRegiaoSaude" ng-if="idxCtrl.temAlgumaPermissao(['prm-consultar-regiao-saude', 'prm-editar-regiao-saude']) && !idxCtrl.perfilAtencaoPrimaria()" ng-click="idxCtrl.redireciona('#/consultaRegiaoSaude')">
+									<i class="fa fa-map-marker fa-fw"></i>
+									Coordenadorias e Regiões de saúde
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemDistritosSanitarios" href="#/distritosSanitarios" ng-if="idxCtrl.temPermissao('prm-distritos-visualizar') && !idxCtrl.perfilAtencaoPrimaria()" ng-click="idxCtrl.redireciona('#/distritosSanitarios')">
+									<i class="fa fa-sitemap fa-fw"></i>
+									Distritos sanitários
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemCriteriosClassificacao" href="#/consultaCriteriosClassificacao" ng-if="idxCtrl.temPermissao('prm-visualizar-criterio-classificacao') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminAtencaoPrimaria())" ng-click="idxCtrl.redireciona('#/consultaCriteriosClassificacao')">
+									<i class="fa fa-sort-amount-asc fa-fw"></i>
+									Critérios de classificação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemTrocaUnidadeSaude" href="#/trocaUnidadeSaude" ng-click="idxCtrl.redireciona('#/trocaUnidadeSaude')" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa','prf-admin-central'])">
+									<i class="fa fa-share-square-o fa-fw"></i>
+									Troca de unidade de saúde
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPrioridadeAltaQualificada" href="#/consultaPrioridadeAltaQualificada" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaPrioridadeAltaQualificada')">
+									<i class="fa fa-sort-amount-asc fa-fw"></i>
+									Prioridades da Alta Ambulatorial 
+								</a>
+							</li>
+
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temPermissao('prm-visualizar-parametros')"></li>
+
+							<li role="menuitem">
+								<a id="menuItemParametrosSistema" href="#/consultaParametros" ng-if="idxCtrl.temPermissao('prm-visualizar-parametros')" ng-click="idxCtrl.redireciona('#/consultaParametros')">
+									<i class="fa fa-sliders fa-fw"></i>
+									Parâmetros do sistema
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemTabelasAuxiliares" href="#/consultaTabAuxiliares" ng-if="idxCtrl.temPermissao('prm-visualizar-tabelas-auxiliares')" ng-click="idxCtrl.redireciona('#/consultaTabAuxiliares')">
+									<i class="fa fa-table fa-fw"></i>
+									Tabelas auxiliares
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemFeriados" href="#/consultaFeriados" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaFeriaodos')">
+									<i class="fa fa-sun-o fa-fw"></i>
+									Feriados
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemMensagemComprovante" href="#/mensagemComprovante" ng-if="idxCtrl.temPermissao('prm-visualizar-mensagem-comprovante')" ng-click="idxCtrl.redireciona('#/mensagemComprovante')">
+									<i class="fa fa-file-text-o fa-fw"></i>
+									Mensagens no comprovante
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAvisos" href="#/avisos" ng-if="idxCtrl.temPermissao('prm-cadastrar-avisos')" ng-click="idxCtrl.redireciona('#/avisos')">
+									<i class="fa fa-file-text-o fa-fw"></i>
+									Avisos e novidades
+								</a>
+							</li>
+							<li role="menuitem" ng-if="idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-poa','prf-administrador-central-regulacao-rs', 'prf-administrativo-cmce', 'prf-admin-central'])">
+								<a id="menuItemPreparoExames" href="#/preparoExames" ng-if="idxCtrl.temPermissao('prm-cadastrar-preparo-exames')" ng-click="idxCtrl.redireciona('#/preparoExames')">
+									<i class="fa fa-file-text fa-fw"></i>
+									Preparo para exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemDeParaSubespecialidades" href="#/consultaDeParaSubespecialidades" ng-if="idxCtrl.temPermissao('prm-cadastrar-especialidades') && !idxCtrl.perfilAtencaoPrimaria()" ng-click="idxCtrl.redireciona('#/consultaDeParaSubespecialidades')">
+									<i class="fa fa-medkit fa-fw"></i>
+									De Para Subespecialidades
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemDeParaSubespecialidades" href="#/consultaMutiraoEstabEspec" ng-if="idxCtrl.temPermissao('prm-vincular-especialidade-estabelecimento-mutirao')" ng-click="idxCtrl.redireciona('#/consultaMutiraoEstabEspec')">
+									<i class="fa fa-file-text-o fa-fw"></i>
+									Especialidades de Mutirão X Estabelecimento
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemMotivosTrocaUnidadeAps" href="#/consultaMotivosTrocaUnidadeAps" ng-if="idxCtrl.temPermissao('prm-cadastrar-motivos')" ng-click="idxCtrl.redireciona('#/consultaMotivosTrocaUnidadeAps')">
+									<i class="fa fa-table fa-fw"></i>
+									Motivos para troca de unidade de referência da APS
+								</a>
+							</li>
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temAlgumaPermissao(['prm-importar-cnes', 'prm-executar-rotina'])"></li>
+
+							<li role="menuitem">
+								<a id="menuItemImportacaoCNES" href="#/executarImportacaoTabelasCNES" ng-if="idxCtrl.temPermissao('prm-importar-cnes')" ng-click="idxCtrl.redireciona('#/executarImportacaoTabelasCNES')">
+									<i class="fa fa-play fa-fw"></i>
+									Importação das tabelas da base CNES
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemImportacaoResultadosCOVID" href="#/executarImportacaoResultadosCOVID" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarImportacaoResultadosCOVID')">
+									<i class="fa fa-play fa-fw"></i>
+									Importação de resultados de exames COVID-19
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExportaNotificacaoCovidEsus" href="#/exportaNotificacaoCovidEsus" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/exportaNotificacaoCovidEsus')">
+									<i class="fa fa-play fa-fw"></i>
+									Exportar Notificações para E-SUS Notifica
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemImportaErroEsusNotifica" href="#/importaErroEsusNotifica" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/importaErroEsusNotifica')">
+									<i class="fa fa-play fa-fw"></i>
+									Importar erros integração E-SUS Notifica
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPopulaSolicitacaoAgendamentoMutirao" href="#/populaSolicitacaoAgendamentoMutirao" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/populaSolicitacaoAgendamentoMutirao')">
+									<i class="fa fa-play fa-fw"></i>
+									Popula solicitação agendamento de mutirão
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaAgendamentoAutomatico" href="#/executarAgendamento" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarAgendamento')">
+									<i class="fa fa-play fa-fw"></i>
+									Agendamento automático de consultas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaAgendamentoAutomatico" href="#/executarAgendamentoExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarAgendamentoExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Agendamento automático de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaAgendamentoAutomatico" href="#/executarAgendamentoExamesAgendaUnica" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarAgendamentoExamesAgendaUnica')">
+									<i class="fa fa-play fa-fw"></i>
+									Agendamento automático de exames de agenda única
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaCalculoPontosSolicitacoes" href="#/executarCalculoPontosTempo" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarCalculoPontosTempo')">
+									<i class="fa fa-play fa-fw"></i>
+									Cálculo dos pontos por tempo
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaAlteracaoSituacaoSolicitacoes" href="#/executarAlteracaoSituacaoSolicitacao" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarAlteracaoSituacaoSolicitacao')">
+									<i class="fa fa-play fa-fw"></i>
+									Alteração da situação das solicitações de consultas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaTrocaSituacaoSolicitacoesExames" href="#/executarTrocaSituacaoSolicitacoesExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarTrocaSituacaoSolicitacoesExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Troca da situação das solicitações de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaTrocaSituacaoNotificacoesCovid" href="#/executarTrocaSituacaoNotificacoesCovid" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarTrocaSituacaoNotificacoesCovid')">
+									<i class="fa fa-play fa-fw"></i>
+									Troca da situação das notificações COVID-19
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaEstatisticasFilaDeEspera" href="#/executarEstatisticasFilaDeEspera" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarEstatisticasFilaDeEspera')">
+									<i class="fa fa-play fa-fw"></i>
+									Atualização das estatísticas da fila de espera (consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaEstatisticasFilaDeEsperaExames" href="#/executarEstatisticasFilaDeEsperaExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarEstatisticasFilaDeEsperaExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Atualização das estatísticas da fila de espera (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaMediaFilaDeEspera" href="#/executarMediaFilaDeEspera" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarMediaFilaDeEspera')">
+									<i class="fa fa-play fa-fw"></i>
+									Cálculo da média de espera na fila (consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaMediaFilaDeEsperaExames" href="#/executarMediaFilaDeEsperaExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarMediaFilaDeEsperaExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Cálculo da média de espera na fila (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuImportacaoFilaExame" href="#/importaFilaExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])" ng-click="idxCtrl.redireciona('#/importaFilaExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Importação fila de espera de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuImportacaoEsusAPS" href="#/importaEsusAPS" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])" ng-click="idxCtrl.redireciona('#/importaEsusAPS')">
+									<i class="fa fa-play fa-fw"></i>
+									Importação de consultas E-SUS (APS)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a href="#/importaMedicamentosDispensacao" id="menuImportacaoMedicamentosDispensacao" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])" ng-click="idxCtrl.redireciona('#/importaMedicamentosDispensacao')">
+									<i class="fa fa-play fa-fw"></i>
+									Importação da lista de medicamentos (Dispensação)
+								</a>
+							</li>
+							
+							<li role="menuitem">
+								<a href="#/encerraLaudoProgSaude" id="menuEncerraLaudoProgSaude" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])" ng-click="idxCtrl.redireciona('#/encerraLaudoProgSaude')">
+									<i class="fa fa-play fa-fw"></i>
+									Encerramento de laudos (programa de saúde)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemImportacaoResultadoExame" href="#/executarImportacaoResultadoExame" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarImportacaoResultadoExame')">
+									<i class="fa fa-play fa-fw"></i>
+									Importação de resultados de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExecutarInsereEnvioMensagemDiasAntesConsulta" href="#/executarInsereEnvioMensagemDiasAntesConsulta" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarInsereEnvioMensagemDiasAntesConsulta')">
+									<i class="fa fa-play fa-fw"></i>
+									Gravar dados para envio de mensagem para o paciente
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExecutarEnvioSMSPacienteLote" href="#/executarEnvioSMSPacienteLote" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarEnvioSMSPacienteLote')">
+									<i class="fa fa-play fa-fw"></i>
+									Envio de SMS e Whatsapp para paciente em lote
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPopulaPosicaoConsulta" href="#/populaPosicaoConsulta" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/populaPosicaoConsulta')">
+									<i class="fa fa-play fa-fw"></i>
+									Popula posição solicitação de consulta
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPopulaPosicaoExames" href="#/populaPosicaoExames" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/populaPosicaoExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Popula posição solicitação de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExecutaImportacaoPacientesProgramaSaude" href="#/executaImportacaoPacienteProgramaSaude" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executaImportacaoPacienteProgramaSaude')">
+									<i class="fa fa-play fa-fw"></i>
+									Importações programas de saúde
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemExecutarDesvinculaPacienteProgramaAlta" href="#/executarDesvinculaPacienteProgramaAlta" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarDesvinculaPacienteProgramaAlta')">
+									<i class="fa fa-play fa-fw"></i>
+									Desvincula paciente do programa por alta
+								</a>
+							</li>	
+							<li role="menuitem">
+								<a id="menuItemExecutarCalculoIdadeGestacional" href="#/executarCalculoIdadeGestacional" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarCalculoIdadeGestacional')">
+									<i class="fa fa-play fa-fw"></i>
+									Cálculo da idade gestacional
+								</a>
+							</li>		
+							<li role="menuitem">
+								<a id="menuItemProcessaImportacaoSolicitacao" href="#/executarImportacaoSolicitacao" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarImportacaoSolicitacao')">
+									<i class="fa fa-play fa-fw"></i>
+									Processamento de importação de solicitação
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemProcessaImportacaoSolicitacao" href="#/executarImportacaoSolicitacaoExames" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarImportacaoSolicitacaoExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Processamento de importação de solicitação de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaSolicitacoesNaFilaSemEscala" href="#/executarSolicitacoesNaFilaSemEscala" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarSolicitacoesNaFilaSemEscala')">
+									<i class="fa fa-play fa-fw"></i>
+									Solicitações na fila de espera e sem escala
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaRemovePerfilUsuariosSemAcesso" href="#/executarRemovePerfilUsuariosSemAcesso" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarRemovePerfilUsuariosSemAcesso')">
+									<i class="fa fa-play fa-fw"></i>
+									Remove perfil de usuários sem acesso
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaRemovePerfilUsuariosSemAcesso" href="#/executarAtualizaRegionalizacaoConsultas" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarAtualizaRegionalizacaoConsultas')">
+									<i class="fa fa-play fa-fw"></i>
+									Atualiza unidades indicadas pela regionalização - Consultas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRotinaRemovePerfilUsuariosSemAcesso" href="#/executarAtualizaRegionalizacaoExames" ng-if="idxCtrl.temPermissao('prm-executar-rotina')" ng-click="idxCtrl.redireciona('#/executarAtualizaRegionalizacaoExames')">
+									<i class="fa fa-play fa-fw"></i>
+									Atualiza unidades indicadas pela regionalização - Exames
+								</a>
+							</li>
+							<li role="menuitem" class="divider ng-scope" ng-if="idxCtrl.temPerfil('prf-admin-sistema') && idxCtrl.getLogsLinks().length > 0"></li>
+                            
+                            <li role="menuitem" ng-if="idxCtrl.temPerfil('prf-admin-sistema')" ng-repeat="logsLink in idxCtrl.getLogsLinks() track by $index">
+                            	<a id="menuItemLogs{{$index}}" ng-href="{{ logsLink.link }}" target="_blank">
+                            		<i class="fa fa-external-link fa-fw"></i>{{ logsLink.label }}
+                            	</a>
+                            </li>
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-if="idxCtrl.podeVerMenu('relatorios')">
+						<a id="menuRelatorios" href="relatorios" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="r">
+							<i class="fa fa-bar-chart menuicone"></i>
+							<span class="menuitem">Relatórios</span>
+						</a>
+						<ul class="dropdown-menu dropdown-menu-right" role="menu">
+							<li role="menuitem">
+								<a id="menuItemAcompanhamentoMutirao" href="#/acompanhamentoMutirao" ng-if="idxCtrl.perfilUsuarioIn(['prf-administrador-central-regulacao-poa'])" ng-click="idxCtrl.redireciona('#/acompanhamentoMutirao')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Acompanhamento de mutirão
+								</a>
+							</li>							
+							<li role="menuitem">
+								<a id="menuItemRelatorioRotinaAgendamento" href="#/relatorioAgendamento" ng-if="idxCtrl.temPermissao('prm-rel-agendamentos') && !idxCtrl.perfilAtencaoPrimaria()" ng-click="idxCtrl.redireciona('#/relatorioAgendamento')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Agendamentos de consultas (em bloco e automático)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioRotinaAgendamento" href="#/relatorioAgendamentoExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-rel-agendamentos') && !idxCtrl.perfilAtencaoPrimaria()" ng-click="idxCtrl.redireciona('#/relatorioAgendamentoExames')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Agendamento de exames (automático)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioAgendamentosPorLocalidadeSolicitante" href="#/relatorioAgendamentosPorLocalidadeSolicitante" ng-if="idxCtrl.temPermissao('prm-rel-agendam-local-solicitante')" ng-click="idxCtrl.redireciona('#/relatorioAgendamentosPorLocalidadeSolicitante')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Agendamentos por localidade solicitante
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemUsoAgendasPorServico" href="#/usoAgendasPorServico"
+									ng-if="idxCtrl.perfilUsuarioIn(['prf-administrador-unidade','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa',
+									'prf-admin-sistema','prf-admin-central', 'prf-gestor', 'prf-admin-secretaria-de-saude', 'prf-profissional-regulador-estadual', 'prf-profissional-regulador',
+									'prf-consultor', 'prf-administracao-aps']) 
+												|| idxCtrl.perfisGerenciamentoAPS() 
+												|| idxCtrl.perfilGerenteAPS()" ng-click="idxCtrl.redireciona('#/usoAgendasPorServico')">
+									<i class="fa fa-th-list fa-fw"></i>
+									Uso de agendas por serviço - consultas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemUsoAgendasPorServico" href="#/usoAgendasPorServicoExames" ng-if="idxCtrl.temPermissao('prm-rel-uso-agendas-por-servico-exames')" ng-click="idxCtrl.redireciona('#/usoAgendasPorServicoExames')">
+									<i class="fa fa-th-list fa-fw"></i>
+									Uso de agendas por serviço - exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemUsoAgendasPorServico" href="#/relatorioPacienteVinculo" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) 
+												|| idxCtrl.perfisGerenciamentoAPS() 
+												|| idxCtrl.perfilGerenteAPS()" ng-click="idxCtrl.redireciona('#/relPacientesVinculo')">
+									<i class="fa fa-th-list fa-fw"></i>Relação de pacientes com vínculo na unidade
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemUsoAgendasPorServico" href="#/relatorioErrosEsus" ng-if="idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) 
+												|| idxCtrl.perfisGerenciamentoAPS() 
+												|| idxCtrl.perfilGerenteAPS()" ng-click="idxCtrl.redireciona('#/relatorioErrosEsus')">
+									<i class="fa fa-th-list fa-fw"></i>Erros de integração com E-SUS
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioUtilizacaoCotas" href="#/consultaCotasUtilizadas" ng-if="idxCtrl.temPermissao('prm-rel-utilizacao-cotas')" ng-click="idxCtrl.redireciona('#/consultaCotasUtilizadas')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Cotas utilizadas (consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioUtilizacaoCotasExames" href="#/consultaCotasUtilizadasExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-rel-utilizacao-cotas')" ng-click="idxCtrl.redireciona('#/consultaCotasUtilizadasExames')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Cotas utilizadas (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemProcedimentosExecutados" href="#/procExecutados" ng-if="idxCtrl.temPermissao('prm-rel-proc-executados')" ng-click="idxCtrl.redireciona('#/procExecutados')">
+									<i class="fa fa-bar-chart fa-fw"></i>
+									Procedimentos executados
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEstatisticasAgendas" href="#/estatAgenda" ng-if="idxCtrl.temPermissao('prm-rel-estat-agendas')" ng-click="idxCtrl.redireciona('#/estatAgenda')">
+									<i class="fa fa-bar-chart fa-fw"></i>
+									Estatísticas de agendas (primeiras consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEstatisticasAgendasExames" href="#/estatAgendaExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-rel-estat-agendas')" ng-click="idxCtrl.redireciona('#/estatAgendaExames')">
+									<i class="fa fa-bar-chart fa-fw"></i>
+									Estatísticas de agendas de exames
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioFilaDeEspera" href="#/relatorioFilaDeEspera" ng-if="idxCtrl.temPermissao('prm-rel-estat-fila-espera')" ng-click="idxCtrl.redireciona('#/relatorioFilaDeEspera')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Estatísticas da fila de espera (consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioFilaDeEsperaExames" href="#/relatorioFilaDeEsperaExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-rel-estat-fila-espera-exames')" ng-click="idxCtrl.redireciona('#/relatorioFilaDeEsperaExames')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Estatísticas da fila de espera (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEstatisticasSolicitacoesAgendadas" href="#/estatSolAgendada" ng-if="idxCtrl.temPermissao('prm-rel-estat-solic-agendadas')" ng-click="idxCtrl.redireciona('#/estatSolAgendada')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Estatísticas de solicitações agendadas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEstatisticasSolicitacoes" href="#/estatisticaSolicitacoes" ng-if="idxCtrl.temPermissao('prm-rel-estat-solicitacoes')" ng-click="idxCtrl.redireciona('#/estatisticaSolicitacoes')">
+									<i class="fa fa-bar-chart fa-fw"></i>
+									Estatísticas de solicitações na fila
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemEstatisticasSolicitacoesGestao" href="#/estatSolGestao" ng-if="idxCtrl.temPermissao('prm-rel-estat-solic-gestao')" ng-click="idxCtrl.redireciona('#/estatSolGestao')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Estatísticas de solicitações agendadas para gestão
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioMediaFilaDeEspera" href="#/relatorioMediaFilaDeEspera" ng-if="idxCtrl.temPermissao('prm-rel-tempo-medio-espera')" ng-click="idxCtrl.redireciona('#/relatorioMediaFilaDeEspera')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Tempo médio de espera na fila (consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioMediaFilaDeEspera" href="#/relatorioMediaFilaDeEsperaExames" ng-if="idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-rel-tempo-medio-espera-exames')" ng-click="idxCtrl.redireciona('#/relatorioMediaFilaDeEspera')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Tempo médio de espera na fila (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioMediaFilaDeEspera" href="#/relatorioAgendasSessoesPaciente" ng-if="idxCtrl.temPermissao('prm-rel-agendas-sessoes-paciente')" ng-click="idxCtrl.redireciona('#/relatorioAgendasSessoesPaciente')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Agendas/sessões por paciente
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioPacientesFaltantes" href="#/pacientesFaltantes" ng-if="idxCtrl.temPermissao('prm-rel-pacientes-faltantes')" ng-click="idxCtrl.redireciona('#/pacientesFaltantes')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Pacientes faltantes
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioPacientesFaltantesExames" href="#/relatorioListaFaltantesExames" ng-if="idxCtrl.temPermissao('prm-relatorio-lista-faltantes-exames')" ng-click="idxCtrl.redireciona('#/relatorioListaFaltantesExames')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Pacientes faltantes (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioSolicitacoesEmFilaEspera" href="#/relatorioSolicitacoesEmFilaDeEspera" ng-if="idxCtrl.temPermissao('prm-rel-solic-fila-espera')" ng-click="idxCtrl.redireciona('#/relatorioSolicitacoesEmFilaDeEspera')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Lista de solicitações em fila de espera (consultas)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioSolicitacoesExamesEmFilaEspera" href="#/relatorioSolicitacoesExamesEmFilaDeEspera" ng-if="idxCtrl.temPermissao('prm-rel-solic-fila-espera')" ng-click="idxCtrl.redireciona('#/relatorioSolicitacoesExamesEmFilaDeEspera')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Lista de solicitações de em fila de espera (exames)
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioEstatisticasDitas" href="#/relatorioEstatisticasDitas" ng-if="idxCtrl.temPermissao('prm-rel-estatisticas-dita')" ng-click="idxCtrl.redireciona('#/relatorioEstatisticasDitas')">
+									<i class="fa fa-bar-chart fa-fw"></i>
+									Estatísticas de Dita
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemOfertaMensalAgendas" href="#/ofertaMensalAgendas" ng-if="idxCtrl.temPermissao('prm-rel-oferta-mensal-agendas')" ng-click="idxCtrl.redireciona('#/ofertaMensalAgendas')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Oferta mensal de agendas
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioPesquisaAghos" href="#/relatorioPesquisaAghos" ng-if="idxCtrl.temPermissao('prm-rel-pesquisa-aghos')" ng-click="idxCtrl.redireciona('#/relatorioPesquisaAghos')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Pesquisa AGHOS
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioEvolucoes" href="#/relatorioHistoricoEvolucoes" ng-if="idxCtrl.temPermissao('prm-rel-historico-evolucoes')" ng-click="idxCtrl.redireciona('#/relatorioHistoricoEvolucoes')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Histórico de evoluções
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioVerificaEnvioMensagens" href="#/relatorioVerificaEnvioMensagens" ng-if="(idxCtrl.temPermissao('prm-rel-verifica-envio-mensagens')&&idxCtrl.usuarioDaCentralCMCE())||idxCtrl.temPerfil('prf-admin-sistema')" ng-click="idxCtrl.redireciona('#/relatorioVerificaEnvioMensagens')" >
+									<i class="fa fa-list-ul fa-fw"></i>
+									Relatório de envio de mensagens
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioAuditoriaSistema" href="#/relatorioAuditoriaDoSistema" ng-if="idxCtrl.temPerfil('prf-admin-sistema')" ng-click="idxCtrl.redireciona('#/relatorioAuditoriaDoSistema')">
+									<i class="fa fa-history fa-fw"></i>
+									Histórico do sistema
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemListaSolicitacoesOCI" href="#/relatorioSolicitacoesTipoOCI" ng-click="idxCtrl.redireciona('#/relatorioSolicitacoesTipoOCI')"
+									ng-if="idxCtrl.temPermissao('prm-rel-solic-tipo-oci')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Lista de solicitações classificadas como OCI
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemPosicaoDaSolicitacaoEmFila" href="#/posicaoDaSolicitacaoEmFila" ng-click="idxCtrl.redireciona('#/posicaoDaSolicitacaoEmFila')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Estimativa da posição de solicitação de consulta em fila de espera
+								</a>
+							</li>	
+							<li role="menuitem">
+								<a id="menuItemPosicaoDaSolicitacaoExamesEmFila" href="#/posicaoDaSolicitacaoExamesEmFila" ng-click="idxCtrl.redireciona('#/posicaoDaSolicitacaoExamesEmFila')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Estimativa da posição de solicitação de exames em fila de espera
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemAgendasPorPaciente" href="#/agendasPorPaciente" ng-click="idxCtrl.redireciona('#/agendasPorPaciente')"
+									ng-if="idxCtrl.temPermissao('prm-rel-agendas-por-paciente')">
+									<i class="fa fa-list-ul fa-fw"></i>
+									Agendas por paciente
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemRelatorioListaSolicitacoesAlta" href="#/relatorioListaSolicitacoesAlta"  
+									ng-if="idxCtrl.temPermissao('prm-rel-solicitacoes-alta-qualificada')"
+									ng-click="idxCtrl.redireciona('#/relatorioListaSolicitacoesAlta')" > 
+									<i class="fa fa-list-ul fa-fw"></i>
+									Relatório da Lista de Solicitações com Alta
+								</a>
+							</li>									
+						</ul>
+					</li>
+					<li role="menuitem" ng-if="idxCtrl.podeVerMenu('ajuda')">
+						<a id="menuAjuda" href="ajuda" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="a">
+							<i class="fa fa-question-circle menuicone" ng-class="{'notification-pointer' : $root.possuiAvisos}"></i>
+							<span class="menuitem">Ajuda</span>
+						</a>
+						<ul class="dropdown-menu dropdown-menu-right" role="menu">
+							<li role="menuitem">
+								<a id="menuItemDocumentosTutoriais" href="#/documentosTutoriais" ng-click="idxCtrl.redireciona('#/documentosTutoriais')">
+									<i class="fa fa-book fa-fw"></i>
+									Documentos & tutoriais
+								</a>
+							</li>							
+							<li role="menuitem">
+								<a id="menuAvisosNovidades" href="#/avisosNovidadesLeitura">
+									<i class="fa fa-bell fa-fw" ng-class="{'notification-pointer' : $root.possuiAvisos}"></i>
+									Avisos e novidades
+								</a>
+							</li>
+							<li role="menuitem" role="separator" class="divider" ng-if="idxCtrl.temPermissao('prm-importar-cnes')"></li>
+							
+							<li role="menuitem" ng-if="idxCtrl.podeVerDocSistema()">
+								<a id="menuItemDocumentacaoRegrasSistema" href="{{ idxCtrl.retornaUrlDocumentacaoSistema() }}" target="_blank">
+									<i class="fa fa-external-link fa-fw"></i>
+									Documentação das regras do sistema
+								</a>
+							</li>
+							<li role="menuitem">
+								<a id="menuItemDocumentacaoRegrasSistema" href="{{ idxCtrl.retornaUrlPerguntasFrequentes() }}" target="_blank">
+									<i class="fa fa-external-link fa-fw"></i>
+									Perguntas frequentes
+								</a>
+							</li>
+						</ul>
+					</li>
+				</ul>
+			</div>
+		</nav>
+
+		<div class="container-fluid">
+			<ul class="breadcrumb">
+				<li ng-repeat="bc in idxCtrl.caminho">
+					<ng-switch on="$last" ng-cloak>
+						<span ng-switch-when="true" class="atual">{{bc.label}}</span>
+						<span ng-switch-default>{{bc.label}}</span>
+					</ng-switch>
+				</li>
+			</ul>
+		</div>
+	</div>
+	<div ng-controller="consultaLocaisController as ctrl" ng-cloak>
+
+		<div class="col-md-12" ng-if="usuario.login=='covid19' && ctrl.fecharMsgCovid!=true">
+			<br>
+			<div class="col-md-1"></div>
+			<div class="col-md-11">
+					<b>Prezada(o) profissional de saúde,</b><br><br>
+
+					<b>O login genérico COVID-19 está desativado. Proceda conforme uma das opções abaixo:</b><br><br>
+
+					<b>1 - NOTIFICAR E INDICAR TESTAGEM</b><br>
+					Solicite seu perfil notificante ao sistema Gercon Notificações pelo e-mail perfil.covid@portoalegre.rs.gov.br com os seguintes dados:<br>
+				<ul>
+					<li> * nome completo</li>
+					<li> * email</li>
+					<li> * CPF</li>
+					<li> * Telefone de contato</li>
+					<li> * Estabelecimento de saúde.</li>
+				</ul><br>
+
+				<b>2 - APENAS NOTIFICAR</b><br>
+				Notifique o caso pelo e-sus Notifica, mediante cadastro e acesso no site <a href='//notifica.saude.gov.br'>notifica.saude.gov.br</a><br><br>
+
+				<b>Secretaria Municipal de Saúde de Porto Alegre</b>
+
+				<div class="row botoes">
+					<div class="col-md-12 text-center">
+						<button id="btnFechar" class="btn btn-primary" aria-label="Center Align" ng-click="ctrl.fecharMsgCovid=true;">
+							<i class="glyphicon glyphicon-cancel" aria-hidden="true"></i>
+							Fechar Mensagem
+						</button>
+					</div>
+				</div>
+
+			</div>
+		</div>
+
+		<div class="container" ng-if="((perfilNome==null) && (ctrl.listaLocais.length > 0))">
+
+			<div class="container-fluid seleciona-perfil">
+				<h1 class="page-header">Olá, {{usuario.nome}}</h1>
+
+				<h3>Selecione <strong>estabelecimento</strong> e <strong>perfil</strong> para acessar o <strong>Gercon</strong></h3>
+
+				<form name="formValidaUsuario" novalidate auto-focus-input>
+					<div class="estabelecimento-perfil" ng-repeat="opcao in ctrl.listaLocais track by $index">
+						<h6>{{opcao.estabSaude.nome}}<span class="infosecundaria"> - {{opcao.estabSaude.municipio.nome}}</span></h6>
+						<span class="botoes perfil">
+							<button class="btn btn-{{ctrl.obterClassPorPerfil(perfil.keycloakRole)}}" type="button" ng-click="ctrl.validaUsuario(opcao.estabSaude, perfil)" ng-repeat="perfil in opcao.perfis">{{perfil.nome}}</button>
+						</span>
+					</div>
+				</form>
+			</div>
+
+			<div class="form-group" ng-class="{ 'has-error' : erro.length > 0 }">
+				<p ng-show="erro.length > 0" class="help-block">{{erro}}</p>
+			</div>
+		</div>
+	</div>
+
+	<div ng-view ng-hide="perfilNome==null" class="container-fluid" ng-cloak></div>
+	<div ng-show="idxCtrl.verificaPerfil(role)" ng-controller="indexController as idxCtrl"></div>
+
+	<div ng-if="role != 'prf-administrador-central-regulacao-rs' && role != 'prf-administrador-central-regulacao-poa' && role != 'prf-admin-central'">
+		<div ng-controller="indexController as idxCtrl">
+			<div class="modal fade" style="overflow:scroll" data-keyboard="false" data-backdrop="static" id="modalAvisosNovidades" role="dialog">
+				<div class="modal-dialog modal-lg">
+			     	<!-- Modal content-->
+			        <div class="modal-content">
+			       		<div class="modal-header">
+			           		<strong> Avisos e Novidades</strong>
+			           		
+			           		 <button type="button" class="btn btn-default pull-right" id="sairModalBtn" data-dismiss="modal" ng-click="idxCtrl.fechaModal()">
+		                         <i class="fa fa-times" aria-hidden="true"></i> Fechar
+		                     </button>
+			           		<button type="button" class="btn btn-default pull-right" id="lidoModalBtn" data-dismiss="modal" ng-click="idxCtrl.marcarComoLido()">
+		                         <i class="fa fa-check" aria-hidden="true"></i> Marcar como lido
+		                     </button>	                    
+			       		</div>
+			
+			            <form name="avisosNovidadesForm" novalidate auto-focus-input>
+			            	<div class="modal-body">
+								<ul class="timeline">
+									<li ng-repeat="aviso in avisos track by $index">
+										<span class="avisoResize" ng-bind-html="idxCtrl.trustAsHtml(aviso.texto)"></span>
+										<div class="timeline-heading">
+											<span class="data">{{ aviso.inicio | date : 'dd/MM/yyyy' }}</span>
+										</div>
+									</li>
+								</ul>	
+			                 </div>
+			
+			                 <div class="modal-footer">
+			                  	 <button type="button" class="btn btn-default pull-left" id="lidoModalBtn" data-dismiss="modal" ng-click="idxCtrl.marcarComoLido()">
+			                         <i class="fa fa-check" aria-hidden="true"></i> Marcar como lido
+			                     </button>
+			                     <button type="button" class="btn btn-default pull-right" id="sairModalBtn" data-dismiss="modal" ng-click="idxCtrl.fechaModal()">
+			                         <i class="fa fa-times" aria-hidden="true"></i> Fechar
+			                     </button>
+			                 </div>
+			             </form>	
+			         </div>
+			     </div>
+			</div>
+		</div>
+	</div>
+	
+	<footer class="footer" ng-controller="indexController as idxCtrl">
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-6">
+					<a href="http://www.procempa.com.br">
+						<img src="img/desenvolvimento_procempa.png" alt="Desenvolvimento: Procempa" />
+					</a>
+				</div>
+				<div class="col-md-6 text-right text-muted" style="padding-top:5px">
+					<b>v20260306-004512</b>
+				</div>
+			</div>
+		</div>
+	</footer>
+	
+</body>
+
+</html>
