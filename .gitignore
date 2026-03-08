@@ -146,3 +146,7 @@ data/
 # Allow study data
 !studies/rag_pipeline/data/
 !studies/rag_pipeline/data/*.txt
+
+# dev data
+*dom.
+

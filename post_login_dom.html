@@ -1,0 +1,789 @@
+<!DOCTYPE html><html lang="pt"><head><style type="text/css">@charset "UTF-8";[ng\:cloak],[ng-cloak],[data-ng-cloak],[x-ng-cloak],.ng-cloak,.x-ng-cloak,.ng-hide:not(.ng-hide-animate){display:none !important;}ng\:form{display:block;}</style>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta http-equiv="Content-Type" content="text/html;charset=iso-8859-1">
+	<meta http-equiv="cache-control" content="no-cache, no-store, must-revalidate, max-age=0">
+	<meta http-equiv="expires" content="0">
+	<meta http-equiv="pragma" content="no-cache">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<title>Gercon | Gerenciamento de consultas</title>
+
+	<meta name="description" content="Sistema de regulação de consultas especializadas do SUS, desenvolvido pela Procempa para a Secretaria Municipal da Saúde de Porto Alegre/RS">
+	<meta name="keywords" content="saúde, regulação, consultas especializadas, SUS, Procempa, SMS, Porto Alegre, RS">
+
+	<script async="" src="https://analytics.procempa.com.br/matomo.js"></script><script async="" src="https://www.google-analytics.com/analytics.js"></script><script type="text/javascript">
+		if (location.hostname !== 'gercon.procempa.com.br') {
+			var meta = document.createElement('meta');
+			meta.name = "robots";
+			meta.content = "noindex";
+			document.head.appendChild(meta);
+		}
+	</script>
+
+	<link href="libs/fullcalendar-3.10.0/fullcalendar.css" rel="stylesheet">
+
+	<link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,600,700" rel="stylesheet">
+	<link rel="stylesheet" href="css/bootstrap.css" type="text/css">
+	<link rel="stylesheet" href="libs/font-awesome/4.7.0/css/font-awesome.min.css">
+	<link rel="stylesheet" href="css/estilos.css?v=20260306-004512" type="text/css">
+	<link rel="stylesheet" href="libs/ng-table/0.5.5/ng-table.min.css">
+
+	<!--favicon-->
+	<link rel="icon" href="favicon.ico" sizes="any"><!-- 32×32 -->
+	<link rel="icon" href="icon.svg" type="image/svg+xml">
+	<link rel="apple-touch-icon" href="apple-touch-icon.png"><!-- 180×180 -->
+	<link rel="manifest" href="manifest.webmanifest">
+	<!--favicon-->
+
+	<script type="text/javascript" src="libs/jquery/1.11.2/jquery.min.js"></script>
+	<script type="text/javascript" src="libs/keycloak/1.6.1/keycloak.js"></script>
+	<script type="text/javascript" src="libs/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular.min.js"></script>
+	<script type="text/javascript" src="libs/jquery-barcode/2.0.3/jquery-barcode.min.js"></script>
+	<script type="text/javascript" src="libs/jquery-meiomask/1.1/meiomask.min.js"></script>
+	<script type="text/javascript" src="libs/ng-mask/ng-mask.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular-route.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.0.8/i18n/angular-locale_pt-br.js"></script>
+	<script type="text/javascript" src="libs/angular-ui-bootstrap/0.12.1/ui-bootstrap.min.js"></script>
+	<script type="text/javascript" src="libs/angular-ui-bootstrap/0.12.1/ui-bootstrap-tpls.min.js"></script>
+	<script type="text/javascript" src="libs/ng-table/0.5.5/ng-table.min.js"></script>
+	<script type="text/javascript" src="libs/googlechart/ng-google-chart.js"></script>
+	<script type="text/javascript" src="libs/jquery-inputmask/jquery.inputmask.bundle.min.js"></script>
+	<script type="text/javascript" src="libs/ngStorage/ngStorage.js"></script>
+	<script type="text/javascript" src="libs/crumble/crumble.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/FileSaver.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.javascript.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.from_html.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.split_text_to_size.js"></script>
+	<script type="text/javascript" src="libs/jsPdf/jspdf.plugin.standard_fonts_metrics.js"></script>
+	<script type="text/javascript" src="libs/interact/interact.js"></script>
+	<script type="text/javascript" src="libs/moment/moment.js"></script>
+	<script type="text/javascript" src="libs/moment/moment-precise-range.js"></script>
+
+	<script type="text/javascript" src="libs/fullcalendar-3.10.0/fullcalendar.js"></script>
+	<script type="text/javascript" src="libs/fullcalendar-3.10.0/locale/pt-br.js"></script>
+	<script type="text/javascript" src="libs/angular-ui-calendar/calendar.js"></script>
+
+	<link href="libs/summernote-0.8.18-dist/summernote.min.css" rel="stylesheet">
+	<script src="libs/summernote-0.8.18-dist/summernote.min.js"></script>
+	<script src="libs/angular-summernote-master/src/angular-summernote.js"></script>
+
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular-touch.js"></script>
+	<link rel="stylesheet" href="libs/angular-bootstrap-calendar/0.17.6/angular-bootstrap-calendar.min.css" type="text/css">
+	<script type="text/javascript" src="libs/angular-bootstrap-calendar/0.17.6/angular-bootstrap-calendar-tpls.min.js"></script>
+	<script type="text/javascript" src="libs/angularjs/1.3.15/angular-sanitize.js"></script>
+	<script type="text/javascript" src="libs/table-fixed-header/table-fixed-header.js"></script>
+	<script type="text/javascript">
+		buildVersion = "20260306-004512";
+	</script>
+	<script type="text/javascript" src="loadWebApp.js?v=20260306-004512"></script>
+	<link rel="stylesheet" href="libs/angular-timeline/angular-timeline.css">
+	<script type="text/javascript" src="libs/angular-timeline/angular-timeline.js"></script>
+
+	<script type="text/javascript">
+		loadWebApp([
+			'scripts',
+			'saude-commons.js',
+			'routes.js',
+			'app.js',
+			'filters',
+			'interceptors',
+			'directives',
+			'services',
+			'controllers',
+			'angularBootstrap()'
+		]);
+
+	</script>
+
+	<!-- Google Analytics -->
+	<script type="text/javascript">
+		(function(i, s, o, g, r, a, m) {
+			console.log('Google analytics setup');
+			i['GoogleAnalyticsObject'] = r;
+			i[r] = i[r] || function() {
+				(i[r].q = i[r].q || []).push(arguments)
+			}, i[r].l = 1 * new Date();
+			a = s.createElement(o),
+				m = s.getElementsByTagName(o)[0];
+			a.async = 1;
+			a.src = g;
+			m.parentNode.insertBefore(a, m)
+		})(window, document, 'script', 'https://www.google-analytics.com/analytics.js', 'ga');
+	</script>
+	<!-- End Google Analytics -->
+	
+	<!-- Matomo -->
+	<script>
+	  var _paq = window._paq = window._paq || [];
+	  /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
+	  _paq.push(['trackPageView']);
+	  _paq.push(['enableHeartBeatTimer']);
+	  _paq.push(['enableLinkTracking']);
+	  (function() {
+	    var u="https://analytics.procempa.com.br/";
+	    if (u!='NAO_DEFINIDO') {
+		    console.log('Matomo analytics setup');
+		    _paq.push(['setTrackerUrl', u+'matomo.php']);
+		    _paq.push(['setSiteId', '22']);
+		    var d=document, g=d.createElement('script'), s=d.getElementsByTagName('script')[0];
+		    g.async=true; g.src=u+'matomo.js'; s.parentNode.insertBefore(g,s);
+		}
+	  })();
+	</script>
+	<!-- End Matomo Code -->
+<script src="scripts/fusoHorario.js?v=20260306-004512" type="text/javascript"></script><script src="scripts/horarioVerao.js?v=20260306-004512" type="text/javascript"></script><script src="saude-commons.js?v=20260306-004512" type="text/javascript"></script><script src="routes.js?v=20260306-004512" type="text/javascript"></script><script src="app.js?v=20260306-004512" type="text/javascript"></script><script src="filters/filters.js?v=20260306-004512" type="text/javascript"></script><script src="interceptors/authInterceptor.js?v=20260306-004512" type="text/javascript"></script><script src="interceptors/errorInterceptor.js?v=20260306-004512" type="text/javascript"></script><script src="interceptors/httpInterceptor.js?v=20260306-004512" type="text/javascript"></script><script src="directives/acessoSistemas/acessoSistemasServices.js?v=20260306-004512" type="text/javascript"></script><script src="directives/bairroPoa/bairroPoaDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/dateDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/dateMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/monthDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/monthMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/timeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/timeMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/yearDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/calendar/yearMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/cbo/cboDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/centralRegulacao/centralRegulacaoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/cid-multiplo/cidMultiploDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/cid/cidDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/complexidade/complexidadeCheckDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/complexidade/complexidadeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/comprovante/comprovanteDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/comprovante/comprovanteExamesDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/comprovante/comprovanteLaudoProgramaDeSaudeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/comprovante/geradorQrCodeApsDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/comprovante/skinScanDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/consulta/atestado/atestadosConsultaDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/consulta/dadosConsultaImpressaoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/copyToClipboard/copyToClipboardDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/dashboard-stats/stats.js?v=20260306-004512" type="text/javascript"></script><script src="directives/distritoSanitario/distritoSanitarioDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/equipamento/equipamentoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/especialidade/especialidadeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/especialidadeMultiplo/especialidadeMultiploDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/especialidadeUnidade/especialidadeUnidadeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/estabelecimentoSaude/estabelecimentoSaudeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/exame/exameDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/exame/grupoExamesDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/farmaciaDis/farmaciaDisDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/grupoCid/grupoCidDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/historico/historicoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/incentivo/incentivoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/mask/customMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/medicamento/medicamentoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/medico/medicoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/messages/messagesDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/multiple-select/chip/chipDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/multiple-select/multipleSelectDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/municipio/municipioDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/municipioMultiplo/municipioMultiploDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroAIH/numeroAIHDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroAIH/numeroAIHMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCerih/numeroCerihDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCerih/numeroCerihMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCmce/numeroCmceDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCmce/numeroCmceMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCmceExames/numeroCmceExamesDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCmceExames/numeroCmceExamesMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCmceLaudos/numeroCmceLaudosDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroCmceLaudos/numeroCmceLaudosMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroLaudo/numeroLaudoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/numeroLaudo/numeroLaudoMaskDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/paciente/pacienteDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/pdf/pdfDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/perfil/perfilDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/procedimento/pesquisaProcedimentoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/procedimento/procedimentoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/programaDeSaude/programaDeSaudeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/programaDeSaude/programaDeSaudeSearchDirective.js?v=20260306-004512" type="text/javascript"></script><link href="directives/prontuario/prontuario.css?v=20260306-004512" rel="stylesheet" type="text/css"><script src="directives/prontuario/prontuarioDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/prontuario/prontuarioServices.js?v=20260306-004512" type="text/javascript"></script><script src="directives/regiaoSaude/coordenadoriaRegionalSaudeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/regiaoSaude/regiaoSaudeDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/stats/stats.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoConsulta/tipoConsultaDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoLeito/tipoLeitoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoLeito/tiposLeitoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoServico/tipoServicoDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoServico/tipoServicoListaDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoServico/tipoServicoRegionalizacaoListaDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/tipoServicoEspecProc/tipoServicoEspecProcDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/autoFocusInput.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/customValidate.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/customValidateDirective.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/disableNgAnimate.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/fileModel.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/ngClick.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/ngReally.js?v=20260306-004512" type="text/javascript"></script><script src="directives/util/tooltip.js?v=20260306-004512" type="text/javascript"></script><script src="services/agenda/agendaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agenda/periodoAgendaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agenda/totaisBloqueioAgendaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agenda/totaisPeriodoAgendaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agendaExames/agendaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agendaExames/totaisBloqueioAgendaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agendaExames/totaisPeriodoAgendaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agendamento/agendamentoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/agendamento/agendamentoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/atestado/atestadoConsultaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/avisos/avisosServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/cadastroPrioritarioVacina/cadastroPrioritarioVacinaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/anexoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/comumServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/feriadoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/keycloakRolesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/keycloakUsersServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/skinScanServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/comum/tabelaAuxiliarServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/consulta/consultaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/consultoria/consultoriaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/criterioClassificacao/criterioClassificacaoService.js?v=20260306-004512" type="text/javascript"></script><script src="services/distritos/distritosSanitariosServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/documentosTutoriais/tutorialServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/escala/escalaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/escalaExames/escalaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/especialidade/dePara/deParaSubespecialidadeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/especialidade/especialidadeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/estabelecimento/centralMunicipioService.js?v=20260306-004512" type="text/javascript"></script><script src="services/estabelecimento/estabelecimentoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/estabelecimento/trocaUnidadeSaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/evolucao/evolucaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/evolucaoProgrSaude/evolucaoProgrSaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/amostraExameServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/exameServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/formsExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/grupoExamesAmostraServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/grupoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/importacaoResultadoExameServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/resultadoExameAmostraService.js?v=20260306-004512" type="text/javascript"></script><script src="services/exames/resultadosExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/grupoCID/grupoCIDServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/historico/historicoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/importacaoFilaExames/importacaoFilaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/keycloakInitializer.js?v=20260306-004512" type="text/javascript"></script><script src="services/mensagemComprovante/mensagemComprovanteServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/monitoramentoFilas/monitoramentoFilasConsultasServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/motivoTrocaUnidade/motivoTrocaUnidade.js?v=20260306-004512" type="text/javascript"></script><script src="services/mutiraoEstabEspec/mutiraoEstabEspecServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/erroExportacaoEsusNotificaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/exportacaoEsusNotificaNotificacaoCovidServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/grupoRiscoNotificacaoCovidServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/grupoVacinacaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/importacaoResultadosCovidServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/localSurtoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/notificacaoCovidService.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacaoCovid/vacinaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/notificacoesSistema/notificacaoSistemaService.js?v=20260306-004512" type="text/javascript"></script><script src="services/preparoExames/preparoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/prioridadeAgenda/prioridadeAgendaService.js?v=20260306-004512" type="text/javascript"></script><script src="services/prioridadeAltaQualificada/prioridadeAltaQualificadaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/problemaUsuarioSUS/problemaUsuarioSUSServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/procedimento/procedimentoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/programaDeSaude/importacoesProgramaDeSaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/programaDeSaude/programaDeSaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/pushNotification/pushNotificationServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/questionario/questionarioServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/referenciaRegional/referenciaRegionalServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/referenciaRegional/regionalizacaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/referenciaRegional/tipoServicoRegionalizacaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/referenciaRegionalExames/regionalizacaoExamesService.js?v=20260306-004512" type="text/javascript"></script><script src="services/regiaoSaude/coordenadoriaRegionalSaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/regiaoSaude/regiaoSaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/registroAltaQualificada/registroAltaQualificadaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/regulacaoIaTelessaude/regulacaoIaTelessaudeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/auditoriaDoSistemaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/errosImportacaoEsusFactory.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/filaDeEsperaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/filaDeEsperaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/mapaEspecialidadesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/mediaFilaDeEsperaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/mediasFilaDeEsperaExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/pdfServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/pesquisaAghosService.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/posicaoDaSolicitacaoEmFilaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/posicaoDaSolicitacaoExamesEmFilaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/relatorioAgendamentoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/relatorioAgendamentoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/report/relatorioVerificaEnvioMensagensServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/rotinasGercon/rotinaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/sessao/sessaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/solicitacao/importacaoSolicitacaoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/solicitacao/importacaoSolicitacaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/solicitacao/solicitacaoConsultaFromExameServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/solicitacao/solicitacaoDitaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/solicitacao/solicitacaoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/solicitacao/solicitacaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/telefone/telefoneServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/tentativaContato/tentativaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/tentativaExameServices/tentativaServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/teto/tetoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/tetoExames/tetoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/tipoServico/tipoServicoEspecialidadeProcServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/tipoServico/tipoServicoEspecialidadeServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/tipoServico/tipoServicoServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/usuario/usuarioServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/usuarioSUS/medidasPacienteServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/usuarioSUS/usuarioSUSServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/workflow/trocasSituacaoExamesServices.js?v=20260306-004512" type="text/javascript"></script><script src="services/workflow/workflowSolicitacaoServices.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/acessoSistemas/acessoSistemasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaAPSCalendarioController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaAPSController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaAPSListaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaAPSTabelaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaCalendarioController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaExecutanteCalendarioController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaExecutanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaExecutanteListaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaListaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/agendaSessoesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/bloqueioAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/agendarPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/bloqueioAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/cancelarAgendamentoAPSController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/cancelarAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/contatoPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/dadosConsultaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/detalheAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/historicoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/historicoContatosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/historicoSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/liberacaoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhe/transferirAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/detalhePeriodoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/exclusaoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/liberacaoAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/periodoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/transferenciaAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agenda/usoAgendasPorServicoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/agendaCalendarioController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/agendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/agendaListaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/bloqueioAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/bloqueioAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/cancelarAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/contatoPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/dadosConsultaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/detalheAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/historicoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/historicoContatosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/historicoSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/liberacaoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/pacienteFaltanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/reversaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhe/transferirAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/detalhePeriodoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/exclusaoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/liberacaoAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/periodoAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendaExames/transferenciaAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendamento/agendamentoReguladorController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendamento/agendamentoRetornoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendamento/cancelamentoAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/agendamento/detalheAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/apoioRegulacao/painelApoioRegulacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/apoioRegulacaoExames/painelApoioRegulacaoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/avisosNovidades/avisosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/avisosNovidades/avisosNovidadesLeituraController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/cadastroPrioritarioVacina/consultaCadastroPrioritarioVacinaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/cadastroPrioritarioVacina/detalheCadastroPrioritarioVacinaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/cadastroPrioritarioVacina/importacaoCadastroPrioritarioVacinaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/cadastraTabAuxiliarController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/cadastroFeriadoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/cadastroParametroController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/consultaFeriadosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/consultaMotivosTrocaUnidadeApsController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/consultaParametrosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/consultaTabAuxiliaresController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/comum/prioridadeAltaQualificadaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/consulta/consultaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/consulta/consultaProgramaSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/consultoria/consultoriaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/contrerreferencia/agendamentoContrarreferenciaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/contrerreferencia/listaAgendamentoContrarreferenciaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/criterioClassificacao/consultaCriterioClassificacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/criterioClassificacao/criterioClassificacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/dashboard/dashboardController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/distritos/distritosSanitariosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/documentos/documentosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escala/consultaEscalasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escala/consultaEscalasNovasDispController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escala/detalhe/detalheEscalaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escala/detalhe/detalheEscalaNovasDispController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escala/detalhe/gruposDisponibilidadeUtil.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escalaExames/consultaEscalasExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/escalaExames/detalheEscalaExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/especialidade/cadastroEspecialidadeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/especialidade/consultaEspecialidadesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/especialidade/dePara/consultaDeParaSubespecialidadesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/especialidade/detalheSubespecialidadeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/estabelecimento/cadastroEstabelecimentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/estabelecimento/centralMunicipioController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/estabelecimento/consultaEstabelecimentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/estabelecimento/trocaUnidadeSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/evolucao/evolucaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/amostra/consultaAmostraExameController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/amostra/detalheAmostraExameController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/consultaGruposExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/consultaSolicitacoesRealizacaoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/detalheExameController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/detalheGrupoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/importacaoResultadoExameController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/exames/realizacaoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/executante/executanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/executanteExames/executanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/importacaoFilaExames/importacaoFilaExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/index/indexController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/mensagemComprovante/mensagemComprovanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/monitoramentoFilas/monitoramentoFilasConsultasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/mutiraoEstabEspec/consultaMutiraoEstabEspecController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/mutiraoEstabEspec/detalheMutiraoEstabEspecController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/nir/nirController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/nirExames/nirController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/consultaExamesCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/consultaNotificacaoCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/detalhe/detalheNotificacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/exportacaoEsusNotifica/consultaErroExportacaoEsusNotificaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/exportacaoEsusNotifica/detalheErroExportacaoEsusNotificaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/grupoRisco/consultaGrupoRiscoNotificacaoCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/grupoRisco/detalheGrupoRiscoNotificacaoCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/grupoVacinacao/consultaGrupoVacinacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/grupoVacinacao/detalheGrupoVacinacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/importacaoResultadosCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/locaisSurto/consultaLocaisSurtoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/locaisSurto/detalheLocaisSurtoNotificacaoCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/notificacaoCovid/notificacaoCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/novidade/novidadesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/checkInExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/geradorQRCodeApsController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/historicoPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/historicoUnidadeRefController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/pesquisaPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/pesquisaPacienteNomeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/pesquisaProtocoloController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/paciente/unidadeRefPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/preparoExames/preparoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/procedimento/cadastraListaProcedimentosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/procedimento/consultaListaProcedimentosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/procedimento/editaListaProcedimentosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/consultaProgramaDeSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/detalheProgramaDeSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/detalheVinculoPacienteProgramaDeSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/importacoesProgramaDeSaude.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/painelProgramasDeSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/pesquisaPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/programaDeSaude/vinculaPacienteProgramaSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/referenciaRegional/cadastroReferenciaRegionalController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/referenciaRegional/consultaReferenciaRegionalController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/referenciaRegional/regionalizacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/referenciaRegional/tipoServicoRegionalizacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/referenciaRegionalExames/regionalizacaoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/regiaoSaude/consultaRegiaoSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/regiaoSaude/coordenadoriaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/regiaoSaude/edicaoCoordenadoriaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/regiaoSaude/edicaoRegiaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/regiaoSaude/regiaoSaudeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/regulador/painelReguladorController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/reguladorExames/painelReguladorExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/acompanhamentoEspecialidadeController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/acompanhamentoGrupoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/acompanhamentoMutiraoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/agendasPorPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/auditoriaDoSistemaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/consultaCotasUtilizadasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/consultaCotasUtilizadasExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticaFilaDeEsperaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticaFilaDeEsperaExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticaSolicitacoesAgendadasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticaSolicitacoesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticaSolicitacoesGestaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticasAgendaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticasAgendaExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/estatisticasDitasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/historicoEvolucoesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/mapaEspecialidadesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/mediaFilaDeEsperaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/mediaFilaDeEsperaExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/ofertaMensalAgendasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/pacientesFaltantesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/pesquisaAghos/detalheConsultaAghosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/pesquisaAghos/detalheInternacaoAghosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/pesquisaAghos/pesquisaAghosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/posicaoDaSolicitacaoEmFilaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/posicaoDaSolicitacaoExamesEmFilaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/procExecutadosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioAgendamentoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioAgendamentoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioAgendamentosPorLocalidadeSolicitanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioErrosEsusController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioImportacaoResultadoExameController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioImportacaoResultadosCovidController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioImportacaoSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioImportacaoSolicitacaoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioListaFaltantesExames.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioListaSolicitacoesAltaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioPacienteVinculoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioSolicitacoesExamesFilaEsperaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioSolicitacoesFilaEsperaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioSolicitacoesTipoOciController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/relatorioVerificaEnvioMensagensController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/report/usoAgendasPorServicoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/rotinasGercon/rotinaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/sessao/registraSessaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/sessao/relatorioAgendasSessoesPorPacienteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/consultaSolicitacoesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/consultaSolicitacoesProvisoriasController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/consultaUsuarioSusController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/detalheSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/importacaoSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/listaSolicConfirmacaoConsultaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacao/solicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacaoExames/agendamentoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacaoExames/consultaSolicitacoesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacaoExames/detalheSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacaoExames/importacaoSolicitacaoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitacaoExames/solicitacaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitante/solicitanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/solicitanteExames/solicitanteController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/tentativaContato/tentativaController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/teto/consultaTetoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/teto/tetoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/tetoExames/consultaTetoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/tetoExames/tetoExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/consultaGerenPerfilController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/consultaLocaisController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/consultaPermPerfilController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/consultaUsuariosController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/detalheUsuarioController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/loginController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/usuario/usuariosIntegracaoController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/workflow/workflowExamesController.js?v=20260306-004512" type="text/javascript"></script><script src="controllers/workflow/workflowSolicitacaoController.js?v=20260306-004512" type="text/javascript"></script></head>
+
+<body ng-show="usuario.login!=null" class="">
+  
+	<div id="topoDaTela"></div>
+	<div id="pleaseWaitDialog" class="modal fade" role="dialog" data-backdrop="static" data-keyboard="false" data-backdrop-limit="1" tabindex="-1" aria-hidden="true">
+		<div class="loader"></div>
+	</div>
+	<div ng-controller="indexController as idxCtrl" class="ng-scope">
+		<!-- ngIf: idxCtrl.getClassAmbiente() != 'hide' -->
+	</div>
+
+	<header>
+		<div class="login container-fluid ng-scope" ng-controller="loginController as loginCtrl">
+			<span class="pull-left ng-hide" ng-hide="perfilNome==null">
+				Olá, <strong id="nomeUsuarioLogado" class="ng-binding">VERONICA  GONDA SABELLA</strong>,
+				seu perfil é <strong id="perfilUsuarioLogado" class="ng-binding"></strong>
+				em <strong id="estabelecimentoUsuarioLogado" class="ng-binding"> <!-- ngIf: municipioEstab != '' --><span ng-if="municipioEstab != ''" class="ng-binding ng-scope">()</span><!-- end ngIf: municipioEstab != '' --></strong>
+			</span>
+			<span class="pull-right">
+				<span ng-show="novasNotificacoes.totalDados != null &amp;&amp; novasNotificacoes.totalDados &gt; 0 &amp;&amp; perfilNome!=null &amp;&amp; loginCtrl.perfilUsuarioIn(['prf-notificante']) == false" class="ng-hide">
+					<a id="linkNotificacoes" class="label situacao vermelho" href="" ng-click="loginCtrl.redireciona('/documentosNovidadesSistema')"><i class="fa fa-lightbulb-o fa-fw"></i>Nova versão: veja o que mudou aqui!</a>
+				</span>
+				<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+				<span ng-hide="perfilNome==null || loginCtrl.perfilUsuarioIn(['prf-notificante']) == true" class="ng-hide">
+					<a id="linkTrocarPerfil" href="" accesskey="t" ng-click="loginCtrl.trocarPerfil()">Trocar perfil</a> <i class="fa fa-exchange"></i>
+				</span>
+				<span>&nbsp;&nbsp;&nbsp;&nbsp;</span>
+				<span>
+					<a id="linkSair" href="" ng-click="loginCtrl.logout();">Sair</a> <i class="fa fa-sign-out"></i>
+				</span>
+			</span>
+		</div>
+	</header>
+	<div ng-controller="indexController as idxCtrl" class="ng-scope">
+		<nav class="navbar navbar-default">
+			<div class="navbar-header">
+				<button type="button" class="navbar-toggle collapsed menuitem" data-toggle="collapse" data-target="#menu-sistema" aria-expanded="false">
+					<span class="sr-only">Menu do sistema</span>
+					<i class="fa fa-bars menuicone"></i> Menu
+				</button>
+				<a href="" onclick="document.location.reload();" class="navbar-brand logo">
+					<img src="img/logo-gercon.svg" alt="Gercon - Gerenciamento de consultas" title="Gercon - Gerenciamento de consultas" class="logo">
+				</a>
+				<a href="http://www2.portoalegre.rs.gov.br/" class="navbar-brand pmpa">
+					<img src="img/logo-sms.svg" alt="Prefeitura Municipal de Porto Alegre" title="Prefeitura Municipal de Porto Alegre" target="_blank">
+				</a>
+			</div>
+
+			<div class="collapse navbar-collapse" id="menu-sistema">
+				<div class="progress ng-hide" ng-show="!permissoesCarregadas &amp;&amp; !selecionandoLocal" style="width:150px;margin-right:10px;margin-top:20px;margin-left:auto">
+					<div class="progress-bar progress-bar-striped active" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" style="width:100%">Carregando...</div>
+				</div>
+
+				<ul class="nav navbar-nav ng-hide" role="menu" ng-show="permissoesCarregadas">
+					<li role="menuitem" ng-show="idxCtrl.mostrarExames() &amp;&amp; idxCtrl.podeVerMenu('notificacaoCovid')" class="ng-hide">
+						<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-cadastra-notificacao-covid','prm-edita-notificacao-covid', 'prm-consulta-notificacao-covid','prm-consultar-exames-covid']) && idxCtrl.usuarioDaCentralCMCE() -->
+						<ul class="dropdown-menu" role="menu">
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-edita-notificacao-covid','prm-consulta-notificacao-covid']) && usuario.login != 'covid19' -->
+							<!-- ngIf: idxCtrl.temPermissao('prm-consultar-exames-covid') && idxCtrl.getTipoUnidade()!=39 -->
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-edita-grupo-risco-notificacao-covid']) -->
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-edita-grupo-vacinacao']) --><!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-cadastra-cadastroprioritariovacina']) -->
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-cadastra-locais-surto']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-importa-notificacao-covid']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-consulta-relatorio-erros-esus-notifica']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-importa-notificacao-covid') -->
+							</li>	
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-importa-cadastroprioritariovacina') -->
+							</li>						
+						</ul>
+					</li>
+
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('contrarreferencia')" class="ng-hide">
+						<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-agendamento-contrarreferencia']) -->
+						<ul class="dropdown-menu" role="menu">
+							<!-- ngIf: idxCtrl.temPermissao('prm-agendamento-contrarreferencia') -->		
+							<!-- ngIf: idxCtrl.temPermissao('prm-agendamento-contrarreferencia') -->		
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('consultas')">
+						<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-visualizar-solicitacao','prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda']) -->
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-cadastrar-solicitacao') && (!idxCtrl.perfilAtencaoPrimaria()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-solicitacao') && (!idxCtrl.perfilAtencaoPrimaria() ) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-registrar-tentativa') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminAtencaoPrimaria()) && (!idxCtrl.perfilAdminExecutante()) && (!idxCtrl.perfilProfissionalExecutante()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-solicitacao') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminUnidadeSolicitante()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-registrar-consultoria') -->
+							</li>
+							
+							<!-- ngIf: idxCtrl.temPermissao('prm-regular-solicitacao') || idxCtrl.temPermissao('prm-visualizar-painel-solicitante') || idxCtrl.temPermissao('prm-visualizar-painel-executante') || idxCtrl.temPermissao('prm-visualizar-painel-nir') || idxCtrl.perfilApoioRegulacao() -->
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-regular-solicitacao') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-regular-solicitacao') && !idxCtrl.perfilApoioRegulacao() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-monitorar-filas-consultas') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilApoioRegulacao() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-painel-solicitante') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-painel-executante') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-painel-nir') -->
+							</li>
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda']) && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminAtencaoPrimaria()) -->
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-teto') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-escala') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-consultar-agenda') && (!idxCtrl.perfilAtencaoPrimaria()) && !idxCtrl.perfilExecutante() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-consultar-agenda') && (idxCtrl.perfilGerenteAPS() || (!idxCtrl.perfilAtencaoPrimaria()) && idxCtrl.perfilExecutante()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-consultar-agenda') && idxCtrl.perfilDirecaoGeralAPS() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: !idxCtrl.perfilDirecaoGeralAPS() && idxCtrl.usuarioDaCentralCMCE() && ((idxCtrl.temPermissao('prm-consultar-agenda') && (idxCtrl.perfilAtencaoPrimaria() && !idxCtrl.perfilAdminUnidadeSolicitante()) || idxCtrl.perfilAdminAtencaoPrimaria()) || idxCtrl.perfilAtencaoPrimariaEspecializada() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.usuarioDaCentralCMCE() && ((idxCtrl.perfilAtencaoPrimaria() && idxCtrl.usuarioDaCentralCMCE() && !idxCtrl.perfilMarcacaoAPS()) || idxCtrl.perfilAtencaoPrimariaEspecializada() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])) -->
+							</li>
+
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-bloqueio-agenda','prm-excluir-agenda','prm-transferir-agenda']) && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS()) -->
+
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-bloqueio-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-bloqueio-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-excluir-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-transferir-agenda') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilGerenteAPS()) -->
+							</li>
+							
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-importar-solicitacao', 'prm-consultar-importacao-solicitacao']) -->
+							
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-importar-solicitacao') && (idxCtrl.mostraImportacaoSolicitacao() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema'])) -->
+							</li>
+							
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-consultar-importacao-solicitacao') -->
+							</li>
+						</ul>
+					</li>
+
+					<li role="menuitem" ng-show="idxCtrl.mostrarExames() &amp;&amp; idxCtrl.podeVerMenu('exames')" class="ng-hide">
+						<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-visualizar-solicitacao','prm-cadastrar-consulta','prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda', 'prm-importar-solicitacao-exames', 'prm-consultar-importacao-solicitacao-exames']) -->
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-cadastrar-solicitacao') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-solicitacao') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-cadastrar-consulta') -->
+							</li>
+
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-cadastrar-consulta') -->
+							</li>
+
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-regular-solicitacao','prm-visualizar-painel-solicitante','prm-visualizar-painel-executante','prm-visualizar-painel-nir',]) -->
+
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-painel-solicitante') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-visualizar-painel-executante') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-visualizar-painel-nir') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-regular-solicitacao') && !idxCtrl.perfilApoioRegulacao() -->
+							</li>
+							
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilApoioRegulacao() -->
+							</li>							
+
+							<!-- ngIf: (((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temAlgumaPermissao(['prm-visualizar-teto','prm-visualizar-escala','prm-consultar-agenda'])) || idxCtrl.podeCadastrarGrupoExameCentral()) && !idxCtrl.perfilAtencaoPrimaria() -->
+
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-teto') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: ((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-visualizar-escala')) || idxCtrl.podeCadastrarGrupoExameCentral() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: ((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-consultar-agenda')  && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral() -->
+							</li>
+							
+							<!-- ngIf: (((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temAlgumaPermissao(['prm-bloqueio-agenda','prm-excluir-agenda'])) || idxCtrl.podeCadastrarGrupoExameCentral()) && !idxCtrl.perfilAtencaoPrimaria() --><!-- ,'prm-transferir-agenda' -->
+							
+							<li role="menuitem">
+								<!-- ngIf: ((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-bloqueio-agenda') && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: ((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-bloqueio-agenda') && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: ((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissaoExclAgendaExame('prm-excluir-agenda')) || idxCtrl.podeCadastrarGrupoExameCentral() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: ((idxCtrl.validaPerfisAcessoMenuExames()) && idxCtrl.temPermissao('prm-transferir-agenda') && !idxCtrl.perfilAtencaoPrimaria()) || idxCtrl.podeCadastrarGrupoExameCentral() -->
+							</li>
+							
+							<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temAlgumaPermissao(['prm-importa-resultado-exame', 'prm-cadastra-amostra-exame']) -->
+
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-cadastra-amostra-exame') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-importa-resultado-exame') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && idxCtrl.temPermissao('prm-importa-resultado-exame') -->
+							</li>
+							
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-importar-solicitacao-exames', 'prm-consultar-importacao-solicitacao-exames']) -->
+							
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-importar-solicitacao-exames') -->
+							</li>
+							
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-consultar-importacao-solicitacao-exames') -->
+							</li>
+						</ul>
+					</li>
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('paciente')">
+						<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-agendamento-contrarreferencia', 'prm-visualizar-solicitacao', 'prm-visualizar-auditoria'])  || idxCtrl.perfisMenuPaciente() -->
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<a id="menuItemUsuarioSUS" href="#/consultaUsuarioSUS" ng-click="idxCtrl.redireciona('#/consultaUsuarioSUS')">
+									<i class="fa fa-th-list fa-fw"></i>
+									Consulta usuário SUS
+								</a>
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: (idxCtrl.temPermissao('prm-visualizar-solicitacao') || idxCtrl.perfisMenuPaciente()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAtencaoPrimariaEspecializada() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-solicitacao') -->
+							</li>
+							<li role="menuitem" ng-show="idxCtrl.podeVerMenu('programasDeSaude')" class="ng-hide">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-profissional-solicitante','prf-profissional-executante','prf-administracao-aps','prf-coordenador-programas', 'prf-administrador-unidade-aps']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-agendamento-contrarreferencia') || ((idxCtrl.usuarioDaCentralCMCE() || idxCtrl.usuarioDaCentralEstadual()) && (idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAtencaoPrimariaEspecializada() || idxCtrl.perfilUsuarioIn(['prf-admin-sistema']))) || idxCtrl.perfilCoordenadorProgramasDeSaude() -->
+							</li>
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('programasDeSaude')" class="ng-hide">
+						<!-- ngIf: idxCtrl.perfisMenuProgramasDeSaude() -->
+						<ul class="dropdown-menu" role="menu">
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfisMenuProgramasDeSaude() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfisMenuProgramasDeSaude() -->
+							</li>
+						</ul>
+					</li>
+					
+					<li role="menuitem" ng-show="idxCtrl.podeVerMenu('gerenciamento')">
+						<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-cadastrar-exames', 'prm-cadastrar-programa-saude', 'prm-gerenciar-usuarios','prm-visualizar-parametros','prm-visualizar-criterio-classificacao','prm-visualizar-tabelas-auxiliares','prm-importar-cnes','prm-gerenciar-agenda','prm-rel-estat-fila-espera','prm-rel-estat-fila-espera-exames','prm-visualizar-programa-saude']) -->
+						
+						<ul class="dropdown-menu" role="menu">
+						
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-cadastrar-programa-saude', 'prm-vincular-cid-programa-saude', 'prm-vincular-medicamento-programa-saude', 'prm-vincular-perfil-programa-saude', 'prm-visualizar-programa-saude']) -->
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-cadastrar-programa-saude', 'prm-vincular-cid-programa-saude', 'prm-vincular-medicamento-programa-saude', 'prm-vincular-perfil-programa-saude']) && !idxCtrl.perfilCoordenadorProgramasDeSaude() -->
+						
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.temPermissao('prm-gerenciar-profissionais') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.temPermissao('prm-gerenciar-profissionais') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.temPermissao('prm-gerenciar-profissionais') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-gerenciar-usuarios') || idxCtrl.podeVerPermissoesTrocaSituacaoConsulta() -->
+							</li>
+							<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-poa', 'prf-administrador-central-regulacao-rs', 'prf-admin-central']) -->
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) -->
+							</li>
+
+							<!-- ngIf: idxCtrl.temPermissao('prm-gerenciar-usuarios') -->
+
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-especialidades') -->
+							</li>
+							<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa', 'prf-profissional-regulador', 'prf-coordenacao-laboratorial']) -->
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-administrador-unidade','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa','prf-admin-sistema']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilAprovadorProgramaSaude() --><a id="menuItemEstabelecimentos" href="#/consultaEstabelecimentos" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() &amp;&amp; !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaEstabelecimentos')" class="ng-scope">
+									<i class="fa fa-h-square fa-fw"></i>
+									Estabelecimentos
+								</a><!-- end ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilAprovadorProgramaSaude() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() --><a id="menuItemRegionalizacao" href="#/consultaRegionalizacao" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() &amp;&amp; !idxCtrl.perfilCoordenadorLaboratorial() &amp;&amp; !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaRegionalizacao')" class="ng-scope">
+									<i class="fa fa-map fa-fw"></i>
+									Regionalização Consultas
+								</a><!-- end ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() --><a id="menuItemRegionalizacaoExames" href="#/consultaRegionalizacaoExames" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() &amp;&amp; !idxCtrl.perfilCoordenadorLaboratorial() &amp;&amp; !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaRegionalizacaoExames')" class="ng-scope">
+									<i class="fa fa-map fa-fw"></i>
+									Regionalização Exames
+								</a><!-- end ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() -->
+							</li>							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-consultar-regiao-saude', 'prm-editar-regiao-saude']) && !idxCtrl.perfilAtencaoPrimaria() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-distritos-visualizar') && !idxCtrl.perfilAtencaoPrimaria() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-criterio-classificacao') && (!idxCtrl.perfilAtencaoPrimaria() || idxCtrl.perfilAdminAtencaoPrimaria()) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-rs','prf-administrador-central-regulacao-poa','prf-admin-central']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() --><a id="menuItemPrioridadeAltaQualificada" href="#/consultaPrioridadeAltaQualificada" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() &amp;&amp; !idxCtrl.perfilCoordenadorLaboratorial() &amp;&amp; !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaPrioridadeAltaQualificada')" class="ng-scope">
+									<i class="fa fa-sort-amount-asc fa-fw"></i>
+									Prioridades da Alta Ambulatorial 
+								</a><!-- end ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() -->
+							</li>
+
+							<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-parametros') -->
+
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-parametros') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-tabelas-auxiliares') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() --><a id="menuItemFeriados" href="#/consultaFeriados" ng-if="!idxCtrl.perfilCoordenadorProgramasDeSaude() &amp;&amp; !idxCtrl.perfilCoordenadorLaboratorial() &amp;&amp; !idxCtrl.perfilAprovadorProgramaSaude()" ng-click="idxCtrl.redireciona('#/consultaFeriaodos')" class="ng-scope">
+									<i class="fa fa-sun-o fa-fw"></i>
+									Feriados
+								</a><!-- end ngIf: !idxCtrl.perfilCoordenadorProgramasDeSaude() && !idxCtrl.perfilCoordenadorLaboratorial() && !idxCtrl.perfilAprovadorProgramaSaude() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-visualizar-mensagem-comprovante') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-cadastrar-avisos') -->
+							</li>
+							<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema','prf-administrador-central-regulacao-poa','prf-administrador-central-regulacao-rs', 'prf-administrativo-cmce', 'prf-admin-central']) -->
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-cadastrar-especialidades') && !idxCtrl.perfilAtencaoPrimaria() -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-vincular-especialidade-estabelecimento-mutirao') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-cadastrar-motivos') -->
+							</li>
+							<!-- ngIf: idxCtrl.temAlgumaPermissao(['prm-importar-cnes', 'prm-executar-rotina']) -->
+
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-importar-cnes') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) -->
+							</li>
+							
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.perfilUsuarioIn(['prf-admin-sistema']) -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.mostrarExames() && idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>	
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>		
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<li role="menuitem">
+								<!-- ngIf: idxCtrl.temPermissao('prm-executar-rotina') -->
+							</li>
+							<!-- ngIf: idxCtrl.temPerfil('prf-admin-sistema') && idxCtrl.getLogsLinks().length > 0 -->
+                            
+                            <!-- ngRepeat: logsLink in idxCtrl.getLogsLinks() track by $index -->
+						</ul>
+					</li>
+					
+					<!-- ngIf: idxCtrl.podeVerMenu('relatorios') -->
+					<!-- ngIf: idxCtrl.podeVerMenu('ajuda') --><li role="menuitem" ng-if="idxCtrl.podeVerMenu('ajuda')" class="ng-scope">
+						<a id="menuAjuda" href="ajuda" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-expanded="false" accesskey="a">
+							<i class="fa fa-question-circle menuicone" ng-class="{'notification-pointer' : $root.possuiAvisos}"></i>
+							<span class="menuitem">Ajuda</span>
+						</a>
+						<ul class="dropdown-menu dropdown-menu-right" role="menu">
+							<li role="menuitem">
+								<a id="menuItemDocumentosTutoriais" href="#/documentosTutoriais" ng-click="idxCtrl.redireciona('#/documentosTutoriais')">
+									<i class="fa fa-book fa-fw"></i>
+									Documentos &amp; tutoriais
+								</a>
+							</li>							
+							<li role="menuitem">
+								<a id="menuAvisosNovidades" href="#/avisosNovidadesLeitura">
+									<i class="fa fa-bell fa-fw" ng-class="{'notification-pointer' : $root.possuiAvisos}"></i>
+									Avisos e novidades
+								</a>
+							</li>
+							<!-- ngIf: idxCtrl.temPermissao('prm-importar-cnes') -->
+							
+							<!-- ngIf: idxCtrl.podeVerDocSistema() -->
+							<li role="menuitem">
+								<a id="menuItemDocumentacaoRegrasSistema" href="https://www.google.com.br" target="_blank">
+									<i class="fa fa-external-link fa-fw"></i>
+									Perguntas frequentes
+								</a>
+							</li>
+						</ul>
+					</li><!-- end ngIf: idxCtrl.podeVerMenu('ajuda') -->
+				</ul>
+			</div>
+		</nav>
+
+		<div class="container-fluid">
+			<ul class="breadcrumb">
+				<!-- ngRepeat: bc in idxCtrl.caminho --><li ng-repeat="bc in idxCtrl.caminho" class="ng-scope">
+					<ng-switch on="$last">
+						<!-- ngSwitchWhen: true --><span ng-switch-when="true" class="atual ng-binding ng-scope">Início</span><!-- end ngSwitchWhen: -->
+						<!-- ngSwitchDefault:  -->
+					</ng-switch>
+				</li><!-- end ngRepeat: bc in idxCtrl.caminho -->
+			</ul>
+		</div>
+	</div>
+	<div ng-controller="consultaLocaisController as ctrl" class="ng-scope">
+
+		<!-- ngIf: usuario.login=='covid19' && ctrl.fecharMsgCovid!=true -->
+
+		<!-- ngIf: ((perfilNome==null) && (ctrl.listaLocais.length > 0)) --><div class="container ng-scope" ng-if="((perfilNome==null) &amp;&amp; (ctrl.listaLocais.length &gt; 0))">
+
+			<div class="container-fluid seleciona-perfil">
+				<h1 class="page-header ng-binding">Olá, VERONICA  GONDA SABELLA</h1>
+
+				<h3>Selecione <strong>estabelecimento</strong> e <strong>perfil</strong> para acessar o <strong>Gercon</strong></h3>
+
+				<form name="formValidaUsuario" novalidate="" auto-focus-input="" class="ng-pristine ng-valid">
+					<!-- ngRepeat: opcao in ctrl.listaLocais track by $index --><div class="estabelecimento-perfil ng-scope" ng-repeat="opcao in ctrl.listaLocais track by $index">
+						<h6 class="ng-binding">PAM 8<span class="infosecundaria ng-binding"> - ALVORADA</span></h6>
+						<span class="botoes perfil">
+							<!-- ngRepeat: perfil in opcao.perfis --><button class="btn btn-executante" type="button" ng-click="ctrl.validaUsuario(opcao.estabSaude, perfil)" ng-repeat="perfil in opcao.perfis">Profissional Executante</button><!-- end ngRepeat: perfil in opcao.perfis -->
+						</span>
+					</div><!-- end ngRepeat: opcao in ctrl.listaLocais track by $index --><div class="estabelecimento-perfil ng-scope" ng-repeat="opcao in ctrl.listaLocais track by $index">
+						<h6 class="ng-binding">SECRETARIA MUNICIPAL DE SAUDE DE ALVORADA<span class="infosecundaria ng-binding"> - ALVORADA</span></h6>
+						<span class="botoes perfil">
+							<!-- ngRepeat: perfil in opcao.perfis --><button class="btn btn-regulador" type="button" ng-click="ctrl.validaUsuario(opcao.estabSaude, perfil)" ng-repeat="perfil in opcao.perfis">Administrativo Secretaria de Saúde</button><!-- end ngRepeat: perfil in opcao.perfis -->
+						</span>
+					</div><!-- end ngRepeat: opcao in ctrl.listaLocais track by $index -->
+				</form>
+			</div>
+
+			<div class="form-group" ng-class="{ 'has-error' : erro.length &gt; 0 }">
+				<p ng-show="erro.length &gt; 0" class="help-block ng-binding ng-hide"></p>
+			</div>
+		</div><!-- end ngIf: ((perfilNome==null) && (ctrl.listaLocais.length > 0)) -->
+	</div>
+
+	<!-- ngView:  -->
+	<div ng-show="idxCtrl.verificaPerfil(role)" ng-controller="indexController as idxCtrl" class="ng-scope"></div>
+
+	<!-- ngIf: role != 'prf-administrador-central-regulacao-rs' && role != 'prf-administrador-central-regulacao-poa' && role != 'prf-admin-central' --><div ng-if="role != 'prf-administrador-central-regulacao-rs' &amp;&amp; role != 'prf-administrador-central-regulacao-poa' &amp;&amp; role != 'prf-admin-central'" class="ng-scope">
+		<div ng-controller="indexController as idxCtrl" class="ng-scope">
+			<div class="modal fade" style="overflow:scroll" data-keyboard="false" data-backdrop="static" id="modalAvisosNovidades" role="dialog">
+				<div class="modal-dialog modal-lg">
+			     	<!-- Modal content-->
+			        <div class="modal-content">
+			       		<div class="modal-header">
+			           		<strong> Avisos e Novidades</strong>
+			           		
+			           		 <button type="button" class="btn btn-default pull-right" id="sairModalBtn" data-dismiss="modal" ng-click="idxCtrl.fechaModal()">
+		                         <i class="fa fa-times" aria-hidden="true"></i> Fechar
+		                     </button>
+			           		<button type="button" class="btn btn-default pull-right" id="lidoModalBtn" data-dismiss="modal" ng-click="idxCtrl.marcarComoLido()">
+		                         <i class="fa fa-check" aria-hidden="true"></i> Marcar como lido
+		                     </button>	                    
+			       		</div>
+			
+			            <form name="avisosNovidadesForm" novalidate="" auto-focus-input="" class="ng-pristine ng-valid">
+			            	<div class="modal-body">
+								<ul class="timeline">
+									<!-- ngRepeat: aviso in avisos track by $index -->
+								</ul>	
+			                 </div>
+			
+			                 <div class="modal-footer">
+			                  	 <button type="button" class="btn btn-default pull-left" id="lidoModalBtn" data-dismiss="modal" ng-click="idxCtrl.marcarComoLido()">
+			                         <i class="fa fa-check" aria-hidden="true"></i> Marcar como lido
+			                     </button>
+			                     <button type="button" class="btn btn-default pull-right" id="sairModalBtn" data-dismiss="modal" ng-click="idxCtrl.fechaModal()">
+			                         <i class="fa fa-times" aria-hidden="true"></i> Fechar
+			                     </button>
+			                 </div>
+			             </form>	
+			         </div>
+			     </div>
+			</div>
+		</div>
+	</div><!-- end ngIf: role != 'prf-administrador-central-regulacao-rs' && role != 'prf-administrador-central-regulacao-poa' && role != 'prf-admin-central' -->
+	
+	<footer class="footer ng-scope" ng-controller="indexController as idxCtrl">
+		<div class="container-fluid">
+			<div class="row">
+				<div class="col-md-6">
+					<a href="http://www.procempa.com.br">
+						<img src="img/desenvolvimento_procempa.png" alt="Desenvolvimento: Procempa">
+					</a>
+				</div>
+				<div class="col-md-6 text-right text-muted" style="padding-top:5px">
+					<b>v20260306-004512</b>
+				</div>
+			</div>
+		</div>
+	</footer>
+	
+
+
+
+</body></html>
