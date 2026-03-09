@@ -260,7 +260,7 @@ def main():
     init_csv()
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
         context = browser.new_context()
         main_page = context.new_page()
         
@@ -306,6 +306,7 @@ def main():
         import math
         total_pages = None
         start_time_total = time.time()
+        last_ping_time = time.time()
 
         while True:
             # Trava de segurança para impedir a paginação infinita além do limite total
@@ -442,6 +443,16 @@ def main():
             save_all_to_csv(existing_protocols)
             
             page_num += 1
+            
+            # Ping preventivo a cada 5 minutos para não deixar a sessão do servidor expirar (Super Rápido/Invisível)
+            if time.time() - last_ping_time > 1000:  # 300 segundos = 5 minutos
+                try:
+                    # Um simples "fetch" na URL base já renova o tempo de inatividade no servidor
+                    # sem recarregar a tela, sem piscar o DOM e demorando apenas milissegundos!
+                    main_page.evaluate("fetch(window.location.href).catch(() => {})")
+                    last_ping_time = time.time()  # Reseta o timer
+                except Exception:
+                    pass
             
         browser.close()
 
