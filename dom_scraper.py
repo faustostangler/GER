@@ -83,7 +83,7 @@ def load_existing_protocols():
 
 def clean_data_row(data):
     # Trata todos os dados iterando sobre eles. Se for string livre (texto), unifica as quebras de linha.
-    logger.debug(f"[clean_data_row] Sanitizando quebras de linha para o Protocolo: {data.get('Protocolo')}")
+    # logger.debug(f"[clean_data_row] Sanitizando quebras de linha para o Protocolo: {data.get('Protocolo')}")
     cleaned_row = {}
     for col in COLUNAS:
         v = data.get(col, "")
@@ -96,7 +96,7 @@ def clean_data_row(data):
 def save_all_to_csv(data_dict):
     # Salva todos os dados num arquivo temporário e substitui o original de uma vez (Update)
     temp_file = CSV_FILE + ".tmp"
-    logger.debug(f"Salvando {len(data_dict)} registros no CSV (via arquivo temporário)...")
+    # logger.debug(f"Salvando {len(data_dict)} registros no CSV (via arquivo temporário)...")
     try:
         with open(temp_file, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
@@ -109,25 +109,25 @@ def save_all_to_csv(data_dict):
         logger.error(f"Erro ao salvar CSV: {e}")
 
 def format_protocolo(num):
-    logger.debug(f"[format_protocolo] Original: '{num}'")
+    # logger.debug(f"[format_protocolo] Original: '{num}'")
     if not num: 
         logger.debug("[format_protocolo] Vazio.")
         return ""
     num = str(num)
     if len(num) == 12:
         res = f"{num[0:2]}-{num[2:4]}-{num[4:11]}-{num[11]}"
-        logger.debug(f"[format_protocolo] Formatado: '{res}'")
+        # logger.debug(f"[format_protocolo] Formatado: '{res}'")
         return res
     logger.debug(f"[format_protocolo] Mantido inalterado: '{num}'")
     return num
 
 def timestamp_to_date(ts):
-    logger.debug(f"[timestamp_to_date] Recebido: '{ts}'")
+    # logger.debug(f"[timestamp_to_date] Recebido: '{ts}'")
     if not ts: return ""
     try:
         dt = datetime.fromtimestamp(ts / 1000.0)
         res = dt.strftime("%d/%m/%Y %H:%M")
-        logger.debug(f"[timestamp_to_date] Convertido para: '{res}'")
+        # logger.debug(f"[timestamp_to_date] Convertido para: '{res}'")
         return res
     except Exception as e:
         logger.debug(f"[timestamp_to_date] Falha ao converter: {e}")
@@ -154,7 +154,7 @@ def extract_data_from_json(j):
     data = {}
     
     # Protocolo
-    logger.debug("[extract_data_from_json] Estruturando blocos principais (Especialidade, Situação, CIDs)...")
+    # logger.debug("[extract_data_from_json] Estruturando blocos principais (Especialidade, Situação, CIDs)...")
     data["Protocolo"] = format_protocolo(j.get("numeroCMCE", ""))
     
     especialidade = j.get("especialidade") or {}
@@ -188,7 +188,7 @@ def extract_data_from_json(j):
     # Usuário
     u = j.get("usuarioSUS") or {}
     if u:
-        logger.debug("[extract_data_from_json] Estruturando bloco do Paciente e Endereço...")
+        # logger.debug("[extract_data_from_json] Estruturando bloco do Paciente e Endereço...")
         data["Nome do Paciente"] = u.get("nomeCompleto", "")
         data["Nome da Mãe"] = u.get("nomeMae", "")
         data["CPF"] = u.get("cpf", "")
@@ -218,7 +218,7 @@ def extract_data_from_json(j):
 
     # Anamnese / Quadro Clinico  (pega da evo mais antiga que tiver)
     evolucoes = j.get("evolucoes", [])
-    logger.debug(f"[extract_data_from_json] Mapeando {len(evolucoes)} blocos de evoluções para capturar Quadro Clínico...")
+    # logger.debug(f"[extract_data_from_json] Mapeando {len(evolucoes)} blocos de evoluções para capturar Quadro Clínico...")
     evolucoes.sort(key=lambda x: x.get("data", 0)) # ordena da mais antiga para atual
     
     evo_codigos = [] # debugging purposes
@@ -264,7 +264,7 @@ def extract_data_from_json(j):
                 pass
 
     # Solicitante e Regulacao
-    logger.debug("[extract_data_from_json] Estruturando bloco da Unidade Solicitante e Médico Responsável...")
+    # logger.debug("[extract_data_from_json] Estruturando bloco da Unidade Solicitante e Médico Responsável...")
     usol = j.get("unidadeSolicitante") or {}
     data["Unidade Solicitante"] = usol.get("nome", "")
     data["Unidade Solicitante Descrição"] = (usol.get("tipoUnidade") or {}).get("descricao", "")
@@ -444,7 +444,7 @@ def main():
             # print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
             
             try:
-                logger.debug(f"[main_loop] Injetando payload JS na API Angular para Página {page_num}...")
+                # logger.debug(f"[main_loop] Injetando payload JS na API Angular para Página {page_num}...")
                 response_data = main_page.evaluate(js_script)
             except Exception as e:
                 logger.warning(f"Navegação inesperada ou contexto destruído: {e}")
@@ -513,7 +513,7 @@ def main():
 
             # print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
             for j in jsons:
-                logger.debug(f"[main_loop] Desempacotando 1 registro do Array JSON...")
+                # logger.debug(f"[main_loop] Desempacotando 1 registro do Array JSON...")
                 data = extract_data_from_json(j)
                 if data and "Protocolo" in data and data["Protocolo"]:
                     prot = data["Protocolo"]
@@ -532,9 +532,9 @@ def main():
             page_num += 1
             
             # Ping preventivo a cada 5 minutos para não deixar a sessão do servidor expirar (Super Rápido/Invisível)
-            if time.time() - last_ping_time > 15 * 60:  # 15 minutos
+            if time.time() - last_ping_time > TIMEOUT/1000 * 60: # 30 * 60 # 30 minutos
                 try:
-                    logger.debug("[Ping] Disparando ping preventivo na API para manter sessão SSO ativa...")
+                    # logger.debug("[Ping] Disparando ping preventivo na API para manter sessão SSO ativa...")
                     # Um fetch na API garante que o Interceptor do Angular anexe o Token Bearer, reativando a sessão no Keycloak/SSO
                     ping_js = """async () => {
                         let $http = angular.element(document.body).injector().get('$http');
