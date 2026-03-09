@@ -62,19 +62,19 @@ def init_csv():
             writer.writeheader()
 
 def load_existing_protocols():
-    existing = set()
+    existing = {}
     if os.path.exists(CSV_FILE):
         with open(CSV_FILE, mode='r', encoding='utf-8') as f:
             try:
                 reader = csv.DictReader(f)
                 for row in reader:
                     if row.get("Protocolo"):
-                        existing.add(row["Protocolo"])
+                        existing[row["Protocolo"]] = row
             except:
                 pass
     return existing
 
-def save_to_csv(data):
+def clean_data_row(data):
     # Trata todos os dados iterando sobre eles. Se for string livre (texto), unifica as quebras de linha.
     cleaned_row = {}
     for col in COLUNAS:
@@ -83,10 +83,17 @@ def save_to_csv(data):
             cleaned_row[col] = v.replace("\r\n", "\n").replace("\r", "\n")
         else:
             cleaned_row[col] = v
-            
-    with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f:
+    return cleaned_row
+
+def save_all_to_csv(data_dict):
+    # Salva todos os dados num arquivo temporário e substitui o original de uma vez (Update)
+    temp_file = CSV_FILE + ".tmp"
+    with open(temp_file, mode='w', newline='', encoding='utf-8') as f:
         writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
-        writer.writerow(cleaned_row)
+        writer.writeheader()
+        for row in data_dict.values():
+            writer.writerow(row)
+    os.replace(temp_file, CSV_FILE)
 
 def format_protocolo(num):
     if not num: return ""
@@ -253,7 +260,7 @@ def main():
     init_csv()
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=False, args=['--no-sandbox'])
         context = browser.new_context()
         main_page = context.new_page()
         
@@ -294,7 +301,7 @@ def main():
         
         existing_protocols = load_existing_protocols()
         if existing_protocols:
-            print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Duplicatas serão ignoradas.")
+            print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Registros existentes serão atualizados.")
 
         import math
         total_pages = None
@@ -309,16 +316,29 @@ def main():
             if total_pages is not None:
                 elapsed_time = time.time() - start_time_total
                 pages_completed = page_num - 1
+                
+                cadastros_completed = pages_completed * page_size
                 avg_time_per_page = elapsed_time / pages_completed if pages_completed > 0 else 0
+                cadastros_por_seg = cadastros_completed / elapsed_time if elapsed_time > 0 else 0
+                
                 remaining_pages = total_pages - pages_completed
                 
                 # Previne ETA negativo caso o total de páginas flutue na API enquanto raspamos
                 eta_seconds = max(remaining_pages * avg_time_per_page, 0)
+                total_seconds = elapsed_time + eta_seconds
                 
-                print(f"\n[{page_num}/{total_pages}] Buscando página {page_num}...")
-                print(f"   -> Tempo decorrido: {int(elapsed_time//60)}m {int(elapsed_time%60)}s | ETA: {int(eta_seconds//60)}m {int(eta_seconds%60)}s")
+                percent = (pages_completed / total_pages * 100) if total_pages > 0 else 0
+                
+                def format_time(secs):
+                    h = int(secs // 3600)
+                    m = int((secs % 3600) // 60)
+                    s = int(secs % 60)
+                    return f"{h:02d}h{m:02d}m{s:02d}s"
+                
+                print(f"{percent:.2f}% {page_num}+{remaining_pages} {cadastros_por_seg:.2f} cad/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}")
             else:
-                print(f"\n[{page_num}] Requisitando dados da página {page_num}...")
+                # print(f"\n[{page_num}] Requisitando dados da página {page_num}...")
+                pass
             
             # Executa script JavaScript na página que busca os IDs paginados via API
             # e depois busca os JSONs individuais via $http em paralelo!
@@ -402,24 +422,24 @@ def main():
             
             if total_pages is None and total_dados > 0:
                 total_pages = math.ceil(total_dados / page_size)
-                print(f"   -> Total de registros detectados na fila: {total_dados} ({total_pages} páginas de {page_size} itens cada)")
+                # print(f"   -> Total de registros detectados na fila: {total_dados} ({total_pages} páginas de {page_size} itens cada)")
 
-            print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
+            # print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
             for j in jsons:
                 data = extract_data_from_json(j)
                 if data and "Protocolo" in data and data["Protocolo"]:
                     prot = data["Protocolo"]
-                    if prot in existing_protocols:
-                        # Ignora silenciosamente ou avisa se preferir
-                        # print(f"      [PULADO] {prot} já existente")
-                        continue
-                        
-                    save_to_csv(data)
-                    existing_protocols.add(prot) # Registra pra não duplicar futuramente
-                    # print(f"      [OK] {prot} {data['Especialidade']} | {data.get('Nome do Paciente', '')}")
+                    
+                    # Limpa e sempre atualiza ou insere o registro na memória
+                    cleaned_row = clean_data_row(data)
+                    existing_protocols[prot] = cleaned_row
+                    
                 else:
                     err_id = j.get("error", "Desconhecido")
-                    print(f"      [ERRO] Falha ao processar paciente ID {err_id}")
+                    # print(f"      [ERRO] Falha ao processar paciente ID {err_id}")
+            
+            # Salva o arquivo CSV atualizado com a página inteira
+            save_all_to_csv(existing_protocols)
             
             page_num += 1
             
