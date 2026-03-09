@@ -272,8 +272,22 @@ def main():
         existing_protocols = load_existing_protocols()
         print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Duplicatas serão ignoradas.")
 
+        import math
+        total_pages = None
+        start_time_total = time.time()
+
         while True:
-            print(f"\n[{page_num}] Requisitando ids da página {page_num}...")
+            if total_pages is not None:
+                elapsed_time = time.time() - start_time_total
+                pages_completed = page_num - 1
+                avg_time_per_page = elapsed_time / pages_completed if pages_completed > 0 else 0
+                remaining_pages = total_pages - pages_completed
+                eta_seconds = remaining_pages * avg_time_per_page
+                
+                print(f"\n[{page_num}/{total_pages}] Buscando página {page_num}...")
+                print(f"   -> Tempo decorrido: {int(elapsed_time//60)}m {int(elapsed_time%60)}s | ETA: {int(eta_seconds//60)}m {int(eta_seconds%60)}s")
+            else:
+                print(f"\n[{page_num}] Requisitando dados da página {page_num}...")
             
             # Executa script JavaScript na página que busca os IDs paginados via API
             # e depois busca os JSONs individuais via $http em paralelo!
@@ -292,10 +306,11 @@ def main():
                 let pageResponse = await $http.get(queryUrl, {{ params: params }});
                 
                 if (!pageResponse.data || !pageResponse.data.dados || pageResponse.data.dados.length === 0) {{
-                    return []; // Paginação chegou ao fim
+                    return null; // Paginação chegou ao fim
                 }}
                 
                 let ids = pageResponse.data.dados.map(item => item.id);
+                let totalRegistros = pageResponse.data.totalDados || 0;
                 
                 // 2. Fetch the detailed JSON for each ID in parallel
                 let results = [];
@@ -307,16 +322,23 @@ def main():
                 );
                 
                 results = await Promise.all(promises);
-                return results;
+                return {{ jsons: results, totalDados: totalRegistros }};
             }}"""
             
-            print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
-            jsons = main_page.evaluate(js_script)
+            # print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
+            response_data = main_page.evaluate(js_script)
             
-            if not jsons or len(jsons) == 0:
+            if not response_data or not response_data.get("jsons"):
                 print("--- Concluído: A fila acabou! ---")
                 break
                 
+            jsons = response_data["jsons"]
+            total_dados = response_data.get("totalDados", 0)
+            
+            if total_pages is None and total_dados > 0:
+                total_pages = math.ceil(total_dados / page_size)
+                print(f"   -> Total de registros detectados na fila: {total_dados} ({total_pages} páginas de {page_size})")
+
             print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
             for j in jsons:
                 data = extract_data_from_json(j)
@@ -329,7 +351,7 @@ def main():
                         
                     save_to_csv(data)
                     existing_protocols.add(prot) # Registra pra não duplicar futuramente
-                    print(f"      [OK] {prot} {data['Especialidade']} | {data.get('Nome do Paciente', '')}")
+                    # print(f"      [OK] {prot} {data['Especialidade']} | {data.get('Nome do Paciente', '')}")
                 else:
                     err_id = j.get("error", "Desconhecido")
                     print(f"      [ERRO] Falha ao processar paciente ID {err_id}")
