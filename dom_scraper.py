@@ -290,7 +290,7 @@ def main():
             return
 
         page_num = 1
-        page_size = 250  # Podemos raspar 50 (ou até mais) por vez!
+        page_size = 10  # Podemos raspar 50 (ou até mais) por vez!
         
         existing_protocols = load_existing_protocols()
         if existing_protocols:
@@ -301,12 +301,19 @@ def main():
         start_time_total = time.time()
 
         while True:
+            # Trava de segurança para impedir a paginação infinita além do limite total
+            if total_pages is not None and page_num > total_pages:
+                print(f"--- Concluído: Todas as {total_pages} páginas projetadas foram extraídas! ---")
+                break
+
             if total_pages is not None:
                 elapsed_time = time.time() - start_time_total
                 pages_completed = page_num - 1
                 avg_time_per_page = elapsed_time / pages_completed if pages_completed > 0 else 0
                 remaining_pages = total_pages - pages_completed
-                eta_seconds = remaining_pages * avg_time_per_page
+                
+                # Previne ETA negativo caso o total de páginas flutue na API enquanto raspamos
+                eta_seconds = max(remaining_pages * avg_time_per_page, 0)
                 
                 print(f"\n[{page_num}/{total_pages}] Buscando página {page_num}...")
                 print(f"   -> Tempo decorrido: {int(elapsed_time//60)}m {int(elapsed_time%60)}s | ETA: {int(eta_seconds//60)}m {int(eta_seconds%60)}s")
