@@ -2,36 +2,35 @@ import os
 import csv
 import json
 import time
+import logging
 from datetime import datetime
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
-load_dotenv(".env/creds.env")
+# Configuração de Logging Verboso
+file_handler = logging.FileHandler("dom_scraper.log", encoding='utf-8')
+file_handler.setLevel(logging.DEBUG)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.WARNING)
+
+logging.basicConfig(
+    level=logging.DEBUG, # O Root Logger aceita tudo
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    handlers=[file_handler, console_handler]
+)
+logger = logging.getLogger(__name__)
+
+load_dotenv("env/creds.env")
+load_dotenv("env/config.env")
 
 USER = os.getenv("username")
 PASS = os.getenv("password")
 
-CSV_FILE = "dados_gercon.csv"
-
-# COLUNAS = [
-#     "Protocolo", "Especialidade", "Especialidade Descrição", "Especialidade Mãe", "Especialidade Mãe Descrição", "Especialista", 
-#     "Situação da Solicitação", "Complexidade", "Cor do Regulador", "Ordem Judicial",
-#     "CID Principal", "CID Código", 
-#     "Data da Solicitação", "Data do Cadastro", "Data do Primeiro Agendamento",
-#     "Tempo na Fila de Espera", "Média de Espera nesta Fila", 
-#     "Pontuação", "Pontuação Cor", 
-#     "Nome do Paciente", "Nome da Mãe", "CPF", "Data de Nascimento", "Idade", "Sexo", "Cor", 
-#     "Cartão SUS", "Telefone", "Email", 
-#     "Logradouro", "Número", "Complemento", "Bairro", "CEP", 
-#     "Município de Residência", "UF de Residência", 
-#     "Município de Nascimento", "UF de Nascimento", "Nacionalidade",
-#     "Quadro Clínico", "Unidade Indicada", "Regionalização", "Diagnóstico",
-#     "Regionalização Especialidade", "Regionalização Solicitante", "Regionalização Referência",
-#     "Unidade Solicitante", "Unidade Solicitante Descrição", "Unidade Solicitante Razão Social",
-#     "Município Solicitante", "UF Solicitante", "Unidade Solicitante Endereço", "Unidade Solicitante Telefone",
-#     "Médico Solicitante", "Médico Solicitante Email", "Médico Solicitante CPF", "Médico Solicitante CNS",
-#     "Central de Regulação", "Central de Regulação de Origem", "Unidade de Referência"
-# ]
+CSV_FILE = os.getenv("CSV_FILE", "dados_gercon.csv")
+GERCON_URL = os.getenv("GERCON_URL", "https://gercon.procempa.com.br/gerconweb/")
+HEADLESS = os.getenv("HEADLESS", "True").lower() == "true"
+PAGE_SIZE = int(os.getenv("PAGE_SIZE", "10"))
 
 COLUNAS = [
     "Protocolo", "Especialidade Mãe", "Especialidade", "Especialidade Descrição",
@@ -57,11 +56,15 @@ COLUNAS = [
 
 def init_csv():
     if not os.path.exists(CSV_FILE):
+        logger.info(f"Criando novo arquivo CSV: {CSV_FILE}")
         with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
             writer.writeheader()
+    else:
+        logger.info(f"Arquivo CSV {CSV_FILE} já existe.")
 
 def load_existing_protocols():
+    logger.info("Carregando protocolos existentes do CSV...")
     existing = {}
     if os.path.exists(CSV_FILE):
         with open(CSV_FILE, mode='r', encoding='utf-8') as f:
@@ -70,12 +73,16 @@ def load_existing_protocols():
                 for row in reader:
                     if row.get("Protocolo"):
                         existing[row["Protocolo"]] = row
-            except:
-                pass
+                logger.info(f"{len(existing)} protocolos carregados com sucesso.")
+            except Exception as e:
+                logger.error(f"Erro ao ler CSV existente: {e}")
+    else:
+        logger.warning(f"Arquivo {CSV_FILE} não encontrado para carregamento inicial.")
     return existing
 
 def clean_data_row(data):
     # Trata todos os dados iterando sobre eles. Se for string livre (texto), unifica as quebras de linha.
+    logger.debug(f"[clean_data_row] Sanitizando quebras de linha para o Protocolo: {data.get('Protocolo')}")
     cleaned_row = {}
     for col in COLUNAS:
         v = data.get(col, "")
@@ -88,26 +95,41 @@ def clean_data_row(data):
 def save_all_to_csv(data_dict):
     # Salva todos os dados num arquivo temporário e substitui o original de uma vez (Update)
     temp_file = CSV_FILE + ".tmp"
-    with open(temp_file, mode='w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
-        writer.writeheader()
-        for row in data_dict.values():
-            writer.writerow(row)
-    os.replace(temp_file, CSV_FILE)
+    logger.debug(f"Salvando {len(data_dict)} registros no CSV (via arquivo temporário)...")
+    try:
+        with open(temp_file, mode='w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
+            writer.writeheader()
+            for row in data_dict.values():
+                writer.writerow(row)
+        os.replace(temp_file, CSV_FILE)
+        logger.debug("CSV atualizado com sucesso.")
+    except Exception as e:
+        logger.error(f"Erro ao salvar CSV: {e}")
 
 def format_protocolo(num):
-    if not num: return ""
+    logger.debug(f"[format_protocolo] Original: '{num}'")
+    if not num: 
+        logger.debug("[format_protocolo] Vazio.")
+        return ""
     num = str(num)
     if len(num) == 12:
-        return f"{num[0:2]}-{num[2:4]}-{num[4:11]}-{num[11]}"
+        res = f"{num[0:2]}-{num[2:4]}-{num[4:11]}-{num[11]}"
+        logger.debug(f"[format_protocolo] Formatado: '{res}'")
+        return res
+    logger.debug(f"[format_protocolo] Mantido inalterado: '{num}'")
     return num
 
 def timestamp_to_date(ts):
+    logger.debug(f"[timestamp_to_date] Recebido: '{ts}'")
     if not ts: return ""
     try:
         dt = datetime.fromtimestamp(ts / 1000.0)
-        return dt.strftime("%d/%m/%Y %H:%M")
-    except:
+        res = dt.strftime("%d/%m/%Y %H:%M")
+        logger.debug(f"[timestamp_to_date] Convertido para: '{res}'")
+        return res
+    except Exception as e:
+        logger.debug(f"[timestamp_to_date] Falha ao converter: {e}")
         return ""
 
 def calculate_age(ts):
@@ -123,11 +145,15 @@ def calculate_age(ts):
 
 def extract_data_from_json(j):
     if "error" in j:
+        logger.error(f"Recebido JSON com erro: {j.get('error')}")
         return None
         
+    prot_raw = j.get("numeroCMCE", "Desconhecido")
+    logger.debug(f"Processando extração para protocolo bruto: {prot_raw}")
     data = {}
     
     # Protocolo
+    logger.debug("[extract_data_from_json] Estruturando blocos principais (Especialidade, Situação, CIDs)...")
     data["Protocolo"] = format_protocolo(j.get("numeroCMCE", ""))
     
     especialidade = j.get("especialidade") or {}
@@ -161,6 +187,7 @@ def extract_data_from_json(j):
     # Usuário
     u = j.get("usuarioSUS") or {}
     if u:
+        logger.debug("[extract_data_from_json] Estruturando bloco do Paciente e Endereço...")
         data["Nome do Paciente"] = u.get("nomeCompleto", "")
         data["Nome da Mãe"] = u.get("nomeMae", "")
         data["CPF"] = u.get("cpf", "")
@@ -190,6 +217,7 @@ def extract_data_from_json(j):
 
     # Anamnese / Quadro Clinico  (pega da evo mais antiga que tiver)
     evolucoes = j.get("evolucoes", [])
+    logger.debug(f"[extract_data_from_json] Mapeando {len(evolucoes)} blocos de evoluções para capturar Quadro Clínico...")
     evolucoes.sort(key=lambda x: x.get("data", 0)) # ordena da mais antiga para atual
     
     evo_codigos = [] # debugging purposes
@@ -235,6 +263,7 @@ def extract_data_from_json(j):
                 pass
 
     # Solicitante e Regulacao
+    logger.debug("[extract_data_from_json] Estruturando bloco da Unidade Solicitante e Médico Responsável...")
     usol = j.get("unidadeSolicitante") or {}
     data["Unidade Solicitante"] = usol.get("nome", "")
     data["Unidade Solicitante Descrição"] = (usol.get("tipoUnidade") or {}).get("descricao", "")
@@ -256,31 +285,39 @@ def extract_data_from_json(j):
     return data
 
 def main():
-    print("Iniciando Extração Acelerada via API Angular...")
+    logger.info("==================================================")
+    logger.info("Iniciando nova execução do GERCON Scraper...")
+    logger.info("==================================================")
     init_csv()
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+        logger.info("Iniciando navegador Playwright...")
+        browser = p.chromium.launch(headless=HEADLESS, args=['--no-sandbox'])
         context = browser.new_context()
         main_page = context.new_page()
         
-        print("Navegando e logando...")
-        main_page.goto("https://gercon.procempa.com.br/gerconweb/", wait_until="networkidle", timeout=30000)
+        logger.info("Navegando para a página de login do GERCON...")
+        main_page.goto(GERCON_URL, wait_until="networkidle", timeout=30000)
+        logger.debug("Preenchendo credenciais...")
         main_page.fill('#username', USER)
         main_page.fill('#password', PASS)
         main_page.click('#kc-login')
         main_page.wait_for_load_state("networkidle")
+        logger.info("Login aparente realizado. Aguardando carregamento da interface inicial...")
         
         # Unidade (se houver)
         xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
         try:
             main_page.wait_for_selector(f"xpath={xpath_btn}", timeout=10000)
+            logger.debug("Clicando no botão de seleção de unidade (se existir)...")
             main_page.locator(f"xpath={xpath_btn}").click()
             main_page.wait_for_load_state("networkidle")
+            logger.info("Unidade selecionada com sucesso.")
         except:
+            logger.debug("Botão de unidade não encontrado ou não necessário. Prosseguindo...")
             pass
             
-        print("Acessando Menu Fila de Espera...")
+        logger.info("Acessando Menu 'Fila de Espera'...")
         xpath_item = "/html/body/div[6]/div/ul/li[4]"
         main_page.wait_for_selector(f"xpath={xpath_item}", timeout=15000)
         main_page.locator(f"xpath={xpath_item}").click()
@@ -290,18 +327,18 @@ def main():
         
         try:
             main_page.wait_for_selector(row_selector, timeout=20000)
-            print("Tabela carregada! Iniciando raspagem invisível da Fila de Espera...")
+            logger.info("Tabela carregada! Iniciando raspagem invisível da Fila de Espera...")
         except:
-            print("Tabela não carregada ou lista vazia.")
+            logger.error("Tabela não carregada ou lista vazia.")
             browser.close()
             return
 
         page_num = 1
-        page_size = 10  # Podemos raspar 50 (ou até mais) por vez!
+        page_size = PAGE_SIZE  # Podemos raspar 50 (ou até mais) por vez!
         
         existing_protocols = load_existing_protocols()
         if existing_protocols:
-            print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Registros existentes serão atualizados.")
+            logger.info(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Registros existentes serão atualizados.")
 
         import math
         total_pages = None
@@ -311,7 +348,7 @@ def main():
         while True:
             # Trava de segurança para impedir a paginação infinita além do limite total
             if total_pages is not None and page_num > total_pages:
-                print(f"--- Concluído: Todas as {total_pages} páginas projetadas foram extraídas! ---")
+                logger.info(f"--- Concluído: Todas as {total_pages} páginas projetadas foram extraídas! ---")
                 break
 
             if total_pages is not None:
@@ -336,7 +373,9 @@ def main():
                     s = int(secs % 60)
                     return f"{h:02d}h{m:02d}m{s:02d}s"
                 
-                print(f"{percent:.4f}% {page_num}+{remaining_pages} {cadastros_por_seg:.4f}/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}")
+                progress_line = f"{percent:.4f}% {page_num}+{remaining_pages} {cadastros_por_seg:.4f}/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}"
+                print(progress_line)
+                logger.info(progress_line)
             else:
                 # print(f"\n[{page_num}] Requisitando dados da página {page_num}...")
                 pass
@@ -380,16 +419,17 @@ def main():
             # print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
             
             try:
+                logger.debug(f"[main_loop] Injetando payload JS na API Angular para Página {page_num}...")
                 response_data = main_page.evaluate(js_script)
             except Exception as e:
-                print(f"   -> [AVISO] Navegação inesperada ou contexto destruído: {e}")
-                print("   -> Tentando recuperar a sessão do Angular...")
+                logger.warning(f"Navegação inesperada ou contexto destruído: {e}")
+                logger.info("Tentando recuperar a sessão do Angular...")
                 try:
-                    main_page.goto("https://gercon.procempa.com.br/gerconweb/", wait_until="load", timeout=60000)
+                    main_page.goto(GERCON_URL, wait_until="load", timeout=60000)
                     
                     # Verifica se fomos deslogados (Sessão Expirada após ~40 mins)
                     if main_page.locator('#username').count() > 0:
-                        print("   -> Sessão expirada bloqueou as requisições! Refazendo login de forma invisível...")
+                        logger.warning("Sessão expirada bloqueou as requisições! Refazendo login de forma invisível...")
                         main_page.fill('#username', USER)
                         main_page.fill('#password', PASS)
                         main_page.click('#kc-login')
@@ -403,23 +443,24 @@ def main():
                         except:
                             pass
                             
-                    print("   -> Acessando Menu Fila de Espera novamente...")
+                    logger.info("Acessando Menu Fila de Espera novamente...")
                     xpath_item = "/html/body/div[6]/div/ul/li[4]"
                     main_page.wait_for_selector(f"xpath={xpath_item}", timeout=20000)
                     main_page.locator(f"xpath={xpath_item}").click()
                     main_page.wait_for_selector("table.ng-table tbody tr", timeout=30000)
-                    print("   -> Sistema reconectado com sucesso! Retomando coleta da página...")
+                    logger.info("Sistema reconectado com sucesso! Retomando coleta da página...")
                 except Exception as ex:
-                    print(f"   -> Falha ao recuperar sessão logada. Encerrando. ({ex})")
+                    logger.error(f"Falha ao recuperar sessão logada. Encerrando. ({ex})")
                     break
                 continue
             
             if not response_data or not response_data.get("jsons"):
-                print("--- Concluído: A fila acabou! ---")
+                logger.info("--- Concluído: A fila acabou! ---")
                 break
                 
             jsons = response_data["jsons"]
             total_dados = response_data.get("totalDados", 0)
+            logger.debug(f"[main_loop] JS resolvido! Lote com {len(jsons)} registros capturado. Fila total aferida: {total_dados}")
             
             if total_pages is None and total_dados > 0:
                 total_pages = math.ceil(total_dados / page_size)
@@ -427,6 +468,7 @@ def main():
 
             # print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
             for j in jsons:
+                logger.debug(f"[main_loop] Desempacotando 1 registro do Array JSON...")
                 data = extract_data_from_json(j)
                 if data and "Protocolo" in data and data["Protocolo"]:
                     prot = data["Protocolo"]
@@ -460,4 +502,4 @@ if __name__ == "__main__":
     if USER and PASS:
         main()
     else:
-        print("Credenciais não configuradas!")
+        logger.error("Credenciais não configuradas!")
