@@ -270,7 +270,8 @@ def main():
         page_size = 100  # Podemos raspar 50 (ou até mais) por vez!
         
         existing_protocols = load_existing_protocols()
-        print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Duplicatas serão ignoradas.")
+        if existing_protocols:
+            print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Duplicatas serão ignoradas.")
 
         import math
         total_pages = None
