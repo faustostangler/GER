@@ -335,7 +335,7 @@ def main():
                     s = int(secs % 60)
                     return f"{h:02d}h{m:02d}m{s:02d}s"
                 
-                print(f"{percent:.2f}% {page_num}+{remaining_pages} {cadastros_por_seg:.2f} cad/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}")
+                print(f"{percent:.4f}% {page_num}+{remaining_pages} {cadastros_por_seg:.4f}/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}")
             else:
                 # print(f"\n[{page_num}] Requisitando dados da página {page_num}...")
                 pass
