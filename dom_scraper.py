@@ -31,6 +31,7 @@ CSV_FILE = os.getenv("CSV_FILE", "dados_gercon.csv")
 GERCON_URL = os.getenv("GERCON_URL", "https://gercon.procempa.com.br/gerconweb/")
 HEADLESS = os.getenv("HEADLESS", "True").lower() == "true"
 PAGE_SIZE = int(os.getenv("PAGE_SIZE", "10"))
+TIMEOUT = int(os.getenv("TIMEOUT", "30000"))
 
 COLUNAS = [
     "Protocolo", "Especialidade Mãe", "Especialidade", "Especialidade Descrição",
@@ -297,7 +298,7 @@ def main():
         main_page = context.new_page()
         
         logger.info("Navegando para a página de login do GERCON...")
-        main_page.goto(GERCON_URL, wait_until="networkidle", timeout=30000)
+        main_page.goto(GERCON_URL, wait_until="networkidle", timeout=TIMEOUT)
         logger.debug("Preenchendo credenciais...")
         main_page.fill('#username', USER)
         main_page.fill('#password', PASS)
@@ -308,7 +309,7 @@ def main():
         # Unidade (se houver)
         xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
         try:
-            main_page.wait_for_selector(f"xpath={xpath_btn}", timeout=10000)
+            main_page.wait_for_selector(f"xpath={xpath_btn}", timeout=TIMEOUT)
             logger.debug("Clicando no botão de seleção de unidade (se existir)...")
             main_page.locator(f"xpath={xpath_btn}").click()
             main_page.wait_for_load_state("networkidle")
@@ -319,14 +320,14 @@ def main():
             
         logger.info("Acessando Menu 'Fila de Espera'...")
         xpath_item = "/html/body/div[6]/div/ul/li[4]"
-        main_page.wait_for_selector(f"xpath={xpath_item}", timeout=15000)
+        main_page.wait_for_selector(f"xpath={xpath_item}", timeout=TIMEOUT)
         main_page.locator(f"xpath={xpath_item}").click()
         main_page.wait_for_load_state("networkidle")
         
         row_selector = "table.ng-table tbody tr"
         
         try:
-            main_page.wait_for_selector(row_selector, timeout=20000)
+            main_page.wait_for_selector(row_selector, timeout=TIMEOUT)
             logger.info("Tabela carregada! Iniciando raspagem invisível da Fila de Espera...")
         except:
             logger.error("Tabela não carregada ou lista vazia.")
@@ -373,7 +374,21 @@ def main():
                     s = int(secs % 60)
                     return f"{h:02d}h{m:02d}m{s:02d}s"
                 
-                progress_line = f"{percent:.4f}% {page_num}+{remaining_pages} {cadastros_por_seg:.4f}/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}"
+                def format_size(bytes_size):
+                    if bytes_size < 1024:
+                        return f"{bytes_size}B"
+                    elif bytes_size < 1024 * 1024:
+                        return f"{(bytes_size / 1024):.2f}KB"
+                    elif bytes_size < 1024 * 1024 * 1024:
+                        return f"{(bytes_size / 1024 / 1024):.2f}MB"
+                    else:
+                        return f"{(bytes_size / 1024 / 1024 / 1024):.2f}GB"
+                
+                batch_bytes = globals().get('payload_bytes_last_batch', 0)
+                total_bytes = globals().get('payload_bytes_total', 0)
+                
+                payload_str = f"{format_size(batch_bytes)}/{format_size(total_bytes)}" if total_bytes else ""
+                progress_line = f"{percent:.4f}% {page_num}+{remaining_pages} {payload_str} {cadastros_por_seg:.4f}/seg {format_time(elapsed_time)}+{format_time(eta_seconds)}={format_time(total_seconds)}"
                 print(progress_line)
                 logger.info(progress_line)
             else:
@@ -403,17 +418,27 @@ def main():
                 let ids = pageResponse.data.dados.map(item => item.id);
                 let totalRegistros = pageResponse.data.totalDados || 0;
                 
-                // 2. Fetch the detailed JSON for each ID in parallel
+                // 2. Fetch the detailed JSON for each ID in parallel and measure network size
                 let results = [];
+                let totalBytes = 0;
+                
                 // Usar Promise.all ou chunk para carregar os detalhes rapidamente
                 let promises = ids.map(id => 
-                    $http.get('/gercon/rest/solicitacoes/' + id)
-                        .then(r => r.data)
+                    $http.get('/gercon/rest/solicitacoes/' + id, {{ transformResponse: [function (data) {{ return data; }}] }})
+                        .then(r => {{
+                            let rawString = r.data || "";
+                            totalBytes += new Blob([rawString]).size;
+                            try {{
+                                return JSON.parse(rawString);
+                            }} catch (e) {{
+                                return {{error: id}};
+                            }}
+                        }})
                         .catch(e => ({{error: id}}))
                 );
                 
                 results = await Promise.all(promises);
-                return {{ jsons: results, totalDados: totalRegistros }};
+                return {{ jsons: results, totalDados: totalRegistros, bytesDownload: totalBytes }};
             }}"""
             
             # print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
@@ -425,29 +450,40 @@ def main():
                 logger.warning(f"Navegação inesperada ou contexto destruído: {e}")
                 logger.info("Tentando recuperar a sessão do Angular...")
                 try:
-                    main_page.goto(GERCON_URL, wait_until="load", timeout=60000)
+                    logger.debug("Navegando de volta para a URL base do Gercon para verificar estado da sessão...")
+                    main_page.goto(GERCON_URL, wait_until="load", timeout=TIMEOUT)
                     
-                    # Verifica se fomos deslogados (Sessão Expirada após ~40 mins)
+                    # Aguarda toda a cadeia de redirecionamentos HTTP 302 do SSO finalizar
+                    try:
+                        main_page.wait_for_load_state("networkidle", timeout=TIMEOUT)
+                    except:
+                        pass # Network idle pode dar timeout se a página tiver muito Javascript longo, seguimos em frente
+                        
+                    logger.debug(f"Página recarregada e estabilizada. URL atual é: {main_page.url}")
+                    
+                    # Verifica se caímos na tela de login do SSO (sso-pmpa.procempa.com.br)
                     if main_page.locator('#username').count() > 0:
-                        logger.warning("Sessão expirada bloqueou as requisições! Refazendo login de forma invisível...")
+                        logger.warning("Queda para a tela do SSO detectada! Refazendo login de forma invisível...")
                         main_page.fill('#username', USER)
                         main_page.fill('#password', PASS)
                         main_page.click('#kc-login')
                         main_page.wait_for_load_state("networkidle")
+                        logger.debug(f"Login re-enviado. Nova URL pós-login: {main_page.url}")
                         
                         xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
                         try:
-                            main_page.wait_for_selector(f"xpath={xpath_btn}", timeout=5000)
+                            logger.debug("Aguardando possível tela de seleção de unidade do Gercon...")
+                            main_page.wait_for_selector(f"xpath={xpath_btn}", timeout=TIMEOUT)
                             main_page.locator(f"xpath={xpath_btn}").click()
                             main_page.wait_for_load_state("networkidle")
+                            logger.debug("Unidade re-selecionada no fluxo de recuperação.")
                         except:
-                            pass
-                            
+                            logger.debug("Seleção de unidade não exigida no fluxo de recuperação.")
                     logger.info("Acessando Menu Fila de Espera novamente...")
                     xpath_item = "/html/body/div[6]/div/ul/li[4]"
-                    main_page.wait_for_selector(f"xpath={xpath_item}", timeout=20000)
+                    main_page.wait_for_selector(f"xpath={xpath_item}", timeout=TIMEOUT)
                     main_page.locator(f"xpath={xpath_item}").click()
-                    main_page.wait_for_selector("table.ng-table tbody tr", timeout=30000)
+                    main_page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT)
                     logger.info("Sistema reconectado com sucesso! Retomando coleta da página...")
                 except Exception as ex:
                     logger.error(f"Falha ao recuperar sessão logada. Encerrando. ({ex})")
@@ -459,8 +495,17 @@ def main():
                 break
                 
             jsons = response_data["jsons"]
+            bytes_neste_lote = response_data.get("bytesDownload", 0)
+            
+            # Acumulador global simples usando globals para manter compatibilidade no loop
+            global payload_bytes_total
+            if 'payload_bytes_total' not in globals():
+                payload_bytes_total = 0
+            payload_bytes_total += bytes_neste_lote
+            globals()['payload_bytes_last_batch'] = bytes_neste_lote
+            
             total_dados = response_data.get("totalDados", 0)
-            logger.debug(f"[main_loop] JS resolvido! Lote com {len(jsons)} registros capturado. Fila total aferida: {total_dados}")
+            logger.debug(f"[main_loop] JS resolvido! Lote com {len(jsons)} registros capturado. Fila total aferida: {total_dados}. Download neste lote: {(bytes_neste_lote / 1024):.2f}KB. Total Acumulado: {(payload_bytes_total / 1024 / 1024):.2f}MB")
             
             if total_pages is None and total_dados > 0:
                 total_pages = math.ceil(total_dados / page_size)
@@ -487,11 +532,18 @@ def main():
             page_num += 1
             
             # Ping preventivo a cada 5 minutos para não deixar a sessão do servidor expirar (Super Rápido/Invisível)
-            if time.time() - last_ping_time > 1000:  # 300 segundos = 5 minutos
+            if time.time() - last_ping_time > 15 * 60:  # 15 minutos
                 try:
-                    # Um simples "fetch" na URL base já renova o tempo de inatividade no servidor
-                    # sem recarregar a tela, sem piscar o DOM e demorando apenas milissegundos!
-                    main_page.evaluate("fetch(window.location.href).catch(() => {})")
+                    logger.debug("[Ping] Disparando ping preventivo na API para manter sessão SSO ativa...")
+                    # Um fetch na API garante que o Interceptor do Angular anexe o Token Bearer, reativando a sessão no Keycloak/SSO
+                    ping_js = """async () => {
+                        let $http = angular.element(document.body).injector().get('$http');
+                        return await $http.get('/gercon/rest/solicitacoes/paineis', { params: { pagina: 1, tamanhoPagina: 1 } })
+                            .then(r => 'SUCCESS')
+                            .catch(e => 'ERROR');
+                    }"""
+                    ping_result = main_page.evaluate(ping_js)
+                    logger.debug(f"[Ping] Resultado da renovação de Token: {ping_result}")
                     last_ping_time = time.time()  # Reseta o timer
                 except Exception:
                     pass
