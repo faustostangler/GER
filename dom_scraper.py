@@ -14,16 +14,22 @@ PASS = os.getenv("password")
 CSV_FILE = "dados_gercon.csv"
 
 COLUNAS = [
-    "Protocolo", "Especialidade", "Situação da Solicitação", "CID Principal", 
-    "CID Código", "Data da Solicitação", "Tempo na Fila de Espera", 
-    "Média de Espera nesta Fila", "Pontuação", "Pontuação Cor", "Nome do Paciente", 
-    "Idade", "Sexo", "Cor", "Cartão SUS", "CPF", "Data de Nascimento", 
-    "Nome da Mãe", "Telefone", "Email", "Logradouro", "Número", "Complemento",
-    "Bairro", "CEP", "Município de Residência", "UF de Residência",
+    "Protocolo", "Especialidade", "Especialidade Descrição", "Especialidade Mãe", "Especialista", 
+    "Situação da Solicitação", "Complexidade", "Cor do Regulador", "Ordem Judicial",
+    "CID Principal", "CID Código", 
+    "Data da Solicitação", "Data do Cadastro", "Data do Primeiro Agendamento",
+    "Tempo na Fila de Espera", "Média de Espera nesta Fila", 
+    "Pontuação", "Pontuação Cor", 
+    "Nome do Paciente", "Nome da Mãe", "CPF", "Data de Nascimento", "Idade", "Sexo", "Cor", 
+    "Cartão SUS", "Telefone", "Email", 
+    "Logradouro", "Número", "Complemento", "Bairro", "CEP", 
+    "Município de Residência", "UF de Residência", 
     "Município de Nascimento", "UF de Nascimento", "Nacionalidade",
     "Quadro Clínico", "Unidade Indicada", "Regionalização", "Diagnóstico",
     "Regionalização Especialidade", "Regionalização Solicitante", "Regionalização Referência",
-    "Médico Solicitante", "Unidade Solicitante", "Município Solicitante", 
+    "Unidade Solicitante", "Unidade Solicitante Descrição", "Unidade Solicitante Razão Social",
+    "Município Solicitante", "UF Solicitante", "Unidade Solicitante Endereço", "Unidade Solicitante Telefone",
+    "Médico Solicitante", "Médico Solicitante Email", "Médico Solicitante CPF", "Médico Solicitante CNS",
     "Central de Regulação", "Central de Regulação de Origem", "Unidade de Referência"
 ]
 
@@ -74,24 +80,35 @@ def extract_data_from_json(j):
     # Protocolo
     data["Protocolo"] = format_protocolo(j.get("numeroCMCE", ""))
     
-    data["Especialidade"] = j.get("especialidade", {}).get("descricao", "")
+    especialidade = j.get("especialidade") or {}
+    data["Especialidade"] = especialidade.get("descricao", "")
+    data["Especialidade Descrição"] = especialidade.get("descricaoAuxiliar", "")
+    
+    especialidade_mae = j.get("especialidadeMae") or {}
+    data["Especialidade Mãe"] = especialidade_mae.get("descricao", "")
+    data["Especialista"] = especialidade.get("cbo", {}).get("descricao", "")
+    
     data["Situação da Solicitação"] = j.get("situacao", "")
+    data["Complexidade"] = j.get("complexidade", "")
+    data["Cor do Regulador"] = j.get("corRegulador", "")
+    data["Ordem Judicial"] = j.get("liminarOrdemJudicial", "")
     
     # CIDs
-    cid = j.get("cidPrincipal", {})
+    cid = j.get("cidPrincipal") or {}
     data["CID Principal"] = cid.get("descricao", "")
     data["CID Código"] = cid.get("codigo", "")
     
     data["Data da Solicitação"] = timestamp_to_date(j.get("dataSolicitacao"))
+    data["Data do Cadastro"] = timestamp_to_date(j.get("dataCadastro"))
+    data["Data do Primeiro Agendamento"] = timestamp_to_date(j.get("dataPrimeiroAgendamento"))
     
     # Pontuação
-    cr = j.get("classificacaoRisco", {})
-    if cr:
-         data["Pontuação"] = cr.get("totalPontos", "")
-         data["Pontuação Cor"] = cr.get("cor", "")
+    class_risco = j.get("classificacaoRisco") or {}
+    data["Pontuação"] = class_risco.get("totalPontos", "")
+    data["Pontuação Cor"] = class_risco.get("cor", "")
          
     # Usuário
-    u = j.get("usuarioSUS", {})
+    u = j.get("usuarioSUS") or {}
     if u:
         data["Nome do Paciente"] = u.get("nomeCompleto", "")
         data["Nome da Mãe"] = u.get("nomeMae", "")
@@ -109,10 +126,15 @@ def extract_data_from_json(j):
         data["Complemento"] = u.get("complemento", "")
         data["Bairro"] = u.get("bairro", "")
         data["CEP"] = u.get("cep", "")
-        data["Município de Residência"] = u.get("municipioResidencia", {}).get("nome", "")
-        data["UF de Residência"] = u.get("municipioResidencia", {}).get("uf", "")
-        data["Município de Nascimento"] = u.get("municipioNascimento", {}).get("nome", "")
-        data["UF de Nascimento"] = u.get("municipioNascimento", {}).get("uf", "")
+
+        mun_res = u.get("municipioResidencia") or {}
+        data["Município de Residência"] = mun_res.get("nome", "")
+        data["UF de Residência"] = mun_res.get("uf", "")
+
+        mun_nasc = u.get("municipioNascimento") or {}
+        data["Município de Nascimento"] = mun_nasc.get("nome", "")
+        data["UF de Nascimento"] = mun_nasc.get("uf", "")
+        
         data["Nacionalidade"] = u.get("nacionalidade", "")
 
     # Anamnese / Quadro Clinico  (pega da evo mais antiga que tiver)
@@ -131,8 +153,8 @@ def extract_data_from_json(j):
                 for evo_item in evo_detalhes.get("itensEvolucao", []):
                     evo_codigos.append(evo_item.get("codigo")) # Salva para debug futuro
                     
-                    if evo_item.get("codigo") == "evolucao":
-                        pass
+                    # if evo_item.get("codigo") == "evolucao":
+                    #     pass
                     
                     # Extrai o Quadro Clínico / Anamnese
                     if evo_item.get("codigo") == "anamnese":
@@ -162,14 +184,23 @@ def extract_data_from_json(j):
                 pass
 
     # Solicitante e Regulacao
-    usol = j.get("unidadeSolicitante", {})
+    usol = j.get("unidadeSolicitante") or {}
     data["Unidade Solicitante"] = usol.get("nome", "")
-    data["Município Solicitante"] = usol.get("municipio", {}).get("nome", "")
-    
-    med = j.get("usuarioSolicitante", {})
+    data["Unidade Solicitante Descrição"] = (usol.get("tipoUnidade") or {}).get("descricao", "")
+    data["Unidade Solicitante Razão Social"] = usol.get("razaoSocial", "")
+    data["Município Solicitante"] = (usol.get("municipio") or {}).get("nome", "")
+    data["UF Solicitante"] = (usol.get("municipio") or {}).get("uf", "")
+    data["Unidade Solicitante Endereço"] = usol.get("endereco", "")
+    data["Unidade Solicitante Telefone"] = usol.get("telefone", "")
+
+    med = j.get("usuarioSolicitante") or {}
     data["Médico Solicitante"] = med.get("nome", "")
+    data["Médico Solicitante Email"] = med.get("email", "")
+    data["Médico Solicitante CPF"] = med.get("cpf", "")
+    data["Médico Solicitante CNS"] = med.get("cns", "")
+
     
-    data["Central de Regulação"] = usol.get("centralRegulacao", {}).get("nome", "")
+    data["Central de Regulação"] = (usol.get("centralRegulacao") or {}).get("nome", "")
     
     return data
 
@@ -255,7 +286,7 @@ def main():
                 data = extract_data_from_json(j)
                 if data and "Protocolo" in data and data["Protocolo"]:
                     save_to_csv(data)
-                    print(f"      [OK] Paciente: {data.get('Nome do Paciente', 'N/D')} | Prot: {data['Protocolo']}")
+                    print(f"      [OK] {data['Protocolo']} {data['Especialidade']} | {data.get('Nome do Paciente', '')}")
                 else:
                     err_id = j.get("error", "Desconhecido")
                     print(f"      [ERRO] Falha ao processar paciente ID {err_id}")
