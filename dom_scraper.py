@@ -36,14 +36,35 @@ COLUNAS = [
 def init_csv():
     if not os.path.exists(CSV_FILE):
         with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=COLUNAS)
+            writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
             writer.writeheader()
 
+def load_existing_protocols():
+    existing = set()
+    if os.path.exists(CSV_FILE):
+        with open(CSV_FILE, mode='r', encoding='utf-8') as f:
+            try:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get("Protocolo"):
+                        existing.add(row["Protocolo"])
+            except:
+                pass
+    return existing
+
 def save_to_csv(data):
-    row = {col: data.get(col, "") for col in COLUNAS}
+    # Trata todos os dados iterando sobre eles. Se for string livre (texto), unifica as quebras de linha.
+    cleaned_row = {}
+    for col in COLUNAS:
+        v = data.get(col, "")
+        if isinstance(v, str):
+            cleaned_row[col] = v.replace("\r\n", "\n").replace("\r", "\n")
+        else:
+            cleaned_row[col] = v
+            
     with open(CSV_FILE, mode='a', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=COLUNAS)
-        writer.writerow(row)
+        writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
+        writer.writerow(cleaned_row)
 
 def format_protocolo(num):
     if not num: return ""
@@ -236,71 +257,82 @@ def main():
         main_page.wait_for_load_state("networkidle")
         
         row_selector = "table.ng-table tbody tr"
-        page_num = 1
         
+        try:
+            main_page.wait_for_selector(row_selector, timeout=20000)
+            print("Tabela carregada! Iniciando raspagem invisível da Fila de Espera...")
+        except:
+            print("Tabela não carregada ou lista vazia.")
+            browser.close()
+            return
+
+        page_num = 1
+        page_size = 100  # Podemos raspar 50 (ou até mais) por vez!
+        
+        existing_protocols = load_existing_protocols()
+        print(f"Encontrados {len(existing_protocols)} protocolos já salvos no CSV. Duplicatas serão ignoradas.")
+
         while True:
-            print(f"\n[{page_num}] Carregando lista a partir do DOM...")
+            print(f"\n[{page_num}] Requisitando ids da página {page_num}...")
             
-            try:
-                main_page.wait_for_selector(row_selector, timeout=20000)
-            except:
-                print("Tabela não carregada ou lista vazia.")
-                break
-            
-            # Executa script JavaScript na página que busca os JSON via $http em paralelo!
+            # Executa script JavaScript na página que busca os IDs paginados via API
+            # e depois busca os JSONs individuais via $http em paralelo!
             # Isto não afeta a navegação e é super rápido pois usa a sessão do angular
-            js_script = """async () => {
-                let rows = document.querySelectorAll('table.ng-table tbody tr.ng-scope');
-                let ids = [];
-                for (let i = 0; i < rows.length; i++) {
-                    try {
-                        let id = angular.element(rows[i]).scope().solicitacao.id;
-                        if(id) ids.push(id);
-                    } catch(e) {}
-                }
-                
-                if (ids.length === 0) return [];
-                
+            js_script = f"""async () => {{
+                let scope = angular.element(document.querySelector('table.ng-table')).scope();
                 let $http = angular.element(document.body).injector().get('$http');
+                
+                // Pega os filtros que o usuário aplicou na interface
+                let params = angular.copy(scope.solicCtrl.parametros.filaDeEspera);
+                params.pagina = {page_num};
+                params.tamanhoPagina = {page_size};
+                
+                // 1. Fetch the list of IDs for the current page
+                let queryUrl = '/gercon/rest/solicitacoes/paineis';
+                let pageResponse = await $http.get(queryUrl, {{ params: params }});
+                
+                if (!pageResponse.data || !pageResponse.data.dados || pageResponse.data.dados.length === 0) {{
+                    return []; // Paginação chegou ao fim
+                }}
+                
+                let ids = pageResponse.data.dados.map(item => item.id);
+                
+                // 2. Fetch the detailed JSON for each ID in parallel
                 let results = [];
-                for(let id of ids) {
-                    try {
-                        let r = await $http.get('/gercon/rest/solicitacoes/' + id);
-                        results.push(r.data);
-                    } catch(e) {
-                        results.push({error: id});
-                    }
-                }
+                // Usar Promise.all ou chunk para carregar os detalhes rapidamente
+                let promises = ids.map(id => 
+                    $http.get('/gercon/rest/solicitacoes/' + id)
+                        .then(r => r.data)
+                        .catch(e => ({{error: id}}))
+                );
+                
+                results = await Promise.all(promises);
                 return results;
-            }"""
+            }}"""
             
-            print("   -> Lendo JSONS via API de forma assíncrona...")
+            print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
             jsons = main_page.evaluate(js_script)
             
-            if not jsons:
-                print("Nenhum item válido encontrado ou erro no injector.")
+            if not jsons or len(jsons) == 0:
+                print("--- Concluído: A fila acabou! ---")
                 break
                 
-            print(f"   -> Processando os {len(jsons)} registros recebidos e salvando...")
+            print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
             for j in jsons:
                 data = extract_data_from_json(j)
                 if data and "Protocolo" in data and data["Protocolo"]:
+                    prot = data["Protocolo"]
+                    if prot in existing_protocols:
+                        # Ignora silenciosamente ou avisa se preferir
+                        # print(f"      [PULADO] {prot} já existente")
+                        continue
+                        
                     save_to_csv(data)
-                    print(f"      [OK] {data['Protocolo']} {data['Especialidade']} | {data.get('Nome do Paciente', '')}")
+                    existing_protocols.add(prot) # Registra pra não duplicar futuramente
+                    print(f"      [OK] {prot} {data['Especialidade']} | {data.get('Nome do Paciente', '')}")
                 else:
                     err_id = j.get("error", "Desconhecido")
                     print(f"      [ERRO] Falha ao processar paciente ID {err_id}")
-            
-            # Próxima página
-            next_btn = main_page.locator("ul.pagination li:last-child:not(.disabled) a")
-            
-            if next_btn.count() > 0:
-                print("   -> Solicitando próxima página da fila...")
-                next_btn.first.click()
-                main_page.wait_for_timeout(2000)
-            else:
-                print("--- Concluído: todas as páginas foram processadas. ---")
-                break
             
             page_num += 1
             
