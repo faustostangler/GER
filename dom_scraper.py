@@ -13,24 +13,46 @@ PASS = os.getenv("password")
 
 CSV_FILE = "dados_gercon.csv"
 
+# COLUNAS = [
+#     "Protocolo", "Especialidade", "Especialidade Descrição", "Especialidade Mãe", "Especialidade Mãe Descrição", "Especialista", 
+#     "Situação da Solicitação", "Complexidade", "Cor do Regulador", "Ordem Judicial",
+#     "CID Principal", "CID Código", 
+#     "Data da Solicitação", "Data do Cadastro", "Data do Primeiro Agendamento",
+#     "Tempo na Fila de Espera", "Média de Espera nesta Fila", 
+#     "Pontuação", "Pontuação Cor", 
+#     "Nome do Paciente", "Nome da Mãe", "CPF", "Data de Nascimento", "Idade", "Sexo", "Cor", 
+#     "Cartão SUS", "Telefone", "Email", 
+#     "Logradouro", "Número", "Complemento", "Bairro", "CEP", 
+#     "Município de Residência", "UF de Residência", 
+#     "Município de Nascimento", "UF de Nascimento", "Nacionalidade",
+#     "Quadro Clínico", "Unidade Indicada", "Regionalização", "Diagnóstico",
+#     "Regionalização Especialidade", "Regionalização Solicitante", "Regionalização Referência",
+#     "Unidade Solicitante", "Unidade Solicitante Descrição", "Unidade Solicitante Razão Social",
+#     "Município Solicitante", "UF Solicitante", "Unidade Solicitante Endereço", "Unidade Solicitante Telefone",
+#     "Médico Solicitante", "Médico Solicitante Email", "Médico Solicitante CPF", "Médico Solicitante CNS",
+#     "Central de Regulação", "Central de Regulação de Origem", "Unidade de Referência"
+# ]
+
 COLUNAS = [
-    "Protocolo", "Especialidade", "Especialidade Descrição", "Especialidade Mãe", "Especialista", 
-    "Situação da Solicitação", "Complexidade", "Cor do Regulador", "Ordem Judicial",
-    "CID Principal", "CID Código", 
-    "Data da Solicitação", "Data do Cadastro", "Data do Primeiro Agendamento",
-    "Tempo na Fila de Espera", "Média de Espera nesta Fila", 
-    "Pontuação", "Pontuação Cor", 
-    "Nome do Paciente", "Nome da Mãe", "CPF", "Data de Nascimento", "Idade", "Sexo", "Cor", 
-    "Cartão SUS", "Telefone", "Email", 
+    "Protocolo", "Especialidade Mãe", "Especialidade", "Especialidade Descrição",
+    "Especialista", "CID Código", "CID Principal", 
+
+    "Situação da Solicitação", "Data da Solicitação",
+    "Data do Primeiro Agendamento", "Pontuação", "Pontuação Cor", "Complexidade",
+    "Cor do Regulador", 
+
+    "Unidade Solicitante", "Médico Solicitante", "Médico Solicitante Email", 
+
+    "Quadro Clínico",
+
+    "Nome do Paciente",
+    "Data de Nascimento", "Sexo", "Cor", "CPF", "Nome da Mãe", "Cartão SUS", 
+    
     "Logradouro", "Número", "Complemento", "Bairro", "CEP", 
-    "Município de Residência", "UF de Residência", 
-    "Município de Nascimento", "UF de Nascimento", "Nacionalidade",
-    "Quadro Clínico", "Unidade Indicada", "Regionalização", "Diagnóstico",
-    "Regionalização Especialidade", "Regionalização Solicitante", "Regionalização Referência",
-    "Unidade Solicitante", "Unidade Solicitante Descrição", "Unidade Solicitante Razão Social",
-    "Município Solicitante", "UF Solicitante", "Unidade Solicitante Endereço", "Unidade Solicitante Telefone",
-    "Médico Solicitante", "Médico Solicitante Email", "Médico Solicitante CPF", "Médico Solicitante CNS",
-    "Central de Regulação", "Central de Regulação de Origem", "Unidade de Referência"
+    "Nacionalidade", 
+    
+    "Ordem Judicial"
+    
 ]
 
 def init_csv():
@@ -105,9 +127,10 @@ def extract_data_from_json(j):
     data["Especialidade"] = especialidade.get("descricao", "")
     data["Especialidade Descrição"] = especialidade.get("descricaoAuxiliar", "")
     
-    especialidade_mae = j.get("especialidadeMae") or {}
+    especialidade_mae = especialidade.get("especialidadeMae") or {}
     data["Especialidade Mãe"] = especialidade_mae.get("descricao", "")
-    data["Especialista"] = especialidade.get("cbo", {}).get("descricao", "")
+    data["Especialidade Mãe Descrição"] = especialidade_mae.get("descricaoAuxiliar", "")
+    data["Especialista"] = especialidade_mae.get("cbo", {}).get("descricao", "")
     
     data["Situação da Solicitação"] = j.get("situacao", "")
     data["Complexidade"] = j.get("complexidade", "")
@@ -267,7 +290,7 @@ def main():
             return
 
         page_num = 1
-        page_size = 10  # Podemos raspar 50 (ou até mais) por vez!
+        page_size = 250  # Podemos raspar 50 (ou até mais) por vez!
         
         existing_protocols = load_existing_protocols()
         if existing_protocols:
@@ -327,7 +350,22 @@ def main():
             }}"""
             
             # print(f"   -> Lendo {page_size} registros via API de forma assíncrona...")
-            response_data = main_page.evaluate(js_script)
+            
+            try:
+                response_data = main_page.evaluate(js_script)
+            except Exception as e:
+                print(f"   -> [AVISO] Navegação inesperada ou contexto destruído: {e}")
+                print("   -> Tentando recuperar a sessão do Angular...")
+                try:
+                    main_page.reload(wait_until="networkidle")
+                    xpath_item = "/html/body/div[6]/div/ul/li[4]"
+                    main_page.locator(f"xpath={xpath_item}").click()
+                    main_page.wait_for_selector("table.ng-table tbody tr", timeout=15000)
+                    print("   -> Recuperado com sucesso! Repetindo a página...")
+                except Exception as ex:
+                    print("   -> Falha ao recuperar. Encerrando.")
+                    break
+                continue
             
             if not response_data or not response_data.get("jsons"):
                 print("--- Concluído: A fila acabou! ---")
