@@ -230,7 +230,7 @@ def main():
     init_csv()
     
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=False, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
         context = browser.new_context()
         main_page = context.new_page()
         
@@ -267,7 +267,7 @@ def main():
             return
 
         page_num = 1
-        page_size = 100  # Podemos raspar 50 (ou até mais) por vez!
+        page_size = 10  # Podemos raspar 50 (ou até mais) por vez!
         
         existing_protocols = load_existing_protocols()
         if existing_protocols:
@@ -338,7 +338,7 @@ def main():
             
             if total_pages is None and total_dados > 0:
                 total_pages = math.ceil(total_dados / page_size)
-                print(f"   -> Total de registros detectados na fila: {total_dados} ({total_pages} páginas de {page_size})")
+                print(f"   -> Total de registros detectados na fila: {total_dados} ({total_pages} páginas de {page_size} itens cada)")
 
             print(f"   -> Processando {len(jsons)} registros recebidos e salvando...")
             for j in jsons:
