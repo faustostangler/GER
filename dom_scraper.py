@@ -364,13 +364,32 @@ def main():
                 print(f"   -> [AVISO] Navegação inesperada ou contexto destruído: {e}")
                 print("   -> Tentando recuperar a sessão do Angular...")
                 try:
-                    main_page.reload(wait_until="networkidle")
+                    main_page.goto("https://gercon.procempa.com.br/gerconweb/", wait_until="load", timeout=60000)
+                    
+                    # Verifica se fomos deslogados (Sessão Expirada após ~40 mins)
+                    if main_page.locator('#username').count() > 0:
+                        print("   -> Sessão expirada bloqueou as requisições! Refazendo login de forma invisível...")
+                        main_page.fill('#username', USER)
+                        main_page.fill('#password', PASS)
+                        main_page.click('#kc-login')
+                        main_page.wait_for_load_state("networkidle")
+                        
+                        xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
+                        try:
+                            main_page.wait_for_selector(f"xpath={xpath_btn}", timeout=5000)
+                            main_page.locator(f"xpath={xpath_btn}").click()
+                            main_page.wait_for_load_state("networkidle")
+                        except:
+                            pass
+                            
+                    print("   -> Acessando Menu Fila de Espera novamente...")
                     xpath_item = "/html/body/div[6]/div/ul/li[4]"
+                    main_page.wait_for_selector(f"xpath={xpath_item}", timeout=20000)
                     main_page.locator(f"xpath={xpath_item}").click()
-                    main_page.wait_for_selector("table.ng-table tbody tr", timeout=15000)
-                    print("   -> Recuperado com sucesso! Repetindo a página...")
+                    main_page.wait_for_selector("table.ng-table tbody tr", timeout=30000)
+                    print("   -> Sistema reconectado com sucesso! Retomando coleta da página...")
                 except Exception as ex:
-                    print("   -> Falha ao recuperar. Encerrando.")
+                    print(f"   -> Falha ao recuperar sessão logada. Encerrando. ({ex})")
                     break
                 continue
             
