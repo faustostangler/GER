@@ -208,6 +208,12 @@ def run_scraper():
             curr_page = 1
             total_pages = 1
             
+
+        browser.close()
+        logger.info("Multiscraping finalizado com sucesso.")
+
+if __name__ == "__main__":
+    run_scraper()
             while curr_page <= total_pages:
                 logger.info(f"  Pagina {curr_page}/{total_pages} de {nome}...")
                 
@@ -301,9 +307,3 @@ def run_scraper():
             
             save_to_csv(records) # Salva ao fim de cada lista
             logger.info(f"--- Concluído: {nome} ---")
-
-        browser.close()
-        logger.info("Multiscraping finalizado com sucesso.")
-
-if __name__ == "__main__":
-    run_scraper()
