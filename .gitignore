@@ -27,7 +27,6 @@
 *.pem
 
 # debug
-
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -133,6 +132,7 @@ temp/
 *.db-shm
 *.db-wal
 data/
+*.json
 
 # Profiles and logs
 *.profile
