@@ -43,8 +43,8 @@ COLUNAS = [
 ]
 
 LISTAS_ALVO = [
-    # {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
-    # {"nome": "Pendentes", "chave": "pendente"},     
+    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
+    {"nome": "Pendentes", "chave": "pendente"},     
     {"nome": "Expiradas", "chave": "cancelada"}, 
     {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
     {"nome": "Outras", "chave": "outras"}
@@ -178,6 +178,7 @@ def run_scraper():
         page.locator(f"xpath={xpath_item}").click()
         page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT)
 
+        last_ping_time = time.time()
         for lista in LISTAS_ALVO:
             nome = lista["nome"]
             chave = lista["chave"]
@@ -208,12 +209,6 @@ def run_scraper():
             curr_page = 1
             total_pages = 1
             
-
-        browser.close()
-        logger.info("Multiscraping finalizado com sucesso.")
-
-if __name__ == "__main__":
-    run_scraper()
             while curr_page <= total_pages:
                 logger.info(f"  Pagina {curr_page}/{total_pages} de {nome}...")
                 
@@ -263,47 +258,92 @@ if __name__ == "__main__":
                 
                 try:
                     res = page.evaluate(js_script)
-                    if not res:
-                        logger.warning(f"Resposta nula da API Angular na pág {curr_page}")
-                        break
-                    
-                    if "error" in res:
-                        logger.error(f"Erro mapeado dentro da página: {res['error']}")
-                        break
-                        
-                    if "jsons" not in res:
-                        logger.warning(f"Resposta incorreta ou sem 'jsons' na pág {curr_page}")
-                        break
-                    
-                    total_docs = res["total"]
-                    itens_recebidos = res["ids_count"]
-                    
-                    # Log de auditoria para tirar a dúvida sobre Docs vs Pages
-                    logger.info(f"  [Auditoria] Total Itens reportados: {total_docs} | Itens nesta página: {itens_recebidos} (Filtro solicitado: {PAGE_SIZE})")
-                    
-                    # Cálculo robusto
-                    total_pages = math.ceil(total_docs / PAGE_SIZE) if total_docs > 0 else 1
-                    
-                    # Se pedir 3 e vier 10, o Gercon tem um piso mínimo.
-                    # Se pedir 500 e vier 10, a aba pode estar limitada pelo servidor.
-                    
-                    if not res["jsons"]:
-                        logger.info("  Fim da lista atingido (sem JSONs).")
-                        break
-                    
-                    for item_json in res["jsons"]:
-                        flat = flatten_solicitacao(item_json, nome)
-                        records[flat["Protocolo"]] = flat
-                    
-                    # Salva a cada 2 páginas para segurança
-                    if curr_page % 2 == 0:
-                        save_to_csv(records)
-                        
-                    curr_page += 1
                 except Exception as e:
-                    logger.error(f"Erro na página {curr_page}: {e}")
-                    time.sleep(5) # Cooldown
-                    continue
+                    logger.warning(f"Conexão perdida ou erro de context na pág {curr_page}: {e}. Tentando refresh...")
+                    try:
+                        page.goto(GERCON_URL, wait_until="load", timeout=TIMEOUT)
+                        # Re-login se necessário
+                        if page.locator('#username').count() > 0:
+                            page.fill('#username', USER)
+                            page.fill('#password', PASS)
+                            page.click('#kc-login')
+                            page.wait_for_load_state("networkidle")
+                        
+                        # Re-seleciona Unidade
+                        try:
+                            xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
+                            page.wait_for_selector(f"xpath={xpath_btn}", timeout=10000)
+                            page.locator(f"xpath={xpath_btn}").click()
+                        except: pass
+
+                        # Volta para a aba correta
+                        xpath_init = "/html/body/div[6]/div/ul/li[1]"
+                        page.wait_for_selector(f"xpath={xpath_init}")
+                        page.locator(f"xpath={xpath_init}").click()
+                        
+                        # Repete clique na aba
+                        selectors = [f"a[ng-click*=\"'{chave}'\"]", f"xpath=//a[contains(., '{nome}')]", f"xpath=//li[contains(., '{nome}')]"]
+                        for sel in selectors:
+                            if page.locator(sel).first.is_visible():
+                                page.locator(sel).first.click()
+                                break
+                        page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT)
+                        logger.info("Sessão recuperada. Retomando coleta...")
+                        continue # tenta de novo a mesma página
+                    except Exception as ex:
+                        logger.error(f"Falha ao recuperar sessão: {ex}")
+                        break
+
+                if not res:
+                    logger.warning(f"Resposta nula da API Angular na pág {curr_page}")
+                    break
+                
+                if "error" in res:
+                    logger.error(f"Erro mapeado dentro da página: {res['error']}")
+                    break
+                    
+                if "jsons" not in res:
+                    logger.warning(f"Resposta incorreta ou sem 'jsons' na pág {curr_page}")
+                    break
+                
+                total_docs = res["total"]
+                itens_recebidos = res["ids_count"]
+                
+                logger.info(f"  [Auditoria] Total Itens: {total_docs} | Recebidos: {itens_recebidos}")
+                total_pages = math.ceil(total_docs / PAGE_SIZE) if total_docs > 0 else 1
+                
+                if not res["jsons"]:
+                    logger.info("  Fim da lista atingido.")
+                    break
+                
+                for item_json in res["jsons"]:
+                    flat = flatten_solicitacao(item_json, nome)
+                    records[flat["Protocolo"]] = flat
+                
+                if curr_page % 2 == 0:
+                    save_to_csv(records)
+                    
+                # Ping preventivo para manter SSO ativo (estratégia dom_scraper)
+                if time.time() - last_ping_time > 300: # 5 minutos
+                    try:
+                        ping_js = """async () => {
+                            let $http = angular.element(document.body).injector().get('$http');
+                            return await $http.get('/gercon/rest/solicitacoes/paineis', { params: { pagina: 1, tamanhoPagina: 1 } })
+                                .then(r => 'SUCCESS').catch(e => 'ERROR');
+                        }"""
+                        page.evaluate(ping_js)
+                        last_ping_time = time.time()
+                    except: pass
+
+                curr_page += 1
             
             save_to_csv(records) # Salva ao fim de cada lista
             logger.info(f"--- Concluído: {nome} ---")
+
+        browser.close()
+        logger.info("Multiscraping finalizado com sucesso.")
+
+if __name__ == "__main__":
+    run_scraper()
+
+print('done!')
