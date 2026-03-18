@@ -40,16 +40,21 @@ COLUNAS = [
     "Protocolo", "Situação", "Origem da Lista", "Data Solicitação", 
     "Nome do Paciente", "Data de Nascimento", "Sexo", "Cor", "CPF", 
     "Nome da Mãe", "Cartão SUS", "Logradouro", "Número", "Complemento", 
-    "Bairro", "CEP", "Nacionalidade", "Ordem Judicial",
-    "Especialidade", "Complexidade", "Risco Cor", "Pontuação",
+    "Bairro", "CEP", "Município de Residência", "Nacionalidade", "Ordem Judicial",
+    "Especialidade Mãe", "Especialidade", "Especialidade Descrição Auxiliar", "Especialidade CBO",
+    "Tipo de Regulação", "Teleconsulta", "Status da Especialidade",
+    "Complexidade", "Risco Cor", "Cor Regulador", "Pontos Gravidade", "Pontos Tempo", "Pontuação", "Situação Final",
     "CID Código", "CID Descrição", "Unidade Solicitante",
-    "Histórico Quadro Clínico"  # Campo consolidado cronológico
+    "Operador", "Usuário Solicitante", "Unidade Razão Social", "Unidade Descrição",
+    "Central de Regulação", "Origem da Regulação",
+    "Data do Cadastro", "Médico Solicitante",
+    "Histórico Quadro Clínico"
 ]
 
 LISTAS_ALVO = [
-    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
-    {"nome": "Pendentes", "chave": "pendente"},     
-    {"nome": "Expiradas", "chave": "cancelada"}, 
+    # {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
+    # {"nome": "Pendentes", "chave": "pendente"},     
+    # {"nome": "Expiradas", "chave": "cancelada"}, 
     {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
     {"nome": "Outras", "chave": "outras"}
 ]
@@ -106,22 +111,56 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     data["Complemento"] = u.get("complemento", "")
     data["Bairro"] = u.get("bairro", "")
     data["CEP"] = u.get("cep", "")
+    data["Município de Residência"] = (u.get("municipioResidencia") or {}).get("nome", "")
     data["Nacionalidade"] = u.get("nacionalidade", "")
     
-    data["Especialidade"] = (j.get("especialidade") or {}).get("descricao", "")
+    esp = j.get("especialidade") or {}
+    esp_mae = esp.get("especialidadeMae") or {}
+    data["Especialidade Mãe"] = esp_mae.get("descricao", "")
+    data["Especialidade"] = esp.get("descricao", "")
+    data["Especialidade Descrição Auxiliar"] = esp.get("descricaoAuxiliar", "")
+    data["Especialidade CBO"] = (esp_mae.get("cbo") or {}).get("descricao", "")
+    data["Tipo de Regulação"] = esp.get("tipoRegulacao", "")
+    data["Teleconsulta"] = esp.get("teleconsulta", "")
+    data["Status da Especialidade"] = esp.get("ativa", "")
+    
+    risk = j.get("classificacaoRisco") or {}
     data["Complexidade"] = j.get("complexidade", "")
-    data["Risco Cor"] = (j.get("classificacaoRisco") or {}).get("cor", "")
-    data["Pontuação"] = (j.get("classificacaoRisco") or {}).get("totalPontos", "")
+    data["Risco Cor"] = risk.get("cor", "")
+    data["Cor Regulador"] = j.get("corRegulador", "")
+    data["Pontos Gravidade"] = risk.get("pontosGravidade", "")
+    data["Pontos Tempo"] = risk.get("pontosTempo", "")
+    data["Pontuação"] = risk.get("totalPontos", "")
+    data["Situação Final"] = j.get("situacao", "")
     
     data["CID Código"] = (j.get("cidPrincipal") or {}).get("codigo", "")
     data["CID Descrição"] = (j.get("cidPrincipal") or {}).get("descricao", "")
     data["Unidade Solicitante"] = (j.get("unidadeSolicitante") or {}).get("nome", "")
+    
+    # Bloco do Operador e Unidade do Operador
+    op = j.get("operador") or {}
+    data["Operador"] = op.get("nome") or (op.get("profissional") or {}).get("nome", "")
+    
+    us = j.get("usuarioSolicitante") or {}
+    data["Usuário Solicitante"] = us.get("nome") or (us.get("profissional") or {}).get("nome", "")
+    
+    uop = j.get("unidadeOperador") or {}
+    data["Unidade Razão Social"] = uop.get("razaoSocial", "")
+    data["Unidade Descrição"] = (uop.get("tipoUnidade") or {}).get("descricao", "")
+    
+    data["Central de Regulação"] = (j.get("centralRegulacao") or {}).get("nome", "")
+    data["Origem da Regulação"] = (j.get("centralRegulacaoOrigem") or {}).get("nome", "")
 
     # --- DESAFIO: QUADRO CLÍNICO CRONOLÓGICO ---
     evolucoes = j.get("evolucoes", [])
     evolucoes.sort(key=lambda x: x.get("data", 0)) # Ordem Cronológica (Antiga -> Nova)
     
+    data["Data do Cadastro"] = ""
+    data["Médico Solicitante"] = ""
+    
     historico_textos = []
+    first_evo_found = False
+    
     for evo in evolucoes:
         dt_evo = timestamp_to_date(evo.get("data"))
         usuario = (evo.get("usuario") or {}).get("nome", "Sistema")
@@ -132,13 +171,20 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
             
             # Captura todos os campos de texto relevantes dentro desta evolução
             itens = detalhes_json.get("itensEvolucao", [])
+            has_valid_text = False
             for item in itens:
                 label = item.get("label", item.get("codigo", "Informação"))
-                texto = item.get("texto", "").strip()
+                texto = str(item.get("texto", "")).strip()
                 if texto:
+                    has_valid_text = True
                     linha_evo = f"\n\n[{dt_evo} | {label} | {usuario}]: {texto}"
                     historico_textos.append(linha_evo)
-        except:
+            
+            if has_valid_text and not first_evo_found:
+                data["Data do Cadastro"] = dt_evo
+                data["Médico Solicitante"] = usuario
+                first_evo_found = True
+        except Exception:
             continue
             
     data["Histórico Quadro Clínico"] = " | ".join(historico_textos)
