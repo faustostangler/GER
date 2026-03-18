@@ -29,7 +29,7 @@ load_dotenv("env/config.env")
 
 USER = os.getenv("username")
 PASS = os.getenv("password")
-CSV_FILE = "dados_gercon_master.csv"
+# CSV_FILE removido pois agora é dinâmico por lista.
 GERCON_URL = os.getenv("GERCON_URL", "https://gercon.procempa.com.br/gerconweb/")
 HEADLESS = os.getenv("HEADLESS", "True").lower() == "true"
 PAGE_SIZE = int(os.getenv("PAGE_SIZE", "50"))
@@ -52,9 +52,9 @@ COLUNAS = [
 ]
 
 LISTAS_ALVO = [
-    # {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
-    # {"nome": "Pendentes", "chave": "pendente"},     
-    # {"nome": "Expiradas", "chave": "cancelada"}, 
+    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
+    {"nome": "Pendentes", "chave": "pendente"},     
+    {"nome": "Expiradas", "chave": "cancelada"}, 
     {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
     {"nome": "Outras", "chave": "outras"}
 ]
@@ -192,44 +192,50 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     return data
 
 # --- PERSISTÊNCIA ---
-def init_csv():
-    if not os.path.exists(CSV_FILE):
-        logger.info(f"Criando novo arquivo CSV: {CSV_FILE}")
-        with open(CSV_FILE, mode='w', newline='', encoding='utf-8') as f:
+def get_csv_filename(chave: str) -> str:
+    return f"dados_gercon_{chave}.csv"
+
+def init_csv(filename: str):
+    if not os.path.exists(filename):
+        logger.info(f"Criando novo arquivo CSV: {filename}")
+        with open(filename, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
             writer.writeheader()
     else:
-        logger.info(f"Arquivo CSV {CSV_FILE} já existe.")
+        logger.info(f"Arquivo CSV {filename} já existe.")
 
-def load_existing():
+def load_existing(filename: str):
     existing = {}
-    if os.path.exists(CSV_FILE):
-        with open(CSV_FILE, mode='r', encoding='utf-8') as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                if row.get("Protocolo"):
-                    existing[row["Protocolo"]] = row
+    if os.path.exists(filename):
+        try:
+            with open(filename, mode='r', encoding='utf-8') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    if row.get("Protocolo"):
+                        existing[row["Protocolo"]] = row
+        except Exception as e:
+            logger.warning(f"Erro ao carregar CSV existente {filename}: {e}")
     return existing
 
-def save_all_to_csv(data_dict: Dict[str, Any]):
-    temp_file = CSV_FILE + ".tmp"
+def save_all_to_csv(data_dict: Dict[str, Any], filename: str):
+    temp_file = filename + ".tmp"
     try:
         with open(temp_file, mode='w', newline='', encoding='utf-8') as f:
             writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
             writer.writeheader()
             for row in data_dict.values():
                 writer.writerow(row)
-        os.replace(temp_file, CSV_FILE)
+        os.replace(temp_file, filename)
     except Exception as e:
-        logger.error(f"Erro ao salvar CSV: {e}")
+        logger.error(f"Erro crítico ao salvar CSV {filename}: {e}")
 
 # --- MOTOR DE SCRAPING ---
 def main():
     logger.info("==================================================")
     logger.info("Iniciando nova execução do Master Scraper...")
     logger.info("==================================================")
-    init_csv()
-    records = load_existing()
+    # Registros serão carregados por lista individualmente
+    # init_csv e load_existing agora ocorrem dentro do LISTAS_ALVO loop
     
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=HEADLESS, args=['--no-sandbox'])
@@ -267,7 +273,13 @@ def main():
         for lista in LISTAS_ALVO:
             nome = lista["nome"]
             chave = lista["chave"]
-            logger.info(f">>> Processando Lista: {nome}")
+            filename = get_csv_filename(chave)
+            
+            logger.info(f">>> Processando Lista: {nome} -> {filename}")
+            
+            # Inicializa CSV específico para esta lista
+            init_csv(filename)
+            records = load_existing(filename)
             
             # --- CLIQUE NA ABA (Bypass de Lazy Loading do Angular) ---
             try:
@@ -465,7 +477,7 @@ def main():
                         records[prot] = cleaned_row
                 
                 # Salva o arquivo CSV atualizado com a página inteira
-                save_all_to_csv(records)
+                save_all_to_csv(records, filename)
                 page_num += 1
                 
                 # Ping preventivo para manter SSO ativo (estratégia dom_scraper)
