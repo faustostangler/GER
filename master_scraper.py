@@ -1,4 +1,5 @@
 import os
+import sqlite3
 import csv
 import json
 import time
@@ -35,6 +36,14 @@ HEADLESS = os.getenv("HEADLESS", "True").lower() == "true"
 PAGE_SIZE = int(os.getenv("PAGE_SIZE", "50"))
 TIMEOUT = int(os.getenv("TIMEOUT", "30000"))
 
+LISTAS_ALVO = [
+    # {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
+    # {"nome": "Pendentes", "chave": "pendente"},     
+    # {"nome": "Expiradas", "chave": "cancelada"}, 
+    {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
+    {"nome": "Outras", "chave": "outras"}
+]
+
 # --- ESTRUTURA DE DADOS (DOMÍNIO) ---
 COLUNAS = [
     "Protocolo", "Situação", "Origem da Lista", "Data Solicitação", 
@@ -49,14 +58,6 @@ COLUNAS = [
     "Central de Regulação", "Origem da Regulação",
     "Data do Cadastro", "Médico Solicitante",
     "Histórico Quadro Clínico"
-]
-
-LISTAS_ALVO = [
-    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
-    {"nome": "Pendentes", "chave": "pendente"},     
-    {"nome": "Expiradas", "chave": "cancelada"}, 
-    {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
-    {"nome": "Outras", "chave": "outras"}
 ]
 
 def format_protocolo(num):
@@ -191,7 +192,71 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     
     return data
 
-# --- PERSISTÊNCIA ---
+# --- PERSISTÊNCIA EM BANCO DE DADOS (RAW STORE) ---
+DB_FILE = "gercon_raw_data.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS solicitacoes_raw (
+            protocolo TEXT PRIMARY KEY,
+            data_captura TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            data_alteracao INTEGER,
+            conteudo_json TEXT,
+            origem_lista TEXT
+        )
+    """)
+    # Migração suave para bancos existentes (sem a coluna data_alteracao)
+    try:
+        cursor.execute("ALTER TABLE solicitacoes_raw ADD COLUMN data_alteracao INTEGER")
+    except Exception:
+        pass  # Coluna já existe
+    conn.commit()
+    conn.close()
+
+def get_watermark(chave: str) -> int:
+    """Retorna o timestamp (ms) da alteração mais recente já salva para esta lista.
+    
+    Retorna 0 se não houver registros (primeira execução = full scrape).
+    """
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT MAX(data_alteracao) FROM solicitacoes_raw WHERE origem_lista = ?",
+            (chave,)
+        )
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result and result[0] else 0
+    except Exception as e:
+        logger.warning(f"Erro ao consultar watermark para '{chave}': {e}")
+        return 0
+
+def save_raw_batch(jsons: List[Dict[str, Any]], origem: str):
+    if not jsons: return
+    
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    data_to_insert = []
+    
+    for j in jsons:
+        if not j or "error" in j: continue
+        # Usa o numeroCMCE como chave única
+        prot = str(j.get("numeroCMCE", "SEM_PROTOCOLO_" + str(time.time())))
+        data_alt = j.get("dataAlterouUltimaSituacao")  # Timestamp em ms
+        data_to_insert.append((prot, data_alt, json.dumps(j, ensure_ascii=False), origem))
+        
+    cursor.executemany("""
+        INSERT OR REPLACE INTO solicitacoes_raw (protocolo, data_alteracao, conteudo_json, origem_lista)
+        VALUES (?, ?, ?, ?)
+    """, data_to_insert)
+    
+    conn.commit()
+    conn.close()
+
+# --- PERSISTÊNCIA EM CSV ---
 def get_csv_filename(chave: str) -> str:
     return f"dados_gercon_{chave}.csv"
 
@@ -234,6 +299,10 @@ def main():
     logger.info("==================================================")
     logger.info("Iniciando nova execução do Master Scraper...")
     logger.info("==================================================")
+    
+    # Inicializa o banco de dados Raw
+    init_db()
+    
     # Registros serão carregados por lista individualmente
     # init_csv e load_existing agora ocorrem dentro do LISTAS_ALVO loop
     
@@ -275,7 +344,15 @@ def main():
             chave = lista["chave"]
             filename = get_csv_filename(chave)
             
-            logger.info(f">>> Processando Lista: {nome} -> {filename}")
+            # --- WATERMARK: determina o ponto de corte incremental ---
+            watermark = get_watermark(chave)
+            if watermark > 0:
+                wm_str = timestamp_to_date(watermark)
+                logger.info(f">>> [{nome}] Modo INCREMENTAL — buscando registros alterados após {wm_str}")
+            else:
+                logger.info(f">>> [{nome}] Modo FULL SCRAPE — primeira execução, baixando tudo")
+            
+            logger.info(f"    CSV: {filename}")
             
             # Inicializa CSV específico para esta lista
             init_csv(filename)
@@ -304,8 +381,10 @@ def main():
                 continue
             
             page_num = 1
-            page_size = PAGE_SIZE
+            target_page_size = PAGE_SIZE
+            current_page_size = target_page_size
             total_pages = None
+            stop_scraping = False  # Flag de parada incremental
             start_time_total = time.time()
             
             while True:
@@ -318,7 +397,7 @@ def main():
                     elapsed_time = time.time() - start_time_total
                     pages_completed = page_num - 1
                     
-                    cadastros_completed = pages_completed * page_size
+                    cadastros_completed = pages_completed * current_page_size
                     avg_time_per_page = elapsed_time / pages_completed if pages_completed > 0 else 0
                     cadastros_por_seg = cadastros_completed / elapsed_time if elapsed_time > 0 else 0
                     
@@ -365,12 +444,16 @@ def main():
                         }}
                         
                         let params = angular.copy(origParams);
-                        // Bypass de limites de data para puxar TUDO
+                        // Bypass de limites de data para puxar tudo via paginação controlada
                         delete params.dataInicioConsulta; delete params.dataFimConsulta;
                         delete params.dataInicioAlta; delete params.dataFimAlta;
                         
+                        // Ordena do mais recentemente alterado para o mais antigo
+                        // Permite parada incremental assim que encontrar registros já conhecidos
+                        params.ordenacao = ['-dataAlterouUltimaSituacao'];
+                        
                         params.pagina = {page_num};
-                        params.tamanhoPagina = {page_size};
+                        params.tamanhoPagina = {current_page_size};
                         
                         let queryUrl = '/gercon/rest/solicitacoes/paineis';
                         let pageResponse = await $http.get(queryUrl, {{ params: params }});
@@ -397,7 +480,14 @@ def main():
                                 .catch(e => ({{error: id}}))
                         );
                         
-                        let results = await Promise.all(promises);
+                        // Timeout de segurança: se o lote travar por mais de 4 minutos,
+                        // retorna erro controlado em vez de bloquear a thread Python indefinidamente.
+                        // Isso libera o ping SSO e permite a recuperação de sessão.
+                        const BATCH_TIMEOUT_MS = 240000; // 4 minutos
+                        let timeoutPromise = new Promise((_, reject) =>
+                            setTimeout(() => reject(new Error('TIMEOUT_LOTE')), BATCH_TIMEOUT_MS)
+                        );
+                        let results = await Promise.race([Promise.all(promises), timeoutPromise]);
                         return {{ jsons: results, totalDados: totalRegistros, bytesDownload: totalBytes }};
                     }} catch (e) {{
                         return {{ error: "JS_EXCEPTION: " + e.message }};
@@ -435,7 +525,11 @@ def main():
                             if page.locator(sel).first.is_visible():
                                 page.locator(sel).first.click()
                                 break
-                        page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT)
+                        page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT*10)
+                        # Aguarda o Angular estabilizar completamente o scope antes do proximo evaluate
+                        # Sem isso o contexto pode ser destruido logo no inicio do proximo evaluate
+                        page.wait_for_load_state("networkidle")
+                        page.wait_for_timeout(3000)
                         logger.info("Sessão recuperada. Retomando coleta...")
                         continue # tenta de novo a mesma página
                     except Exception as ex:
@@ -447,13 +541,24 @@ def main():
                     break
                 
                 if "error" in response_data:
-                    logger.error(f"Erro mapeado dentro da página: {response_data['error']}")
+                    err_msg = response_data['error']
+                    # TIMEOUT_LOTE = Promise.all demorou mais de 4 min: reduz lote e retenta
+                    if "TIMEOUT_LOTE" in str(err_msg):
+                        new_size = max(10, current_page_size // 2)
+                        logger.warning(f"  Timeout do lote JS na pág {page_num}. Reduzindo lote {current_page_size} -> {new_size} e retentando...")
+                        current_page_size = new_size
+                        total_pages = None  # Força recalculo total
+                        continue
+                    logger.error(f"Erro mapeado dentro da página: {err_msg}")
                     break
                     
                 jsons = response_data.get("jsons", [])
                 if not jsons:
                     logger.warning(f"Resposta incorreta ou sem 'jsons' na pág {page_num}")
                     break
+                
+                # NOVIDADE: Salva os JSONs brutos no SQLite antes de processar
+                save_raw_batch(jsons, nome)
                 
                 bytes_neste_lote = response_data.get("bytesDownload", 0)
                 
@@ -464,21 +569,47 @@ def main():
                 logger.debug(f"[main_loop] Lote com {len(jsons)} registros. Fila total: {total_dados}. Download neste lote: {(bytes_neste_lote / 1024):.2f}KB.")
                 
                 if total_pages is None and total_dados > 0:
-                    total_pages = math.ceil(total_dados / page_size)
+                    total_pages = math.ceil(total_dados / current_page_size)
                     
+                novos_neste_lote = 0
                 for j in jsons:
                     if j is None: continue
                     if "error" in j: continue
+                    
+                    # --- CONDIÇÃO DE PARADA INCREMENTAL ---
+                    # A ordenação garante que registros chegam do mais recente ao mais antigo.
+                    # Quando encontramos um registro com data_alt <= watermark, todos os
+                    # seguintes também serão mais antigos — podemos parar.
+                    data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
+                    if watermark > 0 and data_alt > 0 and data_alt <= watermark:
+                        logger.info(f"  [INCREMENTAL] Alcançou registro já conhecido ({timestamp_to_date(data_alt)}). Parando paginação.")
+                        stop_scraping = True
+                        break
                     
                     data = flatten_solicitacao(j, nome)
                     if data and "Protocolo" in data and data["Protocolo"]:
                         prot = data["Protocolo"]
                         cleaned_row = clean_data_row(data)
                         records[prot] = cleaned_row
+                        novos_neste_lote += 1
+                
+                if novos_neste_lote > 0:
+                    logger.debug(f"  {novos_neste_lote} registros novos/atualizados neste lote.")
                 
                 # Salva o arquivo CSV atualizado com a página inteira
                 save_all_to_csv(records, filename)
                 page_num += 1
+
+                # RECUPERAÇÃO GRADUAL: se o lote estava pequeno devido a erros, dobra a cada sucesso
+                if current_page_size < target_page_size:
+                    old_size = current_page_size
+                    current_page_size = min(target_page_size, current_page_size * 2)
+                    logger.info(f"  Lote bem-sucedido. Recuperando performance: {old_size} -> {current_page_size}")
+                    total_pages = None # Recalcula progresso na proxima volta
+                
+                if stop_scraping:
+                    logger.info(f"--- Concluído INCREMENTAL: {nome} atualizado. ---")
+                    break
                 
                 # Ping preventivo para manter SSO ativo (estratégia dom_scraper)
                 if time.time() - last_ping_time > 500: # 5 minutos
