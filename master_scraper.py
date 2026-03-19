@@ -192,6 +192,20 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     
     return data
 
+STATE_FILE = "scraper_state.json"
+
+def load_state() -> Dict[str, Any]:
+    if os.path.exists(STATE_FILE):
+        try:
+            with open(STATE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except: pass
+    return {}
+
+def save_state(state: Dict[str, Any]):
+    with open(STATE_FILE, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=4, ensure_ascii=False)
+
 # --- PERSISTÊNCIA EM BANCO DE DADOS (RAW STORE) ---
 DB_FILE = "gercon_raw_data.db"
 
@@ -344,14 +358,29 @@ def main():
             chave = lista["chave"]
             filename = get_csv_filename(chave)
             
-            # --- WATERMARK: determina o ponto de corte incremental ---
-            watermark = get_watermark(chave)
-            if watermark > 0:
-                wm_str = timestamp_to_date(watermark)
-                logger.info(f">>> [{nome}] Modo INCREMENTAL — buscando registros alterados após {wm_str}")
-            else:
-                logger.info(f">>> [{nome}] Modo FULL SCRAPE — primeira execução, baixando tudo")
+            # --- GERENCIAMENTO DE ESTADO E MODOS (ESTRATEGIA HIBRIDA) ---
+            global_state = load_state()
+            list_state = global_state.get(chave, {
+                "full_sync_completed": False,
+                "last_page": 1,
+                "mode": "FULL_SYNC"
+            })
             
+            # Watermark para modo incremental
+            watermark = get_watermark(chave)
+            
+            if not list_state["full_sync_completed"]:
+                # Modo histórico: Oldest first para paginação estável
+                sort_order_js = "params.ordenacao = ['dataAlterouUltimaSituacao'];"
+                logger.info(f">>> [{nome}] Modo FULL SYNC (Ascendente) — construindo histórico estável")
+                if list_state["last_page"] > 1:
+                    logger.info(f"    Retomando da página {list_state['last_page']}...")
+            else:
+                # Modo recorrente: Newest first para velocidade
+                sort_order_js = "params.ordenacao = ['-dataAlterouUltimaSituacao'];"
+                wm_str = timestamp_to_date(watermark) if watermark > 0 else "N/A"
+                logger.info(f">>> [{nome}] Modo INCREMENTAL (Descendente) — buscando registros após {wm_str}")
+
             logger.info(f"    CSV: {filename}")
             
             # Inicializa CSV específico para esta lista
@@ -372,7 +401,7 @@ def main():
                 if tab_found:
                     # Espera a lista (tabela) carregar de fato na tela.
                     page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT*10)
-                    page.wait_for_timeout(500)
+                    page.wait_for_timeout(1000) # Deixa o Angular respirar
                 else:
                     logger.warning(f"  Aba '{nome}' não encontrada ou não visível no momento.")
                     continue
@@ -380,17 +409,24 @@ def main():
                 logger.warning(f"  Aviso ao interagir com a aba '{nome}': {e}")
                 continue
             
-            page_num = 1
+            page_num = list_state.get("last_page", 1)
             target_page_size = PAGE_SIZE
             current_page_size = target_page_size
             total_pages = None
-            stop_scraping = False  # Flag de parada incremental
+            stop_scraping = False 
             start_time_total = time.time()
             
             while True:
                 # Trava de segurança para impedir a paginação infinita
                 if total_pages is not None and page_num > total_pages:
                     logger.info(f"--- Concluído: Todas as {total_pages} páginas de {nome} projetadas foram extraídas! ---")
+                    
+                    # Se era full sync, marca como concluído
+                    if not list_state["full_sync_completed"]:
+                        list_state["full_sync_completed"] = True
+                        list_state["last_page"] = 1 # volta para 1 p/ o incremental futuro
+                        global_state[chave] = list_state
+                        save_state(global_state)
                     break
 
                 if total_pages is not None:
@@ -431,66 +467,51 @@ def main():
                     # print(progress_line)
                     logger.info(progress_line)
                 
-                # Executa script JavaScript na página que busca os IDs paginados via API
-                # e depois busca os JSONs individuais via $http em paralelo
+                # Script JavaScript de coleta definitiva
                 js_script = f"""async () => {{
                     try {{
-                        let scope = angular.element(document.querySelector('table.ng-table')).scope();
+                        if (typeof angular === 'undefined') return {{ error: "Angular não carregado" }};
+                        let table = document.querySelector('table.ng-table');
+                        if (!table) return {{ error: "Tabela não encontrada" }};
+                        let scope = angular.element(table).scope();
                         let $http = angular.element(document.body).injector().get('$http');
                         
                         let origParams = scope.solicCtrl?.parametros?.['{chave}'];
-                        if (!origParams) {{
-                            return {{ error: "Chave de parâmetros não encontrada na UI: {chave}" }};
-                        }}
+                        if (!origParams) return {{ error: "Falta parâmetros '{chave}'" }};
                         
                         let params = angular.copy(origParams);
-                        // Bypass de limites de data para puxar tudo via paginação controlada
                         delete params.dataInicioConsulta; delete params.dataFimConsulta;
                         delete params.dataInicioAlta; delete params.dataFimAlta;
                         
-                        // Ordena do mais recentemente alterado para o mais antigo
-                        // Permite parada incremental assim que encontrar registros já conhecidos
-                        params.ordenacao = ['-dataAlterouUltimaSituacao'];
+                        // Força ordenação por data de alteração com prefixo obrigatório
+                        {sort_order_js.replace("'dataAlterouUltimaSituacao'", "'+dataAlterouUltimaSituacao'").replace("'-dataAlterouUltimaSituacao'", "'-dataAlterouUltimaSituacao'")}
                         
                         params.pagina = {page_num};
                         params.tamanhoPagina = {current_page_size};
                         
-                        let queryUrl = '/gercon/rest/solicitacoes/paineis';
-                        let pageResponse = await $http.get(queryUrl, {{ params: params }});
-                        
-                        if (!pageResponse.data || !pageResponse.data.dados || pageResponse.data.dados.length === 0) {{
-                            return null; // Paginação chegou ao fim
-                        }}
+                        let pageResponse = await $http.get('/gercon/rest/solicitacoes/paineis', {{ params: params }});
+                        if (!pageResponse.data?.dados?.length) return null;
                         
                         let ids = pageResponse.data.dados.map(item => item.id);
                         let totalRegistros = pageResponse.data.totalDados || 0;
+                        let totalBytesBatch = 0;
                         
-                        let totalBytes = 0;
                         let promises = ids.map(id => 
-                            $http.get('/gercon/rest/solicitacoes/' + id, {{ transformResponse: [function (data) {{ return data; }}] }})
+                            $http.get('/gercon/rest/solicitacoes/' + id, {{ transformResponse: [data => data] }})
                                 .then(r => {{
-                                    let rawString = r.data || "";
-                                    totalBytes += new Blob([rawString]).size;
-                                    try {{
-                                        return JSON.parse(rawString);
-                                    }} catch (e) {{
-                                        return {{error: id}};
-                                    }}
+                                    totalBytesBatch += new Blob([r.data || ""]).size;
+                                    try {{ return JSON.parse(r.data); }} catch (e) {{ return {{ error: id }}; }}
                                 }})
-                                .catch(e => ({{error: id}}))
+                                .catch(e => ({{ error: id }}))
                         );
+
+                        const TIMEOUT_MS = 240000;
+                        let timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('TIMEOUT_LOTE')), TIMEOUT_MS));
                         
-                        // Timeout de segurança: se o lote travar por mais de 4 minutos,
-                        // retorna erro controlado em vez de bloquear a thread Python indefinidamente.
-                        // Isso libera o ping SSO e permite a recuperação de sessão.
-                        const BATCH_TIMEOUT_MS = 240000; // 4 minutos
-                        let timeoutPromise = new Promise((_, reject) =>
-                            setTimeout(() => reject(new Error('TIMEOUT_LOTE')), BATCH_TIMEOUT_MS)
-                        );
-                        let results = await Promise.race([Promise.all(promises), timeoutPromise]);
-                        return {{ jsons: results, totalDados: totalRegistros, bytesDownload: totalBytes }};
+                        let results = await Promise.race([Promise.all(promises), timeout]);
+                        return {{ jsons: results, totalDados: totalRegistros, bytesDownload: totalBytesBatch }};
                     }} catch (e) {{
-                        return {{ error: "JS_EXCEPTION: " + e.message }};
+                        return {{ error: e.message || e.toString() }};
                     }}
                 }}"""
                 
@@ -576,15 +597,15 @@ def main():
                     if j is None: continue
                     if "error" in j: continue
                     
-                    # --- CONDIÇÃO DE PARADA INCREMENTAL ---
-                    # A ordenação garante que registros chegam do mais recente ao mais antigo.
-                    # Quando encontramos um registro com data_alt <= watermark, todos os
-                    # seguintes também serão mais antigos — podemos parar.
-                    data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
-                    if watermark > 0 and data_alt > 0 and data_alt <= watermark:
-                        logger.info(f"  [INCREMENTAL] Alcançou registro já conhecido ({timestamp_to_date(data_alt)}). Parando paginação.")
-                        stop_scraping = True
-                        break
+                    # --- CONDIÇÃO DE PARADA ---
+                    # No modo INCREMENTAL (Descendente), paramos ao chegar no watermark anterior.
+                    # No modo FULL SYNC (Ascendente), não existe parada antecipada até o final da fila (hoje).
+                    if list_state["full_sync_completed"] and watermark > 0:
+                        data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
+                        if data_alt > 0 and data_alt <= watermark:
+                            logger.info(f"  [INCREMENTAL] Alcançou registro já conhecido ({timestamp_to_date(data_alt)}). Parando paginação.")
+                            stop_scraping = True
+                            break
                     
                     data = flatten_solicitacao(j, nome)
                     if data and "Protocolo" in data and data["Protocolo"]:
@@ -599,6 +620,12 @@ def main():
                 # Salva o arquivo CSV atualizado com a página inteira
                 save_all_to_csv(records, filename)
                 page_num += 1
+                
+                # Salva o progresso para permitir retomada exata se cair
+                if not list_state["full_sync_completed"]:
+                    list_state["last_page"] = page_num
+                    global_state[chave] = list_state
+                    save_state(global_state)
 
                 # RECUPERAÇÃO GRADUAL: se o lote estava pequeno devido a erros, dobra a cada sucesso
                 if current_page_size < target_page_size:
