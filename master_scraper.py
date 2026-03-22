@@ -37,9 +37,9 @@ PAGE_SIZE = int(os.getenv("PAGE_SIZE", "50"))
 TIMEOUT = int(os.getenv("TIMEOUT", "30000"))
 
 LISTAS_ALVO = [
-    # {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
-    # {"nome": "Pendentes", "chave": "pendente"},     
-    # {"nome": "Expiradas", "chave": "cancelada"}, 
+    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
+    {"nome": "Pendentes", "chave": "pendente"},     
+    {"nome": "Expiradas", "chave": "cancelada"}, 
     {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
     {"nome": "Outras", "chave": "outras"}
 ]
