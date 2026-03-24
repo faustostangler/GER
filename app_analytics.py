@@ -25,6 +25,8 @@ def inject_custom_css():
         hr { margin-top: 1rem; margin-bottom: 1rem; }
         .filter-badge { display: inline-block; background-color: #e0f2fe; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 500; margin-right: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #bfdbfe;}
         .filter-category-title { font-weight: 600; font-size: 0.9rem; color: #374151; margin-bottom: 0.3rem;}
+        .deep-search-bar { border-left: 4px solid #3b82f6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
+        .aggregate-search-bar { border-left: 4px solid #8b5cf6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
     </style>
     """, unsafe_allow_html=True)
 
@@ -39,7 +41,6 @@ def query_db(sql_query: str) -> pd.DataFrame:
     return get_connection().execute(sql_query).df()
 
 def get_dynamic_options(column: str, current_where: str) -> list:
-    """Busca opções válidas no DB respeitando os filtros já aplicados acima dele."""
     try:
         q = f"SELECT DISTINCT \"{column}\" FROM gercon WHERE {current_where} AND \"{column}\" IS NOT NULL AND \"{column}\" != '' ORDER BY 1"
         return query_db(q)[column].tolist()
@@ -48,7 +49,6 @@ def get_dynamic_options(column: str, current_where: str) -> list:
 
 @st.cache_data(ttl=3600)
 def get_global_bounds(column: str, is_date=False):
-    """Busca limites absolutos para sliders não quebrarem a UI"""
     cast = "DATE" if is_date else "INTEGER"
     try:
         df = query_db(f"SELECT MIN(TRY_CAST(\"{column}\" AS {cast})) as vmin, MAX(TRY_CAST(\"{column}\" AS {cast})) as vmax FROM gercon")
@@ -56,17 +56,31 @@ def get_global_bounds(column: str, is_date=False):
     except:
         return None, None
 
-# --- 3. STATE MANAGEMENT (CALLBACKS) ---
-def clear_filter_state(state_dict_to_clear: dict):
-    """Callback SOTA: Injeta valores default no session_state para forçar o React a resetar o frontend."""
-    for key, default_val in state_dict_to_clear.items():
-        st.session_state[key] = default_val
+# --- 3. STATE MANAGEMENT ---
+def clear_filter_state(keys_to_clear: list):
+    for key in keys_to_clear:
+        if key in st.session_state:
+            if key.endswith("_in") or key.endswith("_ex") or key in ["dt_solic", "dt_cad", "dt_evo", "dt_nasc"]:
+                st.session_state[key] = []
+            elif key.endswith("_val"): 
+                st.session_state[key] = ""
+            elif key.endswith("_toggle"): 
+                st.session_state[key] = False
+            elif key == "num_min":
+                st.session_state[key] = 0
+            elif key == "num_max":
+                st.session_state[key] = 99999
+            elif key == "oj_radio":
+                st.session_state[key] = "Ambos"
+            else:
+                try:
+                    del st.session_state[key]
+                except:
+                    pass
 
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
-def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, state_dict: dict):
-    state_dict[f"{key}_in"] = []
-    state_dict[f"{key}_ex"] = []
-    
+def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, cat_keys: list):
+    cat_keys.extend([f"{key}_in", f"{key}_ex"])
     options = get_dynamic_options(column, current_where)
     if not options: return current_where
     
@@ -84,40 +98,78 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     
     return " AND ".join(clauses)
 
-def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, state_dict: dict):
+def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+    cat_keys.append(key)
     vmin, vmax = get_global_bounds(column, is_date=False)
     if vmin is not None and vmax is not None and vmin != vmax:
-        state_dict[key] = (int(vmin), int(vmax))
-        val = st.slider(label, int(vmin), int(vmax), (int(vmin), int(vmax)), key=key)
-        if val[0] > vmin or val[1] < vmax:
+        vmin_val, vmax_val = int(vmin), int(vmax)
+        val = st.slider(label, vmin_val, vmax_val, (vmin_val, vmax_val), key=key)
+        if val[0] > vmin_val or val[1] < vmax_val:
             ui_tracker.append(f"{label}: {val[0]} a {val[1]}")
             clauses.append(f"TRY_CAST(\"{column}\" AS INTEGER) BETWEEN {val[0]} AND {val[1]}")
     return " AND ".join(clauses)
 
-def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, state_dict: dict):
-    state_dict[f"{key}_and"] = ""
-    state_dict[f"{key}_or"] = ""
-    state_dict[f"{key}_not"] = ""
+def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, aggregate_by: str = None):
+    """
+    Renderiza um Toggle com lógica Booleana. 
+    Se aggregate_by="Protocolo" for passado, ele pesquisa em todo o histórico do paciente (Subquery), 
+    garantindo contexto clínico global.
+    """
+    cat_keys.extend([f"{key}_toggle", f"{key}_and_val", f"{key}_or_val", f"{key}_not_val"])
     
-    with st.popover(f"🔎 Busca: {label}", use_container_width=True):
-        st.markdown(f"**Lógica de busca para `{label}`**")
-        and_terms = st.text_input("✅ Contém TODAS as expressões (AND)", key=f"{key}_and")
-        or_terms = st.text_input("⚠️ Contém QUALQUER expressão (OR)", key=f"{key}_or")
-        not_terms = st.text_input("❌ NÃO contém as expressões (NOT)", key=f"{key}_not")
-        
-        def sanitize(v): return str(v).replace("'", "''")
+    for suffix in ["and", "or", "not"]:
+        if f"{key}_{suffix}_val" not in st.session_state:
+            st.session_state[f"{key}_{suffix}_val"] = ""
 
-        if and_terms:
-            ui_tracker.append(f"{label} (AND): {and_terms}")
-            for w in [sanitize(w.strip()) for w in and_terms.split(',') if w.strip()]:
-                clauses.append(f"\"{column}\" ILIKE '%{w}%'")
-        if or_terms:
-            ui_tracker.append(f"{label} (OR): {or_terms}")
-            words = [sanitize(w.strip()) for w in or_terms.split(',') if w.strip()]
-            if words: clauses.append(f"({' OR '.join([f'\"{column}\" ILIKE \'{w}\'' for w in words])})")
-        if not_terms:
-            for w in [sanitize(w.strip()) for w in not_terms.split(',') if w.strip()]:
-                clauses.append(f"\"{column}\" NOT ILIKE '%{w}%'")
+    icon = "🧠" if aggregate_by else "🔎"
+    is_active = st.toggle(f"{icon} Busca Profunda: {label}", key=f"{key}_toggle")
+    
+    if is_active:
+        col_indent, col_content = st.columns([0.05, 0.95])
+        
+        with col_content:
+            if aggregate_by:
+                st.markdown(f"<div class='aggregate-search-bar'>Busca Global: Procura em <b>todo o histórico clínico do paciente</b>. Ex: <i>diabetes, amputação</i></div>", unsafe_allow_html=True)
+            else:
+                st.markdown(f"<div class='deep-search-bar'>Busca no Evento. Ex: <i>diabetes, amputação</i></div>", unsafe_allow_html=True)
+            
+            or_terms = st.text_input("✅ Contém QUALQUER (OR)", value=st.session_state[f"{key}_or_val"], key=f"{key}_or")
+            and_terms = st.text_input("⚠️ Contém TODOS (AND)", value=st.session_state[f"{key}_and_val"], key=f"{key}_and")
+            not_terms = st.text_input("❌ NÃO contém (NOT)", value=st.session_state[f"{key}_not_val"], key=f"{key}_not")
+            
+            st.session_state[f"{key}_or_val"] = or_terms
+            st.session_state[f"{key}_and_val"] = and_terms
+            st.session_state[f"{key}_not_val"] = not_terms
+            
+            def sanitize(v): return str(v).replace("'", "''")
+
+            # --- CONSTRUTOR DE SQL DINÂMICO (AGREGADO VS LINHA) ---
+            if or_terms:
+                ui_tracker.append(f"{label} (OR): {or_terms}")
+                words = [sanitize(w.strip()) for w in or_terms.split(',') if w.strip()]
+                if words:
+                    if aggregate_by:
+                        or_conds = [f"\"{column}\" ILIKE '%{w}%'" for w in words]
+                        clauses.append(f"\"{aggregate_by}\" IN (SELECT \"{aggregate_by}\" FROM gercon WHERE {' OR '.join(or_conds)})")
+                    else:
+                        or_conds = [f"\" {column}\" ILIKE '%{w}%'" for w in words]
+                        clauses.append(f"({' OR '.join(or_conds)})")
+
+            if and_terms:
+                ui_tracker.append(f"{label} (AND): {and_terms}")
+                for w in [sanitize(w.strip()) for w in and_terms.split(',') if w.strip()]:
+                    if aggregate_by:
+                        clauses.append(f"\"{aggregate_by}\" IN (SELECT \"{aggregate_by}\" FROM gercon WHERE \"{column}\" ILIKE '%{w}%')")
+                    else:
+                        clauses.append(f"\"{column}\" ILIKE '%{w}%'")
+                    
+            if not_terms:
+                ui_tracker.append(f"{label} (NOT): {not_terms}")
+                for w in [sanitize(w.strip()) for w in not_terms.split(',') if w.strip()]:
+                    if aggregate_by:
+                        clauses.append(f"\"{aggregate_by}\" NOT IN (SELECT \"{aggregate_by}\" FROM gercon WHERE \"{column}\" ILIKE '%{w}%')")
+                    else:
+                        clauses.append(f"\"{column}\" NOT ILIKE '%{w}%'")
 
 # --- 5. MAIN APP ---
 def main():
@@ -131,25 +183,21 @@ def main():
     clauses = ["1=1"]
     curr_where = "1=1"
 
-    # Dicionários para rastrear filtros ativos e chaves de estado (com valor default) por categoria
     ui_filters = {
-        "📅 Ciclo de Vida": [], "🌍 Demografia & Rede": [], 
+        "📅 Ciclo de Vida (Datas)": [], "🌍 Demografia & Rede": [], 
         "🩺 Clínico & Regulação": [], "⚠️ Triagem & Pontuação": [], 
-        "🏛️ Governança & Atores": [], "📝 Logs Clínicos": []
+        "🏛️ Governança & Atores": [], "📝 Logs Clínicos (Eventos)": []
     }
-    state_keys = {k: {} for k in ui_filters.keys()}
+    state_keys = {k: [] for k in ui_filters.keys()}
 
     # ==========================================
     # CASCADING SIDEBAR (TOP-DOWN FLOW)
     # ==========================================
     st.sidebar.header("🎛️ Filtros em Cascata")
 
-    # --- 1. CICLO DE VIDA (Datas) ---
-    cat = "📅 Ciclo de Vida"
+    cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
-        state_keys[cat]["dt_solic"] = ()
-        state_keys[cat]["dt_cad"] = ()
-        state_keys[cat]["dt_evo"] = ()
+        state_keys[cat].extend(["dt_solic", "dt_cad", "dt_evo"])
         
         dt_solic = st.date_input("Data de Solicitação", value=[], key="dt_solic")
         if len(dt_solic) == 2: 
@@ -167,7 +215,6 @@ def main():
             clauses.append(f"CAST(\"Data_Evolucao\" AS DATE) BETWEEN '{dt_evo[0]}' AND '{dt_evo[1]}'")
         curr_where = " AND ".join(clauses)
 
-    # --- 2. DEMOGRAFIA E LOCALIZAÇÃO ---
     cat = "🌍 Demografia & Rede"
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude("Município de Residência", "Município de Residência", clauses, curr_where, "mun", ui_filters[cat], state_keys[cat])
@@ -176,16 +223,15 @@ def main():
         render_advanced_text_search("Logradouro", "Logradouro", clauses, "txt_logr", ui_filters[cat], state_keys[cat])
         
         st.write(" ")
-        state_keys[cat]["num_min"] = 0
-        state_keys[cat]["num_max"] = 99999
+        state_keys[cat].extend(["num_min", "num_max"])
         num_min, num_max = st.columns(2)
         v_nmin = num_min.number_input("Número Min", value=0, step=10, key="num_min")
         v_nmax = num_max.number_input("Número Max", value=99999, step=100, key="num_max")
         if v_nmin > 0 or v_nmax < 99999: 
-            ui_filters[cat].append(f"Número: {v_nmin} a {v_nmax}")
+            ui_filters[cat].append(f"Nº: {v_nmin} a {v_nmax}")
             clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
         
-        state_keys[cat]["dt_nasc"] = ()
+        state_keys[cat].append("dt_nasc")
         dt_nasc = st.date_input("Data Nascimento (Range)", value=[], key="dt_nasc")
         if len(dt_nasc) == 2: 
             ui_filters[cat].append(f"Nascimento: {dt_nasc[0].strftime('%d/%m/%Y')} a {dt_nasc[1].strftime('%d/%m/%Y')}")
@@ -196,7 +242,6 @@ def main():
         curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat])
 
-    # --- 3. CLÍNICO & REGULAÇÃO ---
     cat = "🩺 Clínico & Regulação"
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat])
@@ -208,14 +253,13 @@ def main():
         
         st.markdown("---")
         curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Especialidade (Fina)", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat])
         
         st.markdown("---")
         curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
         render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
         curr_where = " AND ".join(clauses)
 
-    # --- 4. TRIAGEM & GRAVIDADE ---
     cat = "⚠️ Triagem & Pontuação"
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat])
@@ -226,15 +270,14 @@ def main():
         curr_where = render_range_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
         curr_where = render_range_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
 
-    # --- 5. GOVERNANÇA E ATORES ---
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
-        state_keys[cat]["oj_radio"] = "Ambos"
+        state_keys[cat].append("oj_radio")
         oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
         if oj == "Sim": 
             ui_filters[cat].append("Ordem Judicial: Sim")
             clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
-        if oj == "Não": 
+        elif oj == "Não": 
             ui_filters[cat].append("Ordem Judicial: Não")
             clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
         
@@ -243,18 +286,19 @@ def main():
         
         st.markdown("---")
         curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Operador do Sistema", "Operador", clauses, curr_where, "oper", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Operador", "Operador", clauses, curr_where, "oper", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Usuário Solicitante", "Usuário Solicitante", clauses, curr_where, "usr_sol", ui_filters[cat], state_keys[cat])
         curr_where = " AND ".join(clauses)
 
-    # --- 6. LOG CLÍNICO ---
-    cat = "📝 Logs Clínicos"
+    cat = "📝 Logs Clínicos (Eventos)"
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat])
         
         st.markdown("---")
-        render_advanced_text_search("Origem da Info", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
-        render_advanced_text_search("Texto da Evolução", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search("Origem da Informação", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
+        
+        # AQUI ACONTECE A MÁGICA CLÍNICA: Agregação pelo Protocolo inteiro
+        render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo")
 
     # ==========================================
     # VISUALIZAÇÃO DE FILTROS ATIVOS (TOP BAR)
@@ -262,7 +306,7 @@ def main():
     has_active_filters = any(len(v) > 0 for v in ui_filters.values())
     
     if has_active_filters:
-        with st.expander("🔍 **VISUALIZAR FILTROS ATIVOS**", expanded=True):
+        with st.expander("🔍 **VISUALIZAR E LIMPAR FILTROS APLICADOS**", expanded=True):
             for category, filters in ui_filters.items():
                 if filters:
                     c1, c2 = st.columns([0.85, 0.15])
@@ -274,19 +318,16 @@ def main():
                         st.button("🗑️ Limpar", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
             
             st.markdown("---")
-            all_keys = {}
-            for subdict in state_keys.values():
-                all_keys.update(subdict)
+            all_keys = [key for sublist in state_keys.values() for key in sublist]
             st.button("🗑️ Limpar Todos os Filtros Globais", type="primary", on_click=clear_filter_state, args=(all_keys,))
     else:
         st.info("ℹ️ Nenhum filtro aplicado. A exibir a totalidade da base de dados.")
 
     # ==========================================
-    # CLÁUSULA FINAL PARA OS GRÁFICOS
+    # CLÁUSULA FINAL E PROCESSAMENTO
     # ==========================================
     FINAL_WHERE = " AND ".join(clauses)
 
-    # --- KPIs DE TOPO ---
     with st.spinner("Processando Modelo de Leitura (OLAP)..."):
         kpis = query_db(f"""
             SELECT COUNT(DISTINCT Protocolo) as pacientes, COUNT(*) as eventos, COUNT(DISTINCT Especialidade) as especialidades
@@ -294,13 +335,13 @@ def main():
         """)
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("👥 Pacientes Impactados", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
-    m2.metric("📋 Eventos Auditados", f"{int(kpis['eventos'].iloc[0]):,}".replace(',', '.'))
+    m1.metric("👥 Pacientes Únicos Resultantes", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
+    m2.metric("📋 Eventos Auditados Encontrados", f"{int(kpis['eventos'].iloc[0]):,}".replace(',', '.'))
     m3.metric("🎯 Especialidades Distintas", f"{int(kpis['especialidades'].iloc[0]):,}".replace(',', '.'))
     st.divider()
 
     # ==========================================
-    # VISUALIZAÇÕES ESTRATÉGICAS (MULTI-TABS)
+    # DASHBOARD TABS
     # ==========================================
     t_geral, t_loc, t_clin, t_perf, t_micro = st.tabs(["📊 Visão Geral", "🌍 Demografia & Geometria", "⚕️ Inteligência Clínica", "⏱️ Tráfego & SLA", "🔎 Raw Data"])
 
@@ -319,12 +360,12 @@ def main():
             df_mun = query_db(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
             if not df_mun.empty:
                 try:
-                    st.plotly_chart(px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Mapa de Origem", color='Vol', color_continuous_scale='Magma'), use_container_width=True)
+                    st.plotly_chart(px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Mapa de Origem (Município > Bairro)", color='Vol', color_continuous_scale='Magma'), use_container_width=True)
                 except Exception:
                     st.warning("Não foi possível gerar o Treemap.")
         with c2:
             df_demo = query_db(f"SELECT Sexo, Cor, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1, 2")
-            st.plotly_chart(px.bar(df_demo, x='Sexo', y='Vol', color='Cor', barmode='group', title="Perfil Demográfico"), use_container_width=True)
+            st.plotly_chart(px.bar(df_demo, x='Sexo', y='Vol', color='Cor', barmode='group', title="Perfil Demográfico (Sexo vs Cor/Raça)"), use_container_width=True)
 
     with t_clin:
         df_esp = query_db(f"SELECT \"Especialidade Mãe\", Especialidade, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 40")
@@ -337,7 +378,7 @@ def main():
         c1, c2 = st.columns(2)
         with c1:
             df_cid = query_db(f"SELECT \"CID Descrição\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"CID Descrição\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 15")
-            fig_cid = px.bar(df_cid, x='Vol', y='CID Descrição', orientation='h', title="Top 15 Diagnósticos")
+            fig_cid = px.bar(df_cid, x='Vol', y='CID Descrição', orientation='h', title="Top 15 Diagnósticos (CIDs)")
             fig_cid.update_layout(yaxis={'categoryorder':'total ascending'})
             st.plotly_chart(fig_cid, use_container_width=True)
         with c2:
@@ -359,13 +400,13 @@ def main():
             st.plotly_chart(fig_ev, use_container_width=True)
             
         df_tipo = query_db(f"SELECT Tipo_Informacao, COUNT(*) as Vol FROM gercon WHERE {FINAL_WHERE} AND Tipo_Informacao != '' GROUP BY 1 ORDER BY 2 DESC")
-        fig_tipo = px.bar(df_tipo, x='Vol', y='Tipo_Informacao', orientation='h', title="O que está a ser feito no sistema?")
+        fig_tipo = px.bar(df_tipo, x='Vol', y='Tipo_Informacao', orientation='h', title="Atividades Operacionais do Lifecycle")
         fig_tipo.update_layout(yaxis={'categoryorder':'total ascending'})
         st.plotly_chart(fig_tipo, use_container_width=True)
 
     with t_micro:
-        st.subheader("Auditoria Clínica")
-        limit = st.slider("Amostra (Linhas)", 10, 500, 50)
+        st.subheader("Auditoria Clínica Profunda")
+        limit = st.slider("Visualizar Linhas (Amostra da Tabela)", 10, 500, 50)
         df_grid = query_db(f"""
             SELECT Protocolo, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(Data_Evolucao AS TIMESTAMP) as Data_Evolução, 
             \"Origem da Lista\", Situação, Especialidade, \"Risco Cor\", Tipo_Informacao, Origem_Informacao, Texto_Evolucao 
