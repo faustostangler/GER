@@ -487,19 +487,27 @@ def main():
         st.markdown("---")
         st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
         
-        # --- UI UX FIX: Input dinâmico para o Top X ---
-        col_top, _ = st.columns([0.3, 0.7])
-        with col_top:
+        # --- UI UX FIX: Controles Analíticos (CID como Default) ---
+        c_top, c_metric = st.columns([0.3, 0.7])
+        with c_top:
             top_x = st.slider(
                 "Selecione o Top X (Volume de Análise):", 
-                min_value=5, 
-                max_value=50, 
-                value=15, 
-                step=5,
+                min_value=5, max_value=50, value=15, step=5,
                 help="Define o tamanho da matriz cruzando os maiores ofensores."
             )
+        with c_metric:
+            st.write(" ")
+            modo_heatmap = st.radio(
+                "Métrica de Visualização no Mapa de Calor:",
+                options=[
+                    "Desvio Padrão (Comparado à média do CID)", 
+                    "Desvio Padrão (Comparado à média do Médico)",
+                    "Volume Absoluto"
+                ],
+                horizontal=True
+            )
 
-        # --- GRÁFICO 1: MAPA DE CALOR (HEATMAP) TRANSPOSTO ---
+        # --- QUERY SOTA ---
         df_heatmap = query_db(f"""
             WITH TopMedicos AS (
                 SELECT "Médico Solicitante" FROM gercon 
@@ -517,34 +525,58 @@ def main():
                 COUNT(DISTINCT Protocolo) as Vol
             FROM gercon
             WHERE {FINAL_WHERE}
-              -- SRE FIX: Usar 'IN' em vez de 'INNER JOIN' elimina o erro de Ambiguidade de Colunas 
               AND "Médico Solicitante" IN (SELECT "Médico Solicitante" FROM TopMedicos)
               AND "CID Descrição" IN (SELECT "CID Descrição" FROM TopCIDs)
             GROUP BY 1, 2
         """)
 
         if not df_heatmap.empty:
-            # Prevenção SRE contra strings excessivamente longas no eixo Y
+            # 1. Trata Nomes Longos
             df_heatmap['CID_Curto'] = df_heatmap['CID Descrição'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
             
-            fig_heat = px.density_heatmap(
-                df_heatmap, 
-                x='Médico Solicitante', 
-                y='CID_Curto',
-                z='Vol',
-                color_continuous_scale='Magma',
+            # 2. Preenchimento de Matriz 2D Direta (astype float para garantir cálculos limpos)
+            df_pivot_vol = df_heatmap.pivot_table(index='CID_Curto', columns='Médico Solicitante', values='Vol', fill_value=0)
+            df_pivot = df_pivot_vol.copy().astype(float)
+            
+            # 3. Motor Z-Score Dinâmico (VETORIZAÇÃO MATEMÁTICA PURA)
+            cmap = 'Magma' 
+            
+            if "Média do CID" in modo_heatmap:
+                mean_cid = df_pivot.mean(axis=1)
+                std_cid = df_pivot.std(axis=1).replace(0, 1)
+                df_pivot = df_pivot.sub(mean_cid, axis=0).div(std_cid, axis=0)
+                cmap = 'RdBu_r' 
+            elif "Média do Médico" in modo_heatmap:
+                mean_med = df_pivot.mean(axis=0)
+                std_med = df_pivot.std(axis=0).replace(0, 1)
+                df_pivot = df_pivot.sub(mean_med, axis=1).div(std_med, axis=1)
+                cmap = 'RdBu_r'
+
+            # 4. Matriz de Formatação Visual (Textos em 2D)
+            if "Absoluto" in modo_heatmap:
+                df_text = df_pivot.round(0).astype(int).astype(str)
+            else:
+                df_text = df_pivot.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
+
+            # --- PLOTAGEM SOTA ---
+            fig_heat = px.imshow(
+                df_pivot, 
+                aspect="auto", 
+                color_continuous_scale=cmap,
+                color_continuous_midpoint=0 if "Desvio" in modo_heatmap else None, 
                 title=f"Matriz de Concentração: Top {top_x} CIDs vs Top {top_x} Médicos",
-                labels={'CID_Curto': 'Diagnóstico (CID)', 'Médico Solicitante': 'Médico Solicitante', 'Vol': 'Pacientes'},
-                text_auto=True 
+                labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Métrica")
             )
             
-            # Otimização Dinâmica de Layout
-            altura_dinamica = max(500, top_x * 35) 
-            fig_heat.update_layout(
-                xaxis_tickangle=-45, 
-                height=altura_dinamica, 
-                margin=dict(l=250, b=120)
+            fig_heat.update_traces(
+                text=df_text.values,
+                texttemplate="%{text}",
+                customdata=df_pivot_vol.values,
+                hovertemplate="<b>Médico:</b> %{x}<br><b>CID:</b> %{y}<br><b>Volume Real:</b> %{customdata} pacientes<br><b>Z-Score:</b> %{text}<extra></extra>"
             )
+            
+            altura_dinamica = max(500, top_x * 35) 
+            fig_heat.update_layout(xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120))
             st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
 
         # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Médico ➔ CID) ---
