@@ -57,15 +57,16 @@ def get_global_bounds(column: str, is_date=False):
         return None, None
 
 # --- 3. STATE MANAGEMENT (CALLBACKS) ---
-def clear_filter_state(keys_to_clear: list):
-    """Callback para limpar chaves do session_state, forçando o reset dos widgets."""
-    for key in keys_to_clear:
-        if key in st.session_state:
-            del st.session_state[key]
+def clear_filter_state(state_dict_to_clear: dict):
+    """Callback SOTA: Injeta valores default no session_state para forçar o React a resetar o frontend."""
+    for key, default_val in state_dict_to_clear.items():
+        st.session_state[key] = default_val
 
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
-def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, cat_keys: list):
-    cat_keys.extend([f"{key}_in", f"{key}_ex"])
+def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, state_dict: dict):
+    state_dict[f"{key}_in"] = []
+    state_dict[f"{key}_ex"] = []
+    
     options = get_dynamic_options(column, current_where)
     if not options: return current_where
     
@@ -83,18 +84,21 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     
     return " AND ".join(clauses)
 
-def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
-    cat_keys.append(key)
+def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, state_dict: dict):
     vmin, vmax = get_global_bounds(column, is_date=False)
     if vmin is not None and vmax is not None and vmin != vmax:
+        state_dict[key] = (int(vmin), int(vmax))
         val = st.slider(label, int(vmin), int(vmax), (int(vmin), int(vmax)), key=key)
         if val[0] > vmin or val[1] < vmax:
             ui_tracker.append(f"{label}: {val[0]} a {val[1]}")
             clauses.append(f"TRY_CAST(\"{column}\" AS INTEGER) BETWEEN {val[0]} AND {val[1]}")
     return " AND ".join(clauses)
 
-def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
-    cat_keys.extend([f"{key}_and", f"{key}_or", f"{key}_not"])
+def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, state_dict: dict):
+    state_dict[f"{key}_and"] = ""
+    state_dict[f"{key}_or"] = ""
+    state_dict[f"{key}_not"] = ""
+    
     with st.popover(f"🔎 Busca: {label}", use_container_width=True):
         st.markdown(f"**Lógica de busca para `{label}`**")
         and_terms = st.text_input("✅ Contém TODAS as expressões (AND)", key=f"{key}_and")
@@ -110,7 +114,7 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
         if or_terms:
             ui_tracker.append(f"{label} (OR): {or_terms}")
             words = [sanitize(w.strip()) for w in or_terms.split(',') if w.strip()]
-            if words: clauses.append(f"({' OR '.join([f'\"{column}\" ILIKE \'%{w}%\'' for w in words])})")
+            if words: clauses.append(f"({' OR '.join([f'\"{column}\" ILIKE \'{w}\'' for w in words])})")
         if not_terms:
             for w in [sanitize(w.strip()) for w in not_terms.split(',') if w.strip()]:
                 clauses.append(f"\"{column}\" NOT ILIKE '%{w}%'")
@@ -127,13 +131,13 @@ def main():
     clauses = ["1=1"]
     curr_where = "1=1"
 
-    # Dicionários para rastrear filtros ativos e chaves de estado por categoria
+    # Dicionários para rastrear filtros ativos e chaves de estado (com valor default) por categoria
     ui_filters = {
         "📅 Ciclo de Vida": [], "🌍 Demografia & Rede": [], 
         "🩺 Clínico & Regulação": [], "⚠️ Triagem & Pontuação": [], 
         "🏛️ Governança & Atores": [], "📝 Logs Clínicos": []
     }
-    state_keys = {k: [] for k in ui_filters.keys()}
+    state_keys = {k: {} for k in ui_filters.keys()}
 
     # ==========================================
     # CASCADING SIDEBAR (TOP-DOWN FLOW)
@@ -143,7 +147,9 @@ def main():
     # --- 1. CICLO DE VIDA (Datas) ---
     cat = "📅 Ciclo de Vida"
     with st.sidebar.expander(cat, expanded=False):
-        state_keys[cat].extend(["dt_solic", "dt_cad", "dt_evo"])
+        state_keys[cat]["dt_solic"] = ()
+        state_keys[cat]["dt_cad"] = ()
+        state_keys[cat]["dt_evo"] = ()
         
         dt_solic = st.date_input("Data de Solicitação", value=[], key="dt_solic")
         if len(dt_solic) == 2: 
@@ -170,7 +176,8 @@ def main():
         render_advanced_text_search("Logradouro", "Logradouro", clauses, "txt_logr", ui_filters[cat], state_keys[cat])
         
         st.write(" ")
-        state_keys[cat].extend(["num_min", "num_max"])
+        state_keys[cat]["num_min"] = 0
+        state_keys[cat]["num_max"] = 99999
         num_min, num_max = st.columns(2)
         v_nmin = num_min.number_input("Número Min", value=0, step=10, key="num_min")
         v_nmax = num_max.number_input("Número Max", value=99999, step=100, key="num_max")
@@ -178,7 +185,7 @@ def main():
             ui_filters[cat].append(f"Número: {v_nmin} a {v_nmax}")
             clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
         
-        state_keys[cat].append("dt_nasc")
+        state_keys[cat]["dt_nasc"] = ()
         dt_nasc = st.date_input("Data Nascimento (Range)", value=[], key="dt_nasc")
         if len(dt_nasc) == 2: 
             ui_filters[cat].append(f"Nascimento: {dt_nasc[0].strftime('%d/%m/%Y')} a {dt_nasc[1].strftime('%d/%m/%Y')}")
@@ -222,7 +229,7 @@ def main():
     # --- 5. GOVERNANÇA E ATORES ---
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
-        state_keys[cat].append("oj_radio")
+        state_keys[cat]["oj_radio"] = "Ambos"
         oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
         if oj == "Sim": 
             ui_filters[cat].append("Ordem Judicial: Sim")
@@ -267,7 +274,9 @@ def main():
                         st.button("🗑️ Limpar", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
             
             st.markdown("---")
-            all_keys = [key for sublist in state_keys.values() for key in sublist]
+            all_keys = {}
+            for subdict in state_keys.values():
+                all_keys.update(subdict)
             st.button("🗑️ Limpar Todos os Filtros Globais", type="primary", on_click=clear_filter_state, args=(all_keys,))
     else:
         st.info("ℹ️ Nenhum filtro aplicado. A exibir a totalidade da base de dados.")
