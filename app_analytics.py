@@ -111,9 +111,8 @@ def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tra
 
 def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, aggregate_by: str = None):
     """
-    Renderiza um Toggle com lógica Booleana. 
-    Se aggregate_by="Protocolo" for passado, ele pesquisa em todo o histórico do paciente (Subquery), 
-    garantindo contexto clínico global.
+    Renderiza um Toggle com lógica Booleana, tolerância a Acentos e suporte a Wildcards (*).
+    Se aggregate_by for passado, utiliza 'bool_or' (Single-pass OLAP).
     """
     cat_keys.extend([f"{key}_toggle", f"{key}_and_val", f"{key}_or_val", f"{key}_not_val"])
     
@@ -129,47 +128,84 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
         
         with col_content:
             if aggregate_by:
-                st.markdown(f"<div class='aggregate-search-bar'>Busca Global: Procura em <b>todo o histórico clínico do paciente</b>. Ex: <i>diabetes, amputação</i></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='aggregate-search-bar'>Busca Global: Procura em <b>todo o histórico clínico</b>.</div>", unsafe_allow_html=True)
             else:
-                st.markdown(f"<div class='deep-search-bar'>Busca no Evento. Ex: <i>diabetes, amputação</i></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='deep-search-bar'>Busca no Evento.</div>", unsafe_allow_html=True)
             
-            or_terms = st.text_input("✅ Contém QUALQUER (OR)", value=st.session_state[f"{key}_or_val"], key=f"{key}_or")
-            and_terms = st.text_input("⚠️ Contém TODOS (AND)", value=st.session_state[f"{key}_and_val"], key=f"{key}_and")
+            st.caption("Separe por vírgula ( , ). Use **\*** como curinga (ex: *cardio\**). Acentos são ignorados.")
+            
+            or_terms = st.text_input("✅ Contém QUALQUER UMA (OR)", value=st.session_state[f"{key}_or_val"], key=f"{key}_or")
+            and_terms = st.text_input("⚠️ Contém TODAS (AND)", value=st.session_state[f"{key}_and_val"], key=f"{key}_and")
             not_terms = st.text_input("❌ NÃO contém (NOT)", value=st.session_state[f"{key}_not_val"], key=f"{key}_not")
             
             st.session_state[f"{key}_or_val"] = or_terms
             st.session_state[f"{key}_and_val"] = and_terms
             st.session_state[f"{key}_not_val"] = not_terms
             
-            def sanitize(v): return str(v).replace("'", "''")
-
-            # --- CONSTRUTOR DE SQL DINÂMICO (AGREGADO VS LINHA) ---
-            if or_terms:
-                ui_tracker.append(f"{label} (OR): {or_terms}")
-                words = [sanitize(w.strip()) for w in or_terms.split(',') if w.strip()]
-                if words:
-                    if aggregate_by:
-                        or_conds = [f"\"{column}\" ILIKE '%{w}%'" for w in words]
-                        clauses.append(f"\"{aggregate_by}\" IN (SELECT \"{aggregate_by}\" FROM gercon WHERE {' OR '.join(or_conds)})")
-                    else:
-                        or_conds = [f"\" {column}\" ILIKE '%{w}%'" for w in words]
-                        clauses.append(f"({' OR '.join(or_conds)})")
-
-            if and_terms:
-                ui_tracker.append(f"{label} (AND): {and_terms}")
-                for w in [sanitize(w.strip()) for w in and_terms.split(',') if w.strip()]:
-                    if aggregate_by:
-                        clauses.append(f"\"{aggregate_by}\" IN (SELECT \"{aggregate_by}\" FROM gercon WHERE \"{column}\" ILIKE '%{w}%')")
-                    else:
-                        clauses.append(f"\"{column}\" ILIKE '%{w}%'")
+            # --- LEXICAL PARSER (Trata Curingas, Acentos e Aspas) ---
+            def parse_term(term: str) -> str:
+                t = term.strip().replace("'", "''") # Escapa aspas para evitar SQL Error
+                t = t.replace("*", "%")             # Traduz UX Curinga para SQL Curinga
+                
+                # SRE Fix: Garante que a busca é SEMPRE "Contains" (em qualquer lugar do texto)
+                # Mesmo que o utilizador use um curinga, as âncoras globais são mantidas.
+                if not t.startswith("%"):
+                    t = f"%{t}"
+                if not t.endswith("%"):
+                    t = f"{t}%"
                     
-            if not_terms:
-                ui_tracker.append(f"{label} (NOT): {not_terms}")
-                for w in [sanitize(w.strip()) for w in not_terms.split(',') if w.strip()]:
-                    if aggregate_by:
-                        clauses.append(f"\"{aggregate_by}\" NOT IN (SELECT \"{aggregate_by}\" FROM gercon WHERE \"{column}\" ILIKE '%{w}%')")
-                    else:
-                        clauses.append(f"\"{column}\" NOT ILIKE '%{w}%'")
+                return t
+
+            # --- CONSTRUTOR DE SQL SOTA (Com strip_accents) ---
+            if and_terms or or_terms or not_terms:
+                
+                # ESTRATÉGIA OLAP: AGRUPAMENTO POR ENTIDADE (PACIENTE)
+                if aggregate_by:
+                    having_conds = []
+                    
+                    if or_terms:
+                        ui_tracker.append(f"{label} (OR Global): {or_terms}")
+                        words = [w for w in or_terms.split(',') if w.strip()]
+                        if words:
+                            or_expr = [f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}'))" for w in words]
+                            having_conds.append(f"({' OR '.join(or_expr)})")
+
+                    if and_terms:
+                        ui_tracker.append(f"{label} (AND Global): {and_terms}")
+                        for w in [w for w in and_terms.split(',') if w.strip()]:
+                            p_term = parse_term(w)
+                            having_conds.append(f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}'))")
+                            
+                    if not_terms:
+                        ui_tracker.append(f"{label} (NOT Global): {not_terms}")
+                        for w in [w for w in not_terms.split(',') if w.strip()]:
+                            p_term = parse_term(w)
+                            having_conds.append(f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')) = FALSE")
+                            
+                    if having_conds:
+                        subquery = f"SELECT \"{aggregate_by}\" FROM gercon GROUP BY \"{aggregate_by}\" HAVING {' AND '.join(having_conds)}"
+                        clauses.append(f"\"{aggregate_by}\" IN ({subquery})")
+                        
+                # ESTRATÉGIA NORMAL: FILTRO POR EVENTO/LINHA
+                else:
+                    if or_terms:
+                        ui_tracker.append(f"{label} (OR Linha): {or_terms}")
+                        words = [w for w in or_terms.split(',') if w.strip()]
+                        if words:
+                            or_expr = [f"strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}')" for w in words]
+                            clauses.append(f"({' OR '.join(or_expr)})")
+
+                    if and_terms:
+                        ui_tracker.append(f"{label} (AND Linha): {and_terms}")
+                        for w in [w for w in and_terms.split(',') if w.strip()]:
+                            p_term = parse_term(w)
+                            clauses.append(f"strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')")
+                            
+                    if not_terms:
+                        ui_tracker.append(f"{label} (NOT Linha): {not_terms}")
+                        for w in [w for w in not_terms.split(',') if w.strip()]:
+                            p_term = parse_term(w)
+                            clauses.append(f"strip_accents(\"{column}\") NOT ILIKE strip_accents('{p_term}')")
 
 # --- 5. MAIN APP ---
 def main():
