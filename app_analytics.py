@@ -3,6 +3,10 @@ import duckdb
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.io as pio
+
+# SRE FIX: Força renderização SVG para máquinas sem WebGL (Terminais Clínicos)
+pio.renderers.default = "browser"
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import date, timedelta
@@ -33,11 +37,13 @@ def inject_custom_css():
 # --- 2. INFRASTRUCTURE: DUCKDB ENGINE ---
 @st.cache_resource
 def get_connection():
+    # SRE FIX: Cria a conexão e a View UMA ÚNICA VEZ para evitar Race Conditions
     con = duckdb.connect(database=':memory:')
     con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{settings.OUTPUT_FILE}')")
     return con
 
 def query_db(sql_query: str) -> pd.DataFrame:
+    # Read-Only Thread-Safe Access
     return get_connection().execute(sql_query).df()
 
 def get_dynamic_options(column: str, current_where: str) -> list:
@@ -145,13 +151,14 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
             st.session_state[f"{key}_and_val"] = and_terms
             st.session_state[f"{key}_not_val"] = not_terms
             
-            # --- LEXICAL PARSER (Trata Curingas, Acentos e Aspas) ---
+            # --- LEXICAL PARSER (SRE Refined: Trata Injeção, Curingas e Acentos) ---
+            import re
             def parse_term(term: str) -> str:
-                t = term.strip().replace("'", "''") # Escapa aspas para evitar SQL Error
-                t = t.replace("*", "%")             # Traduz UX Curinga para SQL Curinga
+                # SRE FIX: Sanitização contra caracteres de controle SQL perigosos
+                t = re.sub(r'[;]|--', '', term.strip())
+                t = t.replace("'", "''") # Escapa aspas
+                t = t.replace("*", "%")  # Traduz UX Curinga para SQL
                 
-                # SRE Fix: Garante que a busca é SEMPRE "Contains" (em qualquer lugar do texto)
-                # Mesmo que o utilizador use um curinga, as âncoras globais são mantidas.
                 if not t.startswith("%"):
                     t = f"%{t}"
                 if not t.endswith("%"):
@@ -363,95 +370,175 @@ def main():
         st.info("ℹ️ Nenhum filtro aplicado. A exibir a totalidade da base de dados.")
 
     # ==========================================
-    # CLÁUSULA FINAL E PROCESSAMENTO
+    # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
     # ==========================================
     FINAL_WHERE = " AND ".join(clauses)
 
     with st.spinner("Processando Modelo de Leitura (OLAP)..."):
         kpis = query_db(f"""
-            SELECT COUNT(DISTINCT Protocolo) as pacientes, COUNT(*) as eventos, COUNT(DISTINCT Especialidade) as especialidades
+            SELECT COUNT(DISTINCT Protocolo) as pacientes, 
+                   COUNT(*) as eventos, 
+                   COUNT(DISTINCT Especialidade) as especialidades,
+                   ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as lead_time
             FROM gercon WHERE {FINAL_WHERE}
         """)
 
-    m1, m2, m3 = st.columns(3)
-    m1.metric("👥 Pacientes Únicos Resultantes", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
-    m2.metric("📋 Eventos Auditados Encontrados", f"{int(kpis['eventos'].iloc[0]):,}".replace(',', '.'))
-    m3.metric("🎯 Especialidades Distintas", f"{int(kpis['especialidades'].iloc[0]):,}".replace(',', '.'))
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("👥 Pacientes na Fila", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
+    m2.metric("📋 Evoluções Auditadas", f"{int(kpis['eventos'].iloc[0]):,}".replace(',', '.'))
+    m3.metric("🎯 Especialidades", f"{int(kpis['especialidades'].iloc[0]):,}".replace(',', '.'))
+    m4.metric("⏱️ Lead Time Médio", f"{kpis['lead_time'].iloc[0]} dias", help="Tempo médio de espera dos pacientes ativos.")
     st.divider()
 
+    # Cores Semânticas
+    cmap = {'VERMELHO': '#ef4444', 'AMARELO': '#eab308', 'VERDE': '#22c55e', 'AZUL': '#3b82f6', 'LARANJA': '#f97316'}
+
     # ==========================================
-    # DASHBOARD TABS
+    # DASHBOARD TABS: ESTRATÉGICO -> TÁTICO -> OPERACIONAL
     # ==========================================
-    t_geral, t_loc, t_clin, t_perf, t_micro = st.tabs(["📊 Visão Geral", "🌍 Demografia & Geometria", "⚕️ Inteligência Clínica", "⏱️ Tráfego & SLA", "🔎 Raw Data"])
+    t_macro, t_meso, t_micro = st.tabs(["📊 Estratégico (Macro)", "🎯 Tático & Clínica (Meso)", "🔎 Operacional & SRE (Micro)"])
 
-    with t_geral:
-        c1, c2 = st.columns(2)
+    with t_macro:
+        st.subheader("Governança e Saúde do Fluxo")
+        c1, c2 = st.columns([0.4, 0.6])
+        
         with c1:
-            df_sit = query_db(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
-            st.plotly_chart(px.bar(df_sit, x='Situação', y='Vol', color='Situação', title="Volume por Situação Atual", template="plotly_white"), use_container_width=True)
-        with c2:
-            df_lista = query_db(f"SELECT \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1")
-            st.plotly_chart(px.pie(df_lista, values='Vol', names='Origem da Lista', hole=0.4, title="Distribuição por Lista do Gercon"), use_container_width=True)
-
-    with t_loc:
-        c1, c2 = st.columns(2)
-        with c1:
-            df_mun = query_db(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
-            if not df_mun.empty:
-                try:
-                    st.plotly_chart(px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Mapa de Origem (Município > Bairro)", color='Vol', color_continuous_scale='Magma'), use_container_width=True)
-                except Exception:
-                    st.warning("Não foi possível gerar o Treemap.")
-        with c2:
-            df_demo = query_db(f"SELECT Sexo, Cor, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1, 2")
-            st.plotly_chart(px.bar(df_demo, x='Sexo', y='Vol', color='Cor', barmode='group', title="Perfil Demográfico (Sexo vs Cor/Raça)"), use_container_width=True)
-
-    with t_clin:
-        df_esp = query_db(f"SELECT \"Especialidade Mãe\", Especialidade, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 40")
-        if not df_esp.empty:
-            try:
-                st.plotly_chart(px.sunburst(df_esp, path=['Especialidade Mãe', 'Especialidade'], values='Vol', color='Vol', color_continuous_scale='Blues', title="Relação Especialidade Mãe > Fina"), use_container_width=True)
-            except Exception:
-                st.warning("Não foi possível gerar o Sunburst.")
-
-        c1, c2 = st.columns(2)
-        with c1:
-            df_cid = query_db(f"SELECT \"CID Descrição\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"CID Descrição\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 15")
-            fig_cid = px.bar(df_cid, x='Vol', y='CID Descrição', orientation='h', title="Top 15 Diagnósticos (CIDs)")
-            fig_cid.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig_cid, use_container_width=True)
-        with c2:
-            df_risco = query_db(f"SELECT \"Risco Cor\", \"Ordem Judicial\" IS NOT NULL as Jud, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1, 2")
-            cmap = {'VERMELHO': '#ef4444', 'AMARELO': '#eab308', 'VERDE': '#22c55e', 'AZUL': '#3b82f6', 'LARANJA': '#f97316'}
-            st.plotly_chart(px.bar(df_risco, x='Risco Cor', y='Vol', color='Risco Cor', pattern_shape='Jud', color_discrete_map=cmap, title="Triagem vs Ordem Judicial"), use_container_width=True)
-
-    with t_perf:
-        c1, c2 = st.columns(2)
-        with c1:
-            df_time = query_db(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1 ORDER BY 1")
-            fig_in = px.area(df_time, x='Dia', y='Vol', title="Throughput: Criação de Protocolos", template="plotly_white")
-            fig_in.update_traces(line_color='#10b981')
-            st.plotly_chart(fig_in, use_container_width=True)
-        with c2:
-            df_evo_time = query_db(f"SELECT CAST(\"Data_Evolucao\" AS DATE) as Dia, COUNT(*) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data_Evolucao\" IS NOT NULL GROUP BY 1 ORDER BY 1")
-            fig_ev = px.line(df_evo_time, x='Dia', y='Vol', title="Velocidade de Trabalho (Evoluções Diárias)", template="plotly_white")
-            fig_ev.update_traces(line_color='#8b5cf6')
-            st.plotly_chart(fig_ev, use_container_width=True)
+            # Matriz de Risco (Donut)
+            df_risco = query_db(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1")
+            if not df_risco.empty:
+                st.plotly_chart(px.pie(df_risco, values='Vol', names='Risco Cor', hole=0.5, color='Risco Cor', color_discrete_map=cmap, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
             
-        df_tipo = query_db(f"SELECT Tipo_Informacao, COUNT(*) as Vol FROM gercon WHERE {FINAL_WHERE} AND Tipo_Informacao != '' GROUP BY 1 ORDER BY 2 DESC")
-        fig_tipo = px.bar(df_tipo, x='Vol', y='Tipo_Informacao', orientation='h', title="Atividades Operacionais do Lifecycle")
-        fig_tipo.update_layout(yaxis={'categoryorder':'total ascending'})
-        st.plotly_chart(fig_tipo, use_container_width=True)
+        with c2:
+            # Funil de Jornada (Conversão)
+            df_funil = query_db(f"""
+                SELECT '1. Solicitado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE}
+                UNION ALL
+                SELECT '2. Triado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND "Risco Cor" != ''
+                UNION ALL
+                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND Situação ILIKE '%AGENDADA%'
+                UNION ALL
+                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND ("Situação Final" ILIKE '%ATENDIDO%' OR "Situação Final" ILIKE '%REALIZADO%')
+            """)
+            st.plotly_chart(px.funnel(df_funil, x='Vol', y='Etapa', title="Funil da Jornada: Gargalos e Abandono"), use_container_width=True, config={'displayModeBar': False})
+
+        df_sit = query_db(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
+        st.plotly_chart(px.bar(df_sit, x='Situação', y='Vol', title="Situação Geral da Rede", color='Situação', template="plotly_white"), use_container_width=True, config={'displayModeBar': False})
+
+    with t_meso:
+        st.subheader("Inteligência Clínica & Perfil Demográfico")
+        
+        # Sunburst Hierárquico de 3 Níveis: Especialidade Mãe -> Especialidade Fina -> CID
+        df_esp = query_db(f"SELECT \"Especialidade Mãe\", Especialidade, \"CID Descrição\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"CID Descrição\" != '' GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 50")
+        
+        # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
+        if not df_esp.empty:
+            df_esp['Especialidade Mãe'] = df_esp['Especialidade Mãe'].replace('', 'Sem Categoria Mãe').fillna('Sem Categoria Mãe')
+            df_esp['Especialidade'] = df_esp['Especialidade'].replace('', 'Sem Subespecialidade').fillna('Sem Subespecialidade')
+            df_esp['CID Descrição'] = df_esp['CID Descrição'].replace('', 'CID Não Informado').fillna('CID Não Informado')
+            
+            st.plotly_chart(px.sunburst(df_esp, path=['Especialidade Mãe', 'Especialidade', 'CID Descrição'], values='Vol', color='Vol', color_continuous_scale='Blues', title="Explosão Solar: Especialidade Mãe ➔ Fina ➔ CID"), use_container_width=True, config={'displayModeBar': False})
+
+        c1, c2 = st.columns(2)
+        with c1:
+            # Geometria da Demanda (Treemap)
+            df_mun = query_db(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
+            
+            # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
+            if not df_mun.empty:
+                df_mun['Bairro'] = df_mun['Bairro'].replace('', 'Não Informado').fillna('Não Informado')
+                st.plotly_chart(px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Geometria: Município ➔ Bairro", color='Vol', color_continuous_scale='Viridis'), use_container_width=True, config={'displayModeBar': False})
+        with c2:
+            # SRE FIX: Cálculo de Idade blindado (TRY_CAST para evitar Conversion Error)
+            df_demo = query_db(f"""
+                SELECT Idade_Int, Sexo, COUNT(DISTINCT Protocolo) as Vol
+                FROM (
+                    SELECT 
+                        date_diff('year', TRY_CAST("Data de Nascimento" AS DATE), CURRENT_DATE) as Idade_Int, 
+                        Sexo, 
+                        Protocolo
+                    FROM gercon 
+                    WHERE {FINAL_WHERE}
+                ) 
+                WHERE Idade_Int IS NOT NULL AND Idade_Int >= 0
+                GROUP BY 1, 2
+            """)
+            
+            if not df_demo.empty:
+                fig_demo = px.histogram(
+                    df_demo, 
+                    x='Idade_Int', 
+                    y='Vol', 
+                    color='Sexo', 
+                    barmode='group', 
+                    nbins=20,
+                    color_discrete_map={'Feminino':'#ec4899', 'Masculino':'#3b82f6'},
+                    title="Perfil Demográfico (Idade vs Sexo)",
+                    labels={'Idade_Int': 'Idade Aproximada', 'Vol': 'Volume de Pacientes'}
+                )
+                st.plotly_chart(fig_demo, use_container_width=True, config={'displayModeBar': False})
+
+        # Throughput vs Capacidade (Temporal)
+        df_fluxo = query_db(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1")
+        st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='Origem da Lista', title="Throughput Temporal: Volume de Protocolos por Origem"), use_container_width=True, config={'displayModeBar': False})
 
     with t_micro:
-        st.subheader("Auditoria Clínica Profunda")
-        limit = st.slider("Visualizar Linhas (Amostra da Tabela)", 10, 500, 50)
-        df_grid = query_db(f"""
+        st.subheader("Auditoria de Outliers & Top Ofensores (SRE)")
+        
+        c1, c2 = st.columns([0.7, 0.3])
+        with c1:
+            # Matriz de Outliers (Scatter Plot)
+            st.markdown("### 🔍 Detecção de Outliers SLA")
+            df_outliers = query_db(f"""
+                SELECT Protocolo, "Risco Cor", TRY_CAST(Pontuação AS INTEGER) as Pontos, 
+                    DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE) as DiasFila,
+                    Situação, Especialidade
+                FROM gercon 
+                WHERE {FINAL_WHERE} AND "Data Solicitação" IS NOT NULL AND Situação NOT ILIKE '%ENCERRADA%'
+                ORDER BY DiasFila DESC, Pontos DESC
+                LIMIT 3000
+            """)
+            if not df_outliers.empty:
+                fig_out = px.scatter(df_outliers, x='DiasFila', y='Pontos', color='Risco Cor', 
+                                    size='Pontos', hover_data=['Protocolo'],
+                                    color_discrete_map=cmap, title="Matriz RCA: Gravidade vs Tempo na Fila")
+                fig_out.add_hline(y=40, line_dash="dot", annotation_text="Alta Gravidade")
+                fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
+                st.plotly_chart(fig_out, use_container_width=True, config={'displayModeBar': False})
+        
+        with c2:
+            # Top Ofensores (Barra Horizontal)
+            st.markdown("### ⚖️ Top Ofensores")
+            df_medico = query_db(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10")
+            fig_ofensor = px.bar(df_medico, x='Vol', y='Médico Solicitante', orientation='h', title="Top 10 Médicos (Volume)")
+            fig_ofensor.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
+            st.plotly_chart(fig_ofensor, use_container_width=True, config={'displayModeBar': False})
+
+        # Log Clinical Audit
+        st.markdown("---")
+        st.markdown("### 📝 Log de Evoluções Clínicas")
+        
+        c_slider, c_export = st.columns([0.8, 0.2])
+        with c_slider:
+            limit = st.slider("Amostra para Auditoria Clínica", 10, 1000, 100)
+            
+        df_audit = query_db(f"""
             SELECT Protocolo, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(Data_Evolucao AS TIMESTAMP) as Data_Evolução, 
-            \"Origem da Lista\", Situação, Especialidade, \"Risco Cor\", Tipo_Informacao, Origem_Informacao, Texto_Evolucao 
+            Situação, \"Risco Cor\", Texto_Evolucao 
             FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, Data_Evolucao DESC LIMIT {limit}
         """)
-        st.dataframe(df_grid, use_container_width=True, hide_index=True)
+        
+        with c_export:
+            st.write(" ") # Espaçamento vertical
+            csv_data = df_audit.to_csv(index=False).encode('utf-8')
+            st.download_button(
+                label="📥 Baixar CSV",
+                data=csv_data,
+                file_name=f"auditoria_gercon_{date.today()}.csv",
+                mime='text/csv',
+                use_container_width=True
+            )
+            
+        st.dataframe(df_audit, use_container_width=True, hide_index=True)
 
 if __name__ == "__main__":
     main()
