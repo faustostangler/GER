@@ -91,9 +91,12 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     
     def sanitize(v): return str(v).replace("'", "''")
     if incl: 
-        ui_tracker.append(f"{label}: {', '.join([str(v) for v in incl])}")
+        ui_tracker.append(f"{label} (✅): {', '.join([str(v) for v in incl])}")
         clauses.append(f"\"{column}\" IN ({', '.join([f"'{sanitize(v)}'" for v in incl])})")
+        
     if excl: 
+        # CORREÇÃO: Agora a exclusão é registada no tracker da interface visual
+        ui_tracker.append(f"{label} (❌): {', '.join([str(v) for v in excl])}")
         clauses.append(f"\"{column}\" NOT IN ({', '.join([f"'{sanitize(v)}'" for v in excl])})")
     
     return " AND ".join(clauses)
