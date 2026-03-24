@@ -126,7 +126,7 @@ def timestamp_to_date(ts):
     if not ts: return ""
     try:
         dt = datetime.fromtimestamp(ts / 1000.0)
-        res = dt.strftime("%d/%m/%Y %H:%M")
+        res = dt.strftime("%d/%m/%Y %H:%M:%S")
         # logger.debug(f"[timestamp_to_date] Convertido para: '{res}'")
         return res
     except Exception as e:

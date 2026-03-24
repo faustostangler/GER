@@ -71,7 +71,7 @@ def timestamp_to_date(ts):
     if not ts: return ""
     try:
         dt = datetime.fromtimestamp(ts / 1000.0)
-        return dt.strftime("%d/%m/%Y %H:%M")
+        return dt.strftime("%d/%m/%Y %H:%M:%S")
     except:
         return ""
 
