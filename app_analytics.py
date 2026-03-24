@@ -125,13 +125,14 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     
     def sanitize(v): return str(v).replace("'", "''")
     if incl: 
-        ui_tracker.append(f"{label} (✅): {', '.join([str(v) for v in incl])}")
+        # ARQUITETURA DE ESTADO: Agora guardamos o Texto Visual e as Chaves Associadas
+        ui_tracker.append({"text": f"{label} (✅): {', '.join([str(v) for v in incl])}", "keys": [f"{key}_in"]})
         sanitized_incl = [f"'{sanitize(v)}'" for v in incl]
         clauses.append(f'"{column}" IN ({", ".join(sanitized_incl)})')
         
     if excl: 
-        # CORREÇÃO: Agora a exclusão é registada no tracker da interface visual
-        ui_tracker.append(f"{label} (❌): {', '.join([str(v) for v in excl])}")
+        # ARQUITETURA DE ESTADO: Agora guardamos o Texto Visual e as Chaves Associadas
+        ui_tracker.append({"text": f"{label} (❌): {', '.join([str(v) for v in excl])}", "keys": [f"{key}_ex"]})
         sanitized_excl = [f"'{sanitize(v)}'" for v in excl]
         clauses.append(f'"{column}" NOT IN ({", ".join(sanitized_excl)})')
     
@@ -144,7 +145,7 @@ def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tra
         vmin_val, vmax_val = int(vmin), int(vmax)
         val = st.slider(label, vmin_val, vmax_val, (vmin_val, vmax_val), key=key)
         if val[0] > vmin_val or val[1] < vmax_val:
-            ui_tracker.append(f"{label}: {val[0]} a {val[1]}")
+            ui_tracker.append({"text": f"{label}: {val[0]} a {val[1]}", "keys": [key]})
             clauses.append(f"TRY_CAST(\"{column}\" AS INTEGER) BETWEEN {val[0]} AND {val[1]}")
     return " AND ".join(clauses)
 
@@ -177,7 +178,7 @@ def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui
     
     # Validação segura (evita crash se o utilizador selecionar apenas a data de início e não a do fim)
     if isinstance(val, tuple) and len(val) == 2:
-        ui_tracker.append(f"{label}: {val[0].strftime('%d/%m/%Y')} a {val[1].strftime('%d/%m/%Y')}")
+        ui_tracker.append({"text": f"{label}: {val[0].strftime('%d/%m/%Y')} a {val[1].strftime('%d/%m/%Y')}", "keys": [key, preset_key]})
         clauses.append(f"CAST(\"{column}\" AS DATE) BETWEEN '{val[0]}' AND '{val[1]}'")
         
     return " AND ".join(clauses)
@@ -238,20 +239,20 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
                     having_conds = []
                     
                     if or_terms:
-                        ui_tracker.append(f"{label} (OR Global): {or_terms}")
+                        ui_tracker.append({"text": f"{label} (OR Global): {or_terms}", "keys": [f"{key}_or_val", f"{key}_or"]})
                         words = [w for w in or_terms.split(',') if w.strip()]
                         if words:
                             or_expr = [f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}'))" for w in words]
                             having_conds.append(f"({' OR '.join(or_expr)})")
 
                     if and_terms:
-                        ui_tracker.append(f"{label} (AND Global): {and_terms}")
+                        ui_tracker.append({"text": f"{label} (AND Global): {and_terms}", "keys": [f"{key}_and_val", f"{key}_and"]})
                         for w in [w for w in and_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             having_conds.append(f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}'))")
                             
                     if not_terms:
-                        ui_tracker.append(f"{label} (NOT Global): {not_terms}")
+                        ui_tracker.append({"text": f"{label} (NOT Global): {not_terms}", "keys": [f"{key}_not_val", f"{key}_not"]})
                         for w in [w for w in not_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             having_conds.append(f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')) = FALSE")
@@ -263,20 +264,20 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
                 # ESTRATÉGIA NORMAL: FILTRO POR EVENTO/LINHA
                 else:
                     if or_terms:
-                        ui_tracker.append(f"{label} (OR Linha): {or_terms}")
+                        ui_tracker.append({"text": f"{label} (OR Linha): {or_terms}", "keys": [f"{key}_or_val", f"{key}_or"]})
                         words = [w for w in or_terms.split(',') if w.strip()]
                         if words:
                             or_expr = [f"strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}')" for w in words]
                             clauses.append(f"({' OR '.join(or_expr)})")
 
                     if and_terms:
-                        ui_tracker.append(f"{label} (AND Linha): {and_terms}")
+                        ui_tracker.append({"text": f"{label} (AND Linha): {and_terms}", "keys": [f"{key}_and_val", f"{key}_and"]})
                         for w in [w for w in and_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             clauses.append(f"strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')")
                             
                     if not_terms:
-                        ui_tracker.append(f"{label} (NOT Linha): {not_terms}")
+                        ui_tracker.append({"text": f"{label} (NOT Linha): {not_terms}", "keys": [f"{key}_not_val", f"{key}_not"]})
                         for w in [w for w in not_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             clauses.append(f"strip_accents(\"{column}\") NOT ILIKE strip_accents('{p_term}')")
@@ -327,13 +328,13 @@ def main():
         v_nmin = num_min.number_input("Número Min", value=0, step=10, key="num_min")
         v_nmax = num_max.number_input("Número Max", value=99999, step=100, key="num_max")
         if v_nmin > 0 or v_nmax < 99999: 
-            ui_filters[cat].append(f"Nº: {v_nmin} a {v_nmax}")
+            ui_filters[cat].append({"text": f"Nº: {v_nmin} a {v_nmax}", "keys": ["num_min", "num_max"]})
             clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
         
         state_keys[cat].append("dt_nasc")
         dt_nasc = st.date_input("Data Nascimento (Range)", value=[], key="dt_nasc")
         if len(dt_nasc) == 2: 
-            ui_filters[cat].append(f"Nascimento: {dt_nasc[0].strftime('%d/%m/%Y')} a {dt_nasc[1].strftime('%d/%m/%Y')}")
+            ui_filters[cat].append({"text": f"Nascimento: {dt_nasc[0].strftime('%d/%m/%Y')} a {dt_nasc[1].strftime('%d/%m/%Y')}", "keys": ["dt_nasc"]})
             clauses.append(f"CAST(\"Data de Nascimento\" AS DATE) BETWEEN '{dt_nasc[0]}' AND '{dt_nasc[1]}'")
         
         curr_where = " AND ".join(clauses)
@@ -374,10 +375,10 @@ def main():
         state_keys[cat].append("oj_radio")
         oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
         if oj == "Sim": 
-            ui_filters[cat].append("Ordem Judicial: Sim")
+            ui_filters[cat].append({"text": "Ordem Judicial: Sim", "keys": ["oj_radio"]})
             clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
         elif oj == "Não": 
-            ui_filters[cat].append("Ordem Judicial: Não")
+            ui_filters[cat].append({"text": "Ordem Judicial: Não", "keys": ["oj_radio"]})
             clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
         
         curr_where = " AND ".join(clauses)
@@ -400,7 +401,7 @@ def main():
         render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo")
 
     # ==========================================
-    # VISUALIZAÇÃO DE FILTROS ATIVOS (TOP BAR)
+    # VISUALIZAR E LIMPAR FILTROS ATIVOS (TOP BAR)
     # ==========================================
     has_active_filters = any(len(v) > 0 for v in ui_filters.values())
     
@@ -408,17 +409,24 @@ def main():
         with st.expander("🔍 **VISUALIZAR E LIMPAR FILTROS APLICADOS**", expanded=True):
             for category, filters in ui_filters.items():
                 if filters:
-                    c1, c2 = st.columns([0.85, 0.15])
-                    with c1:
-                        st.markdown(f"<div class='filter-category-title'>{category}</div>", unsafe_allow_html=True)
-                        badges_html = "".join([f"<span class='filter-badge'>{f}</span>" for f in filters])
-                        st.markdown(badges_html, unsafe_allow_html=True)
-                    with c2:
-                        st.button("🗑️ Limpar", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
+                    # UX: Separa o Emoji do Nome da Categoria (Ex: "⚠️ Triagem" -> "Triagem")
+                    clean_cat_name = category.split(' ', 1)[1] if ' ' in category else category
+                    
+                    st.markdown(f"<div class='filter-category-title'>{category}</div>", unsafe_allow_html=True)
+                    
+                    # Cria uma grelha de 3 colunas para colocar os botões lado-a-lado (formato pílula)
+                    cols = st.columns(3) 
+                    for i, f in enumerate(filters):
+                        # Se clicar no botão ✖, o Streamlit apaga instantaneamente APENAS as chaves ligadas a ele
+                        cols[i % 3].button(f"{f['text']} ✖", key=f"clr_item_{category}_{i}", on_click=clear_filter_state, args=(f['keys'],))
+                    
+                    # Botão para varrer a categoria inteira
+                    st.button(f"🗑️ Limpar {clean_cat_name}", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
+                    st.markdown("---")
             
-            st.markdown("---")
+            # Botão de Reset Absoluto (Cor padrão neutra, não mais vermelha/primária)
             all_keys = [key for sublist in state_keys.values() for key in sublist]
-            st.button("🗑️ Limpar Todos os Filtros Globais", type="primary", on_click=clear_filter_state, args=(all_keys,))
+            st.button("🗑️ Limpar Tudo", on_click=clear_filter_state, args=(all_keys,))
     else:
         st.info("ℹ️ Nenhum filtro aplicado. A exibir a totalidade da base de dados.")
 
