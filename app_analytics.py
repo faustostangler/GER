@@ -64,6 +64,9 @@ def clear_filter_state(keys_to_clear: list):
         if key in st.session_state:
             if key.endswith("_in") or key.endswith("_ex") or key in ["dt_solic", "dt_cad", "dt_evo", "dt_nasc"]:
                 st.session_state[key] = []
+            elif key.endswith("_preset"): 
+                # SRE FIX: Volta para Personalizado ao limpar filtros
+                st.session_state[key] = "Personalizado"
             elif key.endswith("_val"): 
                 st.session_state[key] = ""
             elif key.endswith("_toggle"): 
@@ -80,6 +83,35 @@ def clear_filter_state(keys_to_clear: list):
                 except:
                     pass
 
+# Callbacks para o Seletor de Datas Inteligente
+def handle_preset_change(preset_key, date_key):
+    preset = st.session_state[preset_key]
+    today = date.today()
+    
+    if preset == "Hoje":
+        st.session_state[date_key] = (today, today)
+    elif preset == "Últimos 7 Dias (Past 7)":
+        st.session_state[date_key] = (today - timedelta(days=7), today)
+    elif preset == "Últimos 30 Dias (Past 30)":
+        st.session_state[date_key] = (today - timedelta(days=30), today)
+    elif preset == "Início da Semana até Hoje":
+        st.session_state[date_key] = (today - timedelta(days=today.weekday()), today)
+    elif preset == "Início do Mês até Hoje":
+        st.session_state[date_key] = (today.replace(day=1), today)
+    elif preset == "Início do Semestre até Hoje":
+        start_sem = today.replace(month=1 if today.month <= 6 else 7, day=1)
+        st.session_state[date_key] = (start_sem, today)
+    elif preset == "Início do Ano até Hoje":
+        st.session_state[date_key] = (today.replace(month=1, day=1), today)
+    elif preset == "Últimos 2 Anos até Hoje":
+        try: start_2y = today.replace(year=today.year - 2)
+        except ValueError: start_2y = today.replace(year=today.year - 2, day=28) # Previne erro em anos bissextos
+        st.session_state[date_key] = (start_2y, today)
+
+def handle_date_change(preset_key):
+    # Se o utilizador alterar o calendário manualmente, desmarca o preset
+    st.session_state[preset_key] = "Personalizado"
+
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
 def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, cat_keys: list):
     cat_keys.extend([f"{key}_in", f"{key}_ex"])
@@ -94,12 +126,14 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     def sanitize(v): return str(v).replace("'", "''")
     if incl: 
         ui_tracker.append(f"{label} (✅): {', '.join([str(v) for v in incl])}")
-        clauses.append(f"\"{column}\" IN ({', '.join([f"'{sanitize(v)}'" for v in incl])})")
+        sanitized_incl = [f"'{sanitize(v)}'" for v in incl]
+        clauses.append(f'"{column}" IN ({", ".join(sanitized_incl)})')
         
     if excl: 
         # CORREÇÃO: Agora a exclusão é registada no tracker da interface visual
         ui_tracker.append(f"{label} (❌): {', '.join([str(v) for v in excl])}")
-        clauses.append(f"\"{column}\" NOT IN ({', '.join([f"'{sanitize(v)}'" for v in excl])})")
+        sanitized_excl = [f"'{sanitize(v)}'" for v in excl]
+        clauses.append(f'"{column}" NOT IN ({", ".join(sanitized_excl)})')
     
     return " AND ".join(clauses)
 
@@ -112,6 +146,40 @@ def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tra
         if val[0] > vmin_val or val[1] < vmax_val:
             ui_tracker.append(f"{label}: {val[0]} a {val[1]}")
             clauses.append(f"TRY_CAST(\"{column}\" AS INTEGER) BETWEEN {val[0]} AND {val[1]}")
+    return " AND ".join(clauses)
+
+def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+    preset_key = f"{key}_preset"
+    cat_keys.extend([preset_key, key])
+    
+    presets = [
+        "Personalizado", 
+        "Hoje", 
+        "Últimos 7 Dias (Past 7)",
+        "Últimos 30 Dias (Past 30)",
+        "Início da Semana até Hoje", 
+        "Início do Mês até Hoje", 
+        "Início do Semestre até Hoje", 
+        "Início do Ano até Hoje", 
+        "Últimos 2 Anos até Hoje"
+    ]
+    
+    if preset_key not in st.session_state:
+        st.session_state[preset_key] = "Personalizado"
+        
+    st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+    
+    # 1. Seletor de Intervalo Rápido (Vem ANTES)
+    st.selectbox("Período Rápido", presets, key=preset_key, on_change=handle_preset_change, args=(preset_key, key), label_visibility="collapsed")
+    
+    # 2. Calendário (Vem DEPOIS, reflete o que foi escolhido acima)
+    val = st.date_input(label, key=key, on_change=handle_date_change, args=(preset_key,), label_visibility="collapsed")
+    
+    # Validação segura (evita crash se o utilizador selecionar apenas a data de início e não a do fim)
+    if isinstance(val, tuple) and len(val) == 2:
+        ui_tracker.append(f"{label}: {val[0].strftime('%d/%m/%Y')} a {val[1].strftime('%d/%m/%Y')}")
+        clauses.append(f"CAST(\"{column}\" AS DATE) BETWEEN '{val[0]}' AND '{val[1]}'")
+        
     return " AND ".join(clauses)
 
 def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, aggregate_by: str = None):
@@ -239,23 +307,12 @@ def main():
 
     cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
-        state_keys[cat].extend(["dt_solic", "dt_cad", "dt_evo"])
-        
-        dt_solic = st.date_input("Data de Solicitação", value=[], key="dt_solic")
-        if len(dt_solic) == 2: 
-            ui_filters[cat].append(f"Solicitação: {dt_solic[0].strftime('%d/%m/%Y')} a {dt_solic[1].strftime('%d/%m/%Y')}")
-            clauses.append(f"CAST(\"Data Solicitação\" AS DATE) BETWEEN '{dt_solic[0]}' AND '{dt_solic[1]}'")
-            
-        dt_cad = st.date_input("Data do Cadastro", value=[], key="dt_cad")
-        if len(dt_cad) == 2: 
-            ui_filters[cat].append(f"Cadastro: {dt_cad[0].strftime('%d/%m/%Y')} a {dt_cad[1].strftime('%d/%m/%Y')}")
-            clauses.append(f"CAST(\"Data do Cadastro\" AS DATE) BETWEEN '{dt_cad[0]}' AND '{dt_cad[1]}'")
-            
-        dt_evo = st.date_input("Data da Evolução", value=[], key="dt_evo")
-        if len(dt_evo) == 2: 
-            ui_filters[cat].append(f"Evolução: {dt_evo[0].strftime('%d/%m/%Y')} a {dt_evo[1].strftime('%d/%m/%Y')}")
-            clauses.append(f"CAST(\"Data_Evolucao\" AS DATE) BETWEEN '{dt_evo[0]}' AND '{dt_evo[1]}'")
-        curr_where = " AND ".join(clauses)
+        # Substitui todo o código hardcoded pela nossa função SOTA
+        curr_where = render_smart_date_range("Data de Solicitação", "Data Solicitação", clauses, "dt_solic", ui_filters[cat], state_keys[cat])
+        st.write(" ") # Pequeno espaçamento
+        curr_where = render_smart_date_range("Data do Cadastro", "Data do Cadastro", clauses, "dt_cad", ui_filters[cat], state_keys[cat])
+        st.write(" ")
+        curr_where = render_smart_date_range("Data da Evolução", "Data_Evolucao", clauses, "dt_evo", ui_filters[cat], state_keys[cat])
 
     cat = "🌍 Demografia & Rede"
     with st.sidebar.expander(cat, expanded=False):
@@ -487,7 +544,12 @@ def main():
         st.markdown("---")
         st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
         
-        # --- UI UX FIX: Controles Analíticos (CID como Default) ---
+        # --- 1. DEFINIÇÃO ESTRITA DE VARIÁVEIS DE ESTADO (Elimina bugs de strings) ---
+        OPT_CID = "Z-Score (Desvio Padrão por CID)"
+        OPT_MED = "Z-Score (Desvio Padrão por Médico)"
+        OPT_ABS = "Volume Absoluto de Pacientes"
+        
+        # --- 2. UI UX FIX: Controles Analíticos ---
         c_top, c_metric = st.columns([0.3, 0.7])
         with c_top:
             top_x = st.slider(
@@ -499,15 +561,11 @@ def main():
             st.write(" ")
             modo_heatmap = st.radio(
                 "Métrica de Visualização no Mapa de Calor:",
-                options=[
-                    "Desvio Padrão (Comparado à média do CID)", 
-                    "Desvio Padrão (Comparado à média do Médico)",
-                    "Volume Absoluto"
-                ],
+                options=[OPT_CID, OPT_MED, OPT_ABS], 
                 horizontal=True
             )
 
-        # --- QUERY SOTA ---
+        # --- 3. EXTRACÇÃO OLAP (DuckDB) ---
         df_heatmap = query_db(f"""
             WITH TopMedicos AS (
                 SELECT "Médico Solicitante" FROM gercon 
@@ -531,39 +589,38 @@ def main():
         """)
 
         if not df_heatmap.empty:
-            # 1. Trata Nomes Longos
             df_heatmap['CID_Curto'] = df_heatmap['CID Descrição'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
             
-            # 2. Preenchimento de Matriz 2D Direta (astype float para garantir cálculos limpos)
+            # Cria a Matriz Base (Volumes Absolutos)
             df_pivot_vol = df_heatmap.pivot_table(index='CID_Curto', columns='Médico Solicitante', values='Vol', fill_value=0)
-            df_pivot = df_pivot_vol.copy().astype(float)
+            df_math = df_pivot_vol.copy().astype(float)
             
-            # 3. Motor Z-Score Dinâmico (VETORIZAÇÃO MATEMÁTICA PURA)
+            # --- 4. MOTOR ESTATÍSTICO (Vetorização Pandas) ---
             cmap = 'Magma' 
             
-            if "Média do CID" in modo_heatmap:
-                mean_cid = df_pivot.mean(axis=1)
-                std_cid = df_pivot.std(axis=1).replace(0, 1)
-                df_pivot = df_pivot.sub(mean_cid, axis=0).div(std_cid, axis=0)
+            if modo_heatmap == OPT_CID:
+                medias_linhas = df_math.mean(axis=1)
+                desvios_linhas = df_math.std(axis=1).replace(0, 1)
+                df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
                 cmap = 'RdBu_r' 
-            elif "Média do Médico" in modo_heatmap:
-                mean_med = df_pivot.mean(axis=0)
-                std_med = df_pivot.std(axis=0).replace(0, 1)
-                df_pivot = df_pivot.sub(mean_med, axis=1).div(std_med, axis=1)
+            elif modo_heatmap == OPT_MED:
+                medias_colunas = df_math.mean(axis=0)
+                desvios_colunas = df_math.std(axis=0).replace(0, 1)
+                df_math = df_math.sub(medias_colunas, axis=1).div(desvios_colunas, axis=1)
                 cmap = 'RdBu_r'
 
-            # 4. Matriz de Formatação Visual (Textos em 2D)
-            if "Absoluto" in modo_heatmap:
-                df_text = df_pivot.round(0).astype(int).astype(str)
+            # --- 5. FORMATADOR DE TEXTO VISUAL ---
+            if modo_heatmap == OPT_ABS:
+                df_text = df_math.round(0).astype(int).astype(str)
             else:
-                df_text = df_pivot.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
+                df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
 
-            # --- PLOTAGEM SOTA ---
+            # --- 6. RENDERIZAÇÃO MATRICIAL SOTA (px.imshow) ---
             fig_heat = px.imshow(
-                df_pivot, 
+                df_math, 
                 aspect="auto", 
                 color_continuous_scale=cmap,
-                color_continuous_midpoint=0 if "Desvio" in modo_heatmap else None, 
+                color_continuous_midpoint=0 if modo_heatmap != OPT_ABS else None, 
                 title=f"Matriz de Concentração: Top {top_x} CIDs vs Top {top_x} Médicos",
                 labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Métrica")
             )
@@ -572,7 +629,7 @@ def main():
                 text=df_text.values,
                 texttemplate="%{text}",
                 customdata=df_pivot_vol.values,
-                hovertemplate="<b>Médico:</b> %{x}<br><b>CID:</b> %{y}<br><b>Volume Real:</b> %{customdata} pacientes<br><b>Z-Score:</b> %{text}<extra></extra>"
+                hovertemplate="<b>Médico:</b> %{x}<br><b>CID:</b> %{y}<br><b>Volume Real:</b> %{customdata} pacientes<br><b>Métrica Visível:</b> %{text}<extra></extra>"
             )
             
             altura_dinamica = max(500, top_x * 35) 
@@ -614,10 +671,34 @@ def main():
                 LIMIT 3000
             """)
             if not df_outliers.empty:
-                # FIX: render_mode="svg" proíbe o WebGL de crashar browsers limitados (SRE Architect Choice)
-                fig_out = px.scatter(df_outliers, x='DiasFila', y='Pontos', color='Risco Cor', 
-                                    size='Pontos', hover_data=['Protocolo'],
-                                    color_discrete_map=cmap, title="Matriz RCA: Gravidade vs Tempo na Fila", render_mode="svg")
+                # 1. Definimos o Dicionário de Cores Clínicas
+                cmap_risco = {
+                    'VERMELHO': '#ef4444', 
+                    'LARANJA': '#f97316', 
+                    'AMARELO': '#eab308', 
+                    'VERDE': '#22c55e', 
+                    'AZUL': '#3b82f6',
+                    'BRANCO': '#e5e7eb',
+                    'Não Informado': '#9ca3af'
+                }
+
+                # 2. Prevenção de Nós Vazios
+                df_outliers['Risco Cor'] = df_outliers['Risco Cor'].replace('', 'Não Informado').fillna('Não Informado')
+
+                # 3. Plotagem do Scatter com os parâmetros matematicamente corretos
+                fig_out = px.scatter(
+                    df_outliers, 
+                    x='DiasFila', 
+                    y='Pontos', 
+                    color='Risco Cor',
+                    color_discrete_map=cmap_risco,
+                    opacity=0.7,
+                    size='Pontos',
+                    hover_data=['Protocolo'],
+                    title="Deteção de Outliers: Tempo de Fila vs Gravidade",
+                    labels={'DiasFila': 'Tempo de Espera (Dias)', 'Pontos': 'Pontuação de Gravidade'},
+                    render_mode="svg" 
+                )
                 fig_out.add_hline(y=40, line_dash="dot", annotation_text="Alta Gravidade")
                 fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
                 st.plotly_chart(fig_out, use_container_width=True, config={'displayModeBar': False})

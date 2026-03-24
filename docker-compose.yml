@@ -1,0 +1,40 @@
+# --- SOTA DOCKER COMPOSE: Modular Monolith orchestration ---
+version: '3.8'
+
+services:
+  # Analytics Layer (Presentation BFF)
+  analytics:
+    build: .
+    container_name: ger-analytics
+    ports:
+      - "8501:8501"
+    env_file:
+      - env/creds.env
+      - env/config.env
+    volumes:
+      - .:/app
+    command: ["streamlit", "run", "app_analytics.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Scraper Worker Role (Operational Role)
+  scraper:
+    build: .
+    container_name: ger-scraper
+    env_file:
+      - env/creds.env
+      - env/config.env
+    volumes:
+      - .:/app
+    command: ["python", "master_scraper.py"]
+    # We don't restart automatically here if it's meant to be a scheduled job, 
+    # but for a "Modular Monolith" concept, it represents the operational background role.
+    restart: on-failure
+
+networks:
+  default:
+    name: ger-infra-mesh

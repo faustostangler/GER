@@ -1,0 +1,34 @@
+# --- SOTA DOCKERIGNORE ---
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+.env/
+venv/
+env/
+# The user's env directory contains creds, we don't want them in the image if we map them via volumes/env_file.
+# But for a container to run in a standalone way, sometimes you want them. 
+# Here, docker-compose uses env_file, so we can ignore env/ in the image.
+
+# Data (BIG FILES)
+*.csv
+*.parquet
+*.db
+*.log
+*.ipynb
+samples.json
+scraper_state.json
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
