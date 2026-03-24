@@ -3,10 +3,6 @@ import duckdb
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-import plotly.io as pio
-
-# SRE FIX: Força renderização SVG para máquinas sem WebGL (Terminais Clínicos)
-pio.renderers.default = "browser"
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import date, timedelta
@@ -436,7 +432,14 @@ def main():
             df_esp['Especialidade'] = df_esp['Especialidade'].replace('', 'Sem Subespecialidade').fillna('Sem Subespecialidade')
             df_esp['CID Descrição'] = df_esp['CID Descrição'].replace('', 'CID Não Informado').fillna('CID Não Informado')
             
-            st.plotly_chart(px.sunburst(df_esp, path=['Especialidade Mãe', 'Especialidade', 'CID Descrição'], values='Vol', color='Vol', color_continuous_scale='Blues', title="Explosão Solar: Especialidade Mãe ➔ Fina ➔ CID"), use_container_width=True, config={'displayModeBar': False})
+            fig_sun = px.sunburst(df_esp, path=['Especialidade Mãe', 'Especialidade', 'CID Descrição'], values='Vol', color='Vol', color_continuous_scale='Blues', title="Explosão Solar: Especialidade Mãe ➔ Fina ➔ CID")
+            
+            # UX FIX: Aumentar drasticamente a altura e otimizar as margens
+            fig_sun.update_layout(
+                height=850, # Altura forçada em pixels (quase o dobro do padrão)
+                margin=dict(t=40, l=10, r=10, b=10) # Reduz o espaço em branco à volta
+            )
+            st.plotly_chart(fig_sun, use_container_width=True, config={'displayModeBar': False})
 
         c1, c2 = st.columns(2)
         with c1:
@@ -481,6 +484,87 @@ def main():
         df_fluxo = query_db(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1")
         st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='Origem da Lista', title="Throughput Temporal: Volume de Protocolos por Origem"), use_container_width=True, config={'displayModeBar': False})
 
+        st.markdown("---")
+        st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
+        
+        # --- UI UX FIX: Input dinâmico para o Top X ---
+        col_top, _ = st.columns([0.3, 0.7])
+        with col_top:
+            top_x = st.slider(
+                "Selecione o Top X (Volume de Análise):", 
+                min_value=5, 
+                max_value=50, 
+                value=15, 
+                step=5,
+                help="Define o tamanho da matriz cruzando os maiores ofensores."
+            )
+
+        # --- GRÁFICO 1: MAPA DE CALOR (HEATMAP) TRANSPOSTO ---
+        df_heatmap = query_db(f"""
+            WITH TopMedicos AS (
+                SELECT "Médico Solicitante" FROM gercon 
+                WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "Médico Solicitante" IS NOT NULL
+                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x}
+            ),
+            TopCIDs AS (
+                SELECT "CID Descrição" FROM gercon 
+                WHERE {FINAL_WHERE} AND "CID Descrição" != '' AND "CID Descrição" IS NOT NULL
+                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x}
+            )
+            SELECT 
+                "Médico Solicitante", 
+                "CID Descrição", 
+                COUNT(DISTINCT Protocolo) as Vol
+            FROM gercon
+            WHERE {FINAL_WHERE}
+              -- SRE FIX: Usar 'IN' em vez de 'INNER JOIN' elimina o erro de Ambiguidade de Colunas 
+              AND "Médico Solicitante" IN (SELECT "Médico Solicitante" FROM TopMedicos)
+              AND "CID Descrição" IN (SELECT "CID Descrição" FROM TopCIDs)
+            GROUP BY 1, 2
+        """)
+
+        if not df_heatmap.empty:
+            # Prevenção SRE contra strings excessivamente longas no eixo Y
+            df_heatmap['CID_Curto'] = df_heatmap['CID Descrição'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
+            
+            fig_heat = px.density_heatmap(
+                df_heatmap, 
+                x='Médico Solicitante', 
+                y='CID_Curto',
+                z='Vol',
+                color_continuous_scale='Magma',
+                title=f"Matriz de Concentração: Top {top_x} CIDs vs Top {top_x} Médicos",
+                labels={'CID_Curto': 'Diagnóstico (CID)', 'Médico Solicitante': 'Médico Solicitante', 'Vol': 'Pacientes'},
+                text_auto=True 
+            )
+            
+            # Otimização Dinâmica de Layout
+            altura_dinamica = max(500, top_x * 35) 
+            fig_heat.update_layout(
+                xaxis_tickangle=-45, 
+                height=altura_dinamica, 
+                margin=dict(l=250, b=120)
+            )
+            st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
+
+        # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Médico ➔ CID) ---
+        df_perfil_med = query_db(f"""
+            SELECT "Médico Solicitante", "CID Descrição", COUNT(DISTINCT Protocolo) as Vol
+            FROM gercon
+            WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "CID Descrição" != ''
+            GROUP BY 1, 2 HAVING COUNT(DISTINCT Protocolo) >= 3 ORDER BY 3 DESC LIMIT 100
+        """)
+
+        if not df_perfil_med.empty:
+            df_perfil_med['Médico Solicitante'] = df_perfil_med['Médico Solicitante'].replace('', 'Médico Não Informado')
+            df_perfil_med['CID Descrição'] = df_perfil_med['CID Descrição'].replace('', 'CID Não Informado')
+            fig_tree_med = px.treemap(
+                df_perfil_med, path=['Médico Solicitante', 'CID Descrição'], values='Vol',
+                color='Vol', color_continuous_scale='Teal', title="Perfil de Diagnóstico por Médico (Clique no Médico para expandir)"
+            )
+            fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
+            st.plotly_chart(fig_tree_med, use_container_width=True, config={'displayModeBar': False})
+
     with t_micro:
         st.subheader("Auditoria de Outliers & Top Ofensores (SRE)")
         
@@ -498,9 +582,10 @@ def main():
                 LIMIT 3000
             """)
             if not df_outliers.empty:
+                # FIX: render_mode="svg" proíbe o WebGL de crashar browsers limitados (SRE Architect Choice)
                 fig_out = px.scatter(df_outliers, x='DiasFila', y='Pontos', color='Risco Cor', 
                                     size='Pontos', hover_data=['Protocolo'],
-                                    color_discrete_map=cmap, title="Matriz RCA: Gravidade vs Tempo na Fila")
+                                    color_discrete_map=cmap, title="Matriz RCA: Gravidade vs Tempo na Fila", render_mode="svg")
                 fig_out.add_hline(y=40, line_dash="dot", annotation_text="Alta Gravidade")
                 fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
                 st.plotly_chart(fig_out, use_container_width=True, config={'displayModeBar': False})
