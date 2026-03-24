@@ -8,320 +8,309 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import date, timedelta
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Gercon Analytics | Observability", page_icon="🚀", layout="wide", initial_sidebar_state="expanded")
+# --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
+st.set_page_config(page_title="Gercon Analytics | RCA", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
 
 class AnalyticsSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=("env/creds.env", "env/config.env"), env_file_encoding="utf-8", extra="ignore")
     OUTPUT_FILE: str = Field(default="gercon_consolidado.parquet")
-    LOG_LEVEL: str = Field(default="INFO")
 
 settings = AnalyticsSettings()
-
-# --- INFRASTRUCTURE: DUCKDB CONNECTION ---
-@st.cache_resource
-def get_connection():
-    con = duckdb.connect(database=':memory:')
-    return con
-
-def query_duckdb(sql_query: str) -> pd.DataFrame:
-    con = get_connection()
-    # A view virtual garante que não lemos o Parquet inteiro para a RAM, apenas o necessário
-    con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{settings.OUTPUT_FILE}')")
-    return con.execute(sql_query).df()
-
-@st.cache_data(ttl=3600)
-def get_distinct_values(column: str) -> list:
-    try:
-        df = query_duckdb(f"SELECT DISTINCT \"{column}\" FROM gercon WHERE \"{column}\" IS NOT NULL AND \"{column}\" != '' ORDER BY 1")
-        return df[column].tolist()
-    except:
-        return []
-
-@st.cache_data(ttl=3600)
-def get_min_max(column: str, is_date=False):
-    try:
-        cast_type = "DATE" if is_date else "INTEGER"
-        df = query_duckdb(f"SELECT MIN(TRY_CAST(\"{column}\" AS {cast_type})) as v_min, MAX(TRY_CAST(\"{column}\" AS {cast_type})) as v_max FROM gercon")
-        return df['v_min'].iloc[0], df['v_max'].iloc[0]
-    except:
-        return None, None
 
 def inject_custom_css():
     st.markdown("""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        .stPlotlyChart { background-color: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb; padding: 10px; }
+        .stPlotlyChart { background-color: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        hr { margin-top: 1rem; margin-bottom: 1rem; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- UI COMPONENTS ---
-def include_exclude_filter(label: str, options: list, key_prefix: str):
-    """Componente que permite selecionar Inclusões e Exclusões para a mesma variável"""
-    st.write(f"**{label}**")
-    col1, col2 = st.columns(2)
-    with col1:
-        incl = st.multiselect("✅ Incluir", options, key=f"{key_prefix}_incl")
-    with col2:
-        excl = st.multiselect("❌ Excluir", options, key=f"{key_prefix}_excl")
-    return incl, excl
+# --- 2. INFRASTRUCTURE: DUCKDB ENGINE ---
+@st.cache_resource
+def get_connection():
+    con = duckdb.connect(database=':memory:')
+    con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{settings.OUTPUT_FILE}')")
+    return con
 
+def query_db(sql_query: str) -> pd.DataFrame:
+    return get_connection().execute(sql_query).df()
+
+def get_dynamic_options(column: str, current_where: str) -> list:
+    try:
+        q = f"SELECT DISTINCT \"{column}\" FROM gercon WHERE {current_where} AND \"{column}\" IS NOT NULL AND \"{column}\" != '' ORDER BY 1"
+        return query_db(q)[column].tolist()
+    except Exception as e:
+        return []
+
+@st.cache_data(ttl=3600)
+def get_global_bounds(column: str, is_date=False):
+    cast = "DATE" if is_date else "INTEGER"
+    try:
+        df = query_db(f"SELECT MIN(TRY_CAST(\"{column}\" AS {cast})) as vmin, MAX(TRY_CAST(\"{column}\" AS {cast})) as vmax FROM gercon")
+        return df['vmin'].iloc[0], df['vmax'].iloc[0]
+    except:
+        return None, None
+
+# --- 3. UI COMPONENTS (DOMAIN FILTERS) ---
+def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str):
+    """Filtros Categóricos (Dropdown) com Inclusão e Exclusão."""
+    options = get_dynamic_options(column, current_where)
+    if not options: return current_where
+    
+    st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    incl = c1.multiselect("✅ Incluir", options, key=f"{key}_in", label_visibility="collapsed", placeholder="✅ Incluir...")
+    excl = c2.multiselect("❌ Excluir", options, key=f"{key}_ex", label_visibility="collapsed", placeholder="❌ Excluir...")
+    
+    def sanitize(v): return str(v).replace("'", "''")
+    if incl: clauses.append(f"\"{column}\" IN ({', '.join([f"'{sanitize(v)}'" for v in incl])})")
+    if excl: clauses.append(f"\"{column}\" NOT IN ({', '.join([f"'{sanitize(v)}'" for v in excl])})")
+    
+    return " AND ".join(clauses)
+
+def render_text_search(label: str, column: str, clauses: list, current_where: str, key: str):
+    """Filtros Textuais (Busca Livre) com Motor Booleano (Contém / Não Contém). Aceita CSV para múltiplos termos."""
+    st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    incl = c1.text_input("✅ Contém", key=f"{key}_txt_in", label_visibility="collapsed", placeholder="✅ Contém (ex: A, B)")
+    excl = c2.text_input("❌ Não contém", key=f"{key}_txt_ex", label_visibility="collapsed", placeholder="❌ Sem (ex: C, D)")
+    
+    def sanitize(v): return str(v).replace("'", "''")
+    
+    # Processa Inclusões (OR - Traz se contiver A ou B)
+    if incl:
+        terms = [t.strip() for t in incl.split(',') if t.strip()]
+        if terms:
+            incl_clauses = [f"\"{column}\" ILIKE '%{sanitize(t)}%'" for t in terms]
+            clauses.append(f"({' OR '.join(incl_clauses)})")
+            
+    # Processa Exclusões (AND - Tira se contiver A e tira se contiver B)
+    if excl:
+        terms = [t.strip() for t in excl.split(',') if t.strip()]
+        if terms:
+            excl_clauses = [f"\"{column}\" NOT ILIKE '%{sanitize(t)}%'" for t in terms]
+            clauses.append(f"({' AND '.join(excl_clauses)})")
+            
+    return " AND ".join(clauses)
+
+def render_range_slider(label: str, column: str, clauses: list, current_where: str, key: str):
+    """Slider de ranges dinâmicos."""
+    vmin, vmax = get_global_bounds(column, is_date=False)
+    if vmin is not None and vmax is not None and vmin != vmax:
+        val = st.slider(label, int(vmin), int(vmax), (int(vmin), int(vmax)), key=key)
+        if val[0] > vmin or val[1] < vmax:
+            clauses.append(f"TRY_CAST(\"{column}\" AS INTEGER) BETWEEN {val[0]} AND {val[1]}")
+    return " AND ".join(clauses)
+
+# --- 4. MAIN APP ---
 def main():
     inject_custom_css()
     
     if not os.path.exists(settings.OUTPUT_FILE):
-        st.error(f"Base Parquet não encontrada em {settings.OUTPUT_FILE}. Execute o pipeline primeiro.")
+        st.error(f"⚠️ Base Parquet não encontrada ({settings.OUTPUT_FILE}).")
         return
 
-    st.title("🚀 Gercon Analytics & SRE Dashboard")
+    st.title("🎯 Gercon SRE | Advanced Root Cause Analysis")
     
+    clauses = ["1=1"]
+    curr_where = "1=1"
+
     # ==========================================
-    # SIDEBAR: ARQUITETURA DE FILTROS DINÂMICOS
+    # CASCADING SIDEBAR (TOP-DOWN FLOW)
     # ==========================================
-    st.sidebar.header("🔍 Filtros de Domínio")
-    where_clauses = ["1=1"] # Base condition
-    
-    # 1. CICLO DE VIDA (Datas)
+    st.sidebar.header("🎛️ Filtros em Cascata")
+    st.sidebar.caption("💡 Dica: Nos campos de texto, use vírgulas para separar múltiplos termos.")
+
+    # --- 1. CICLO DE VIDA (Datas) ---
     with st.sidebar.expander("📅 Ciclo de Vida (Datas)", expanded=False):
-        dt_solic = st.date_input("Data de Solicitação", value=[])
-        if len(dt_solic) == 2:
-            where_clauses.append(f"CAST(\"Data Solicitação\" AS DATE) BETWEEN '{dt_solic[0]}' AND '{dt_solic[1]}'")
+        dt_solic = st.date_input("Data de Solicitação", value=[], key="dt_sol_root")
+        if len(dt_solic) == 2: clauses.append(f"CAST(\"Data Solicitação\" AS DATE) BETWEEN '{dt_solic[0]}' AND '{dt_solic[1]}'")
+        
+        dt_cad = st.date_input("Data do Cadastro", value=[], key="dt_cad_root")
+        if len(dt_cad) == 2: clauses.append(f"CAST(\"Data do Cadastro\" AS DATE) BETWEEN '{dt_cad[0]}' AND '{dt_cad[1]}'")
+        
+        dt_evo = st.date_input("Data da Evolução", value=[], key="dt_evo_root")
+        if len(dt_evo) == 2: clauses.append(f"CAST(\"Data_Evolucao\" AS DATE) BETWEEN '{dt_evo[0]}' AND '{dt_evo[1]}'")
+        curr_where = " AND ".join(clauses)
 
-        dt_cad = st.date_input("Data do Cadastro", value=[])
-        if len(dt_cad) == 2:
-            where_clauses.append(f"CAST(\"Data do Cadastro\" AS DATE) BETWEEN '{dt_cad[0]}' AND '{dt_cad[1]}'")
-            
-        dt_evo = st.date_input("Data da Evolução", value=[])
-        if len(dt_evo) == 2:
-            where_clauses.append(f"CAST(\"Data_Evolucao\" AS DATE) BETWEEN '{dt_evo[0]}' AND '{dt_evo[1]}'")
-
-    # 2. CLÍNICO & REGULAÇÃO
+    # --- 2. CLÍNICO & REGULAÇÃO ---
     with st.sidebar.expander("🩺 Clínico & Regulação", expanded=False):
-        f_origem_lista, fx_origem_lista = include_exclude_filter("Origem da Lista", get_distinct_values("Origem da Lista"), "orig")
-        f_sit, fx_sit = include_exclude_filter("Situação", get_distinct_values("Situação"), "sit")
-        f_sit_fim, fx_sit_fim = include_exclude_filter("Situação Final", get_distinct_values("Situação Final"), "sit_fim")
+        curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst")
+        curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit")
+        curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf")
+        curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg")
+        curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp")
+        curr_where = render_include_exclude("Teleconsulta", "Teleconsulta", clauses, curr_where, "tele")
         
-        f_reg = st.multiselect("Tipo de Regulação", get_distinct_values("Tipo de Regulação"))
-        f_tele = st.multiselect("Teleconsulta", get_distinct_values("Teleconsulta"))
-        f_status_esp = st.multiselect("Status da Especialidade", get_distinct_values("Status da Especialidade"))
+        st.markdown("---")
+        curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm")
+        curr_where = render_include_exclude("Especialidade (Fina)", "Especialidade", clauses, curr_where, "espf")
         
-        f_esp_mae, fx_esp_mae = include_exclude_filter("Especialidade Mãe", get_distinct_values("Especialidade Mãe"), "esp_mae")
-        f_esp, fx_esp = include_exclude_filter("Especialidade (Micro)", get_distinct_values("Especialidade"), "esp")
-        
-        cid_cod = st.text_input("CID Código (Pesquisa parcial)")
-        cid_desc = st.text_input("CID Descrição (Palavra-chave)")
+        st.markdown("---")
+        curr_where = render_text_search("Código do CID", "CID Código", clauses, curr_where, "cid_cod")
+        curr_where = render_text_search("Descrição do CID", "CID Descrição", clauses, curr_where, "cid_desc")
 
-    # 3. TRIAGEM & GRAVIDADE
-    with st.sidebar.expander("⚠️ Triagem & Gravidade", expanded=False):
-        f_risco, fx_risco = include_exclude_filter("Risco Cor", get_distinct_values("Risco Cor"), "risco")
-        f_cor_reg = st.multiselect("Cor Regulador", get_distinct_values("Cor Regulador"))
-        f_complex = st.multiselect("Complexidade", get_distinct_values("Complexidade"))
+    # --- 3. TRIAGEM & GRAVIDADE ---
+    with st.sidebar.expander("⚠️ Triagem & Pontuação", expanded=False):
+        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor")
+        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg")
+        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx")
         
-        # Ranges
-        pt_grav_min, pt_grav_max = get_min_max("Pontos Gravidade")
-        if pt_grav_min is not None:
-            pt_grav = st.slider("Pontos Gravidade", int(pt_grav_min), int(pt_grav_max), (int(pt_grav_min), int(pt_grav_max)))
-            where_clauses.append(f"TRY_CAST(\"Pontos Gravidade\" AS INTEGER) BETWEEN {pt_grav[0]} AND {pt_grav[1]}")
-            
-        pt_tot_min, pt_tot_max = get_min_max("Pontuação")
-        if pt_tot_min is not None:
-            pt_tot = st.slider("Pontuação Total", int(pt_tot_min), int(pt_tot_max), (int(pt_tot_min), int(pt_tot_max)))
-            where_clauses.append(f"TRY_CAST(\"Pontuação\" AS INTEGER) BETWEEN {pt_tot[0]} AND {pt_tot[1]}")
+        curr_where = render_range_slider("Pontos Gravidade", "Pontos Gravidade", clauses, curr_where, "pt_grav")
+        curr_where = render_range_slider("Pontos Tempo", "Pontos Tempo", clauses, curr_where, "pt_tmp")
+        curr_where = render_range_slider("Pontuação Total", "Pontuação", clauses, curr_where, "pt_tot")
 
-    # 4. DEMOGRAFIA E LOCALIZAÇÃO
-    with st.sidebar.expander("🌍 Demografia & Localização", expanded=False):
-        f_mun, fx_mun = include_exclude_filter("Município de Residência", get_distinct_values("Município de Residência"), "mun")
-        f_bairro = st.multiselect("Bairro", get_distinct_values("Bairro"))
+    # --- 4. DEMOGRAFIA E LOCALIZAÇÃO ---
+    with st.sidebar.expander("🌍 Demografia & Rede", expanded=False):
+        curr_where = render_include_exclude("Município de Residência", "Município de Residência", clauses, curr_where, "mun")
+        curr_where = render_include_exclude("Bairro", "Bairro", clauses, curr_where, "bai")
         
-        logradouro = st.text_input("Logradouro (Palavra-chave)")
+        curr_where = render_text_search("Logradouro", "Logradouro", clauses, curr_where, "logr")
+        
+        st.write(" ")
         num_min, num_max = st.columns(2)
-        v_nmin = num_min.number_input("Nº Min", value=0)
-        v_nmax = num_max.number_input("Nº Max", value=99999)
-        if v_nmin > 0 or v_nmax < 99999:
-            where_clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
-            
-        dt_nasc = st.date_input("Data Nascimento (Range)", value=[])
-        if len(dt_nasc) == 2:
-            where_clauses.append(f"CAST(\"Data de Nascimento\" AS DATE) BETWEEN '{dt_nasc[0]}' AND '{dt_nasc[1]}'")
-            
-        f_cor = st.multiselect("Cor/Raça", get_distinct_values("Cor"))
-        f_sexo = st.multiselect("Sexo", get_distinct_values("Sexo"))
-        f_nac = st.multiselect("Nacionalidade", get_distinct_values("Nacionalidade"))
+        v_nmin = num_min.number_input("Número Min", value=0, step=10, key="nmin_root")
+        v_nmax = num_max.number_input("Número Max", value=99999, step=100, key="nmax_root")
+        if v_nmin > 0 or v_nmax < 99999: clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
+        curr_where = " AND ".join(clauses)
+        
+        dt_nasc = st.date_input("Data Nascimento (Range)", value=[], key="dt_nasc_root")
+        if len(dt_nasc) == 2: clauses.append(f"CAST(\"Data de Nascimento\" AS DATE) BETWEEN '{dt_nasc[0]}' AND '{dt_nasc[1]}'")
+        curr_where = " AND ".join(clauses)
+        
+        curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac")
+        curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor")
+        curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex")
 
-    # 5. GOVERNANÇA & OPERAÇÃO
-    with st.sidebar.expander("🏛️ Governança & Operação", expanded=False):
-        oj_status = st.radio("Ordem Judicial?", ["Todos", "Sim", "Não"], horizontal=True)
-        if oj_status == "Sim":
-            where_clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
-        elif oj_status == "Não":
-            where_clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
-            
-        f_usol, fx_usol = include_exclude_filter("Unidade Solicitante", get_distinct_values("Unidade Solicitante"), "usol")
-        med_sol = st.text_input("Médico Solicitante (Nome)")
-        operador = st.text_input("Operador do Sistema (Nome)")
-        user_sol = st.text_input("Usuário Solicitante (Nome)")
+    # --- 5. GOVERNANÇA E ATORES ---
+    with st.sidebar.expander("🏛️ Governança & Atores", expanded=False):
+        oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_root")
+        if oj == "Sim": clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
+        if oj == "Não": clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
+        curr_where = " AND ".join(clauses)
+        
+        curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol")
+        curr_where = render_text_search("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol")
+        curr_where = render_text_search("Operador do Sistema", "Operador", clauses, curr_where, "op_sys")
+        curr_where = render_text_search("Usuário Solicitante", "Usuário Solicitante", clauses, curr_where, "usr_sol")
 
-    # 6. LOG CLÍNICO (EVOLUÇÃO)
-    with st.sidebar.expander("📝 Log Clínico (Evolução)", expanded=False):
-        f_tipo_info = st.multiselect("Tipo de Informação", get_distinct_values("Tipo_Informacao"))
-        f_orig_info = st.text_input("Origem da Informação (Nome/Unidade)")
-        txt_evo = st.text_input("Palavra-chave no Texto da Evolução (Busca em Log)")
-
-    # ==========================================
-    # BUILDER DO SQL DINÂMICO
-    # ==========================================
-    def add_filter(col, incl, excl=None):
-        def sanitize(v): return str(v).replace("'", "''")
-        if incl: where_clauses.append(f"\"{col}\" IN ({', '.join([f"'{sanitize(v)}'" for v in incl])})")
-        if excl: where_clauses.append(f"\"{col}\" NOT IN ({', '.join([f"'{sanitize(v)}'" for v in excl])})")
-
-    add_filter("Origem da Lista", f_origem_lista, fx_origem_lista)
-    add_filter("Situação", f_sit, fx_sit)
-    add_filter("Situação Final", f_sit_fim, fx_sit_fim)
-    add_filter("Especialidade Mãe", f_esp_mae, fx_esp_mae)
-    add_filter("Especialidade", f_esp, fx_esp)
-    add_filter("Risco Cor", f_risco, fx_risco)
-    add_filter("Município de Residência", f_mun, fx_mun)
-    add_filter("Unidade Solicitante", f_usol, fx_usol)
-    
-    add_filter("Tipo de Regulação", f_reg)
-    add_filter("Teleconsulta", f_tele)
-    add_filter("Status da Especialidade", f_status_esp)
-    add_filter("Complexidade", f_complex)
-    add_filter("Cor Regulador", f_cor_reg)
-    add_filter("Bairro", f_bairro)
-    add_filter("Cor", f_cor)
-    add_filter("Sexo", f_sexo)
-    add_filter("Nacionalidade", f_nac)
-    add_filter("Tipo_Informacao", f_tipo_info)
-
-    # Text Searches (ILIKE para Case-Insensitive no DuckDB)
-    if cid_cod: where_clauses.append(f"\"CID Código\" ILIKE '%{cid_cod}%'")
-    if cid_desc: where_clauses.append(f"\"CID Descrição\" ILIKE '%{cid_desc}%'")
-    if logradouro: where_clauses.append(f"\"Logradouro\" ILIKE '%{logradouro}%'")
-    if med_sol: where_clauses.append(f"\"Médico Solicitante\" ILIKE '%{med_sol}%'")
-    if operador: where_clauses.append(f"\"Operador\" ILIKE '%{operador}%'")
-    if user_sol: where_clauses.append(f"\"Usuário Solicitante\" ILIKE '%{user_sol}%'")
-    if f_orig_info: where_clauses.append(f"\"Origem_Informacao\" ILIKE '%{f_orig_info}%'")
-    if txt_evo: where_clauses.append(f"\"Texto_Evolucao\" ILIKE '%{txt_evo}%'")
-
-    where_stmt = " AND ".join(where_clauses)
+    # --- 6. LOG CLÍNICO ---
+    with st.sidebar.expander("📝 Logs Clínicos (Eventos)", expanded=False):
+        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf")
+        curr_where = render_text_search("Origem da Informação (Nome/Local)", "Origem_Informacao", clauses, curr_where, "orig_inf")
+        curr_where = render_text_search("Texto do Histórico (Anamnese/Laudo)", "Texto_Evolucao", clauses, curr_where, "txt_evo")
 
     # ==========================================
-    # CAMADA 1: KPIs ESTRATÉGICOS
+    # CLÁUSULA FINAL PARA OS GRÁFICOS
     # ==========================================
-    with st.spinner("Aplicando cruzamentos via DuckDB..."):
-        kpi_query = f"""
+    FINAL_WHERE = curr_where
+
+    # --- KPIs DE TOPO ---
+    with st.spinner("Processando Modelo de Leitura (OLAP)..."):
+        kpis = query_db(f"""
             SELECT 
                 COUNT(DISTINCT Protocolo) as pacientes,
-                COUNT(*) as evolucoes,
+                COUNT(*) as eventos,
                 COUNT(DISTINCT Especialidade) as especialidades
-            FROM gercon 
-            WHERE {where_stmt}
-        """
-        kpis = query_duckdb(kpi_query)
+            FROM gercon WHERE {FINAL_WHERE}
+        """)
 
     m1, m2, m3 = st.columns(3)
-    m1.metric("Pacientes Únicos Impactados", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
-    m2.metric("Evoluções Encontradas", f"{int(kpis['evolucoes'].iloc[0]):,}".replace(',', '.'))
-    m3.metric("Especialidades Diferentes", f"{int(kpis['especialidades'].iloc[0]):,}".replace(',', '.'))
+    m1.metric("👥 Pacientes Impactados", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
+    m2.metric("📋 Eventos Auditados", f"{int(kpis['eventos'].iloc[0]):,}".replace(',', '.'))
+    m3.metric("🎯 Especialidades Distintas", f"{int(kpis['especialidades'].iloc[0]):,}".replace(',', '.'))
     st.divider()
 
     # ==========================================
-    # CAMADA 2: VISUALIZAÇÃO GRÁFICA
+    # VISUALIZAÇÕES ESTRATÉGICAS (MULTI-TABS)
     # ==========================================
-    tab1, tab2, tab3, tab4 = st.tabs(["📊 Visão Macro & Fluxo", "🗺️ Demografia & Diagnóstico", "🚀 SRE & Fila", "🔎 Auditoria (Micro)"])
+    t_geral, t_loc, t_clin, t_perf, t_micro = st.tabs([
+        "📊 Visão Geral", "🌍 Demografia & Geometria", "⚕️ Inteligência Clínica", "⏱️ Tráfego & SLA", "🔎 Raw Data"
+    ])
 
-    # TAB 1: FLUXO E SITUAÇÃO
-    with tab1:
+    # 1. TAB: VISÃO GERAL
+    with t_geral:
         c1, c2 = st.columns(2)
         with c1:
-            st.subheader("Situação vs Origem da Lista")
-            df_sit = query_duckdb(f"SELECT Situação, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {where_stmt} GROUP BY 1, 2")
-            fig1 = px.bar(df_sit, x='Situação', y='Vol', color='Origem da Lista', barmode='group')
-            st.plotly_chart(fig1, key="chart_sit", use_container_width=True)
-            
+            df_sit = query_db(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
+            fig1 = px.bar(df_sit, x='Situação', y='Vol', color='Situação', title="Volume por Situação Atual")
+            st.plotly_chart(fig1, key="plt_sit_root", use_container_width=True)
         with c2:
-            st.subheader("Classificação de Risco Cor")
-            df_risco = query_duckdb(f"SELECT \"Risco Cor\", count(DISTINCT Protocolo) as Vol FROM gercon WHERE {where_stmt} AND \"Risco Cor\" != '' GROUP BY 1")
-            color_map = {'VERMELHO': '#ef4444', 'AMARELO': '#eab308', 'VERDE': '#22c55e', 'AZUL': '#3b82f6', 'LARANJA': '#f97316'}
-            fig2 = px.pie(df_risco, names='Risco Cor', values='Vol', color='Risco Cor', color_discrete_map=color_map, hole=0.4)
-            st.plotly_chart(fig2, key="chart_risco", use_container_width=True)
+            df_lista = query_db(f"SELECT \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1")
+            fig2 = px.pie(df_lista, values='Vol', names='Origem da Lista', hole=0.4, title="Distribuição por Lista do Gercon")
+            st.plotly_chart(fig2, key="plt_list_root", use_container_width=True)
 
-        st.subheader("Top 15 Especialidades (Fila vs Capacidade)")
-        df_top = query_duckdb(f"SELECT Especialidade, count(DISTINCT Protocolo) as Volume FROM gercon WHERE {where_stmt} GROUP BY 1 ORDER BY 2 DESC LIMIT 15")
-        fig3 = px.bar(df_top, x='Volume', y='Especialidade', orientation='h', color='Volume', color_continuous_scale='Blues')
-        fig3.update_layout(yaxis={'categoryorder':'total ascending'})
-        st.plotly_chart(fig3, key="chart_top", use_container_width=True)
+    # 2. TAB: DEMOGRAFIA
+    with t_loc:
+        c1, c2 = st.columns(2)
+        with c1:
+            df_mun = query_db(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' AND Bairro != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
+            if not df_mun.empty:
+                try:
+                    fig_tree = px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Mapa de Origem (Município > Bairro)", color='Vol', color_continuous_scale='Magma')
+                    st.plotly_chart(fig_tree, key="plt_tree_root", use_container_width=True)
+                except Exception:
+                    st.warning("Não foi possível gerar o Treemap Geográfico.")
+        with c2:
+            df_demo = query_db(f"SELECT Sexo, Cor, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND Sexo != '' AND Cor != '' GROUP BY 1, 2")
+            fig_bar = px.bar(df_demo, x='Sexo', y='Vol', color='Cor', barmode='group', title="Perfil Demográfico (Sexo vs Cor/Raça)")
+            st.plotly_chart(fig_bar, key="plt_demo_root", use_container_width=True)
 
-    # TAB 2: DEMOGRAFIA
-    with tab2:
-        c3, c4 = st.columns(2)
-        with c3:
-            st.subheader("Top Diagnósticos Base (CID)")
-            df_cid = query_duckdb(f"SELECT \"CID Descrição\", count(DISTINCT Protocolo) as Vol FROM gercon WHERE {where_stmt} AND \"CID Descrição\" IS NOT NULL AND \"CID Descrição\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 200")
-            if not df_cid.empty:
-                fig4 = px.treemap(df_cid, path=['CID Descrição'], values='Vol', color='Vol', color_continuous_scale='Teal')
-                st.plotly_chart(fig4, key="chart_cid", use_container_width=True)
-            else:
-                st.info("Dados de CID não disponíveis para este filtro.")
-        with c4:
-            st.subheader("Municípios Solicitantes")
-            df_mun2 = query_duckdb(f"SELECT \"Município de Residência\", count(DISTINCT Protocolo) as Vol FROM gercon WHERE {where_stmt} AND \"Município de Residência\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 5")
-            fig5 = px.bar(df_mun2, x='Município de Residência', y='Vol', color='Vol', color_continuous_scale='Magma')
-            st.plotly_chart(fig5, key="chart_mun", use_container_width=True)
+    # 3. TAB: INTELIGÊNCIA CLÍNICA
+    with t_clin:
+        st.subheader("Concentração de Demanda Clínica")
+        df_esp = query_db(f"SELECT \"Especialidade Mãe\", Especialidade, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Especialidade Mãe\" != '' AND Especialidade != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 40")
+        if not df_esp.empty:
+            try:
+                fig_sun = px.sunburst(df_esp, path=['Especialidade Mãe', 'Especialidade'], values='Vol', color='Vol', color_continuous_scale='Blues', title="Relação Especialidade Mãe > Fina")
+                st.plotly_chart(fig_sun, key="plt_sun_root", use_container_width=True)
+            except Exception:
+                st.warning("Não foi possível gerar o Sunburst Clínico.")
 
-    # TAB 3: TRÁFEGO E GRAVIDADE
-    with tab3:
-        st.subheader("Curva de Entrada de Solicitações (Throughput)")
-        df_time = query_duckdb(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, count(DISTINCT Protocolo) as Volume FROM gercon WHERE {where_stmt} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1 ORDER BY 1")
-        fig6 = px.line(df_time, x='Dia', y='Volume', template="plotly_white")
-        fig6.update_traces(line_color='#10b981')
-        st.plotly_chart(fig6, key="chart_time", use_container_width=True)
-        
-        c5, c6 = st.columns(2)
-        with c5:
-            st.subheader("Outlier Detection (Gravidade vs Tempo na Fila)")
-            df_scatter = query_duckdb(f"""
-                SELECT Protocolo, MAX(TRY_CAST(\"Pontos Gravidade\" AS INTEGER)) as Gravidade, 
-                MAX(TRY_CAST(\"Pontuação\" AS INTEGER)) as Pontuacao_Total 
-                FROM gercon WHERE {where_stmt} GROUP BY 1 ORDER BY 3 DESC LIMIT 500
-            """)
-            if not df_scatter.empty:
-                fig7 = px.scatter(df_scatter, x='Pontuacao_Total', y='Gravidade', hover_data=['Protocolo'], opacity=0.5, color='Gravidade')
-                st.plotly_chart(fig7, key="chart_scatter", use_container_width=True)
-            else:
-                st.info("Dados de pontuação indisponíveis.")
-        with c6:
-            st.subheader("Classificação de Interações (Log)")
-            df_tipo_info = query_duckdb(f"SELECT Tipo_Informacao, COUNT(*) as Vol FROM gercon WHERE {where_stmt} GROUP BY 1 ORDER BY 2 DESC")
-            fig8 = px.bar(df_tipo_info, y='Tipo_Informacao', x='Vol', orientation='h', color='Vol', color_continuous_scale='Purples')
-            fig8.update_layout(yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig8, key="chart_evo", use_container_width=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            df_cid = query_db(f"SELECT \"CID Descrição\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"CID Descrição\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 15")
+            fig_cid = px.bar(df_cid, x='Vol', y='CID Descrição', orientation='h', title="Top 15 Diagnósticos (CIDs)")
+            fig_cid.update_layout(yaxis={'categoryorder':'total ascending'})
+            st.plotly_chart(fig_cid, key="plt_cid_root", use_container_width=True)
+        with c2:
+            df_risco = query_db(f"SELECT \"Risco Cor\", \"Ordem Judicial\" IS NOT NULL as Jud, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1, 2")
+            cmap = {'VERMELHO': '#ef4444', 'AMARELO': '#eab308', 'VERDE': '#22c55e', 'AZUL': '#3b82f6', 'LARANJA': '#f97316'}
+            fig_risc = px.bar(df_risco, x='Risco Cor', y='Vol', color='Risco Cor', pattern_shape='Jud', color_discrete_map=cmap, title="Triagem vs Ordem Judicial")
+            st.plotly_chart(fig_risc, key="plt_risc_root", use_container_width=True)
 
-    # TAB 4: AUDITORIA MICRO
-    with tab4:
-        st.subheader("🔎 Log Operacional de Evoluções e Textos")
-        limit = st.slider("Número de eventos para carregar na tabela:", 50, 2000, 100)
-        
-        df_micro = query_duckdb(f"""
-            SELECT 
-                Protocolo, 
-                CAST(\"Data Solicitação\" AS TIMESTAMP) as Solicitacao,
-                CAST(\"Data_Evolucao\" AS TIMESTAMP) as Evolucao,
-                Situação, 
-                \"Risco Cor\",
-                Especialidade,
-                Tipo_Informacao, 
-                Origem_Informacao,
-                Texto_Evolucao 
-            FROM gercon 
-            WHERE {where_stmt} 
-            ORDER BY \"Data Solicitação\" DESC, Data_Evolucao DESC
-            LIMIT {limit}
+    # 4. TAB: TRÁFEGO E SLA (SRE)
+    with t_perf:
+        c1, c2 = st.columns(2)
+        with c1:
+            df_time = query_db(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1 ORDER BY 1")
+            fig_in = px.area(df_time, x='Dia', y='Vol', title="Throughput: Criação de Protocolos")
+            fig_in.update_traces(line_color='#10b981')
+            st.plotly_chart(fig_in, key="plt_tin_root", use_container_width=True)
+        with c2:
+            df_evo_time = query_db(f"SELECT CAST(\"Data_Evolucao\" AS DATE) as Dia, COUNT(*) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data_Evolucao\" IS NOT NULL GROUP BY 1 ORDER BY 1")
+            fig_ev = px.line(df_evo_time, x='Dia', y='Vol', title="Velocidade de Trabalho (Evoluções Diárias)")
+            fig_ev.update_traces(line_color='#8b5cf6')
+            st.plotly_chart(fig_ev, key="plt_tev_root", use_container_width=True)
+            
+        st.subheader("Eventos do Lifecycle (Atividades Operacionais)")
+        df_tipo = query_db(f"SELECT Tipo_Informacao, COUNT(*) as Vol FROM gercon WHERE {FINAL_WHERE} AND Tipo_Informacao != '' GROUP BY 1 ORDER BY 2 DESC")
+        fig_tipo = px.bar(df_tipo, x='Vol', y='Tipo_Informacao', orientation='h', title="O que está a ser feito no sistema?")
+        fig_tipo.update_layout(yaxis={'categoryorder':'total ascending'})
+        st.plotly_chart(fig_tipo, key="plt_life_root", use_container_width=True)
+
+    # 5. TAB: DATA GRID (MICRO)
+    with t_micro:
+        st.subheader("Auditoria Clínica")
+        limit = st.slider("Amostra (Linhas)", 10, 500, 50, key="sld_limit_root")
+        df_grid = query_db(f"""
+            SELECT Protocolo, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(Data_Evolucao AS TIMESTAMP) as Data_Evolução, 
+            \"Origem da Lista\", Situação, Especialidade, \"Risco Cor\", Tipo_Informacao, Origem_Informacao, Texto_Evolucao 
+            FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, Data_Evolucao DESC LIMIT {limit}
         """)
-        st.dataframe(df_micro, use_container_width=True, hide_index=True)
+        st.dataframe(df_grid, use_container_width=True, hide_index=True)
 
 if __name__ == "__main__":
     main()
