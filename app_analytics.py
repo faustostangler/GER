@@ -3,6 +3,7 @@ import duckdb
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from datetime import date, timedelta
@@ -21,12 +22,65 @@ def inject_custom_css():
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        .stPlotlyChart { background-color: #ffffff; border-radius: 8px; border: 1px solid #e5e7eb; padding: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         hr { margin-top: 1rem; margin-bottom: 1rem; }
         .filter-badge { display: inline-block; background-color: #e0f2fe; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 500; margin-right: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #bfdbfe;}
         .filter-category-title { font-weight: 600; font-size: 0.9rem; color: #374151; margin-bottom: 0.3rem;}
         .deep-search-bar { border-left: 4px solid #3b82f6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
         .aggregate-search-bar { border-left: 4px solid #8b5cf6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
+
+        /* ========================================================
+           SRE FIX: ISOLAMENTO TOTAL DO FLEXBOX (PREVINE BUBBLING)
+           ======================================================== */
+           
+        /* 1. Título da Categoria: Comporta-se como um bloco normal (força nova linha) */
+        .cat-title {
+            font-weight: 700;
+            font-size: 0.75rem;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-top: 1.2rem;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        /* 2. Container dos filtros: Seleciona APENAS o bloco mais profundo (innermost) */
+        div[data-testid="stVerticalBlock"]:has(.filter-row-marker):not(:has(div[data-testid="stVerticalBlock"] .filter-row-marker)) {
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: wrap !important;
+            gap: 1.5rem !important;     /* Distância elegante entre filtros */
+            align-items: center !important;
+            margin-bottom: 0.5rem !important;
+        }
+
+        div[data-testid="stVerticalBlock"]:has(.filter-row-marker):not(:has(div[data-testid="stVerticalBlock"] .filter-row-marker)) > div {
+            width: fit-content !important;
+            flex: 0 1 auto !important;
+        }
+
+        /* 3. Botões Extremamente Discretos e Inquebráveis */
+        [data-testid="stExpanderDetails"] button {
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            color: #64748b !important;
+            font-size: 0.85rem !important;
+            font-weight: 400 !important;
+            min-height: unset !important;
+            height: auto !important;
+            white-space: nowrap !important; /* Impede o X de cair para a linha de baixo */
+            transition: color 0.2s ease;
+        }
+
+        /* Hover: Vermelho e Riscado */
+        [data-testid="stExpanderDetails"] button:hover {
+            color: #ef4444 !important;
+            text-decoration: line-through !important;
+            background: transparent !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
@@ -126,13 +180,13 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     def sanitize(v): return str(v).replace("'", "''")
     if incl: 
         # ARQUITETURA DE ESTADO: Agora guardamos o Texto Visual e as Chaves Associadas
-        ui_tracker.append({"text": f"{label} (✅): {', '.join([str(v) for v in incl])}", "keys": [f"{key}_in"]})
+        ui_tracker.append({"text": f"✅ {label}: {', '.join([str(v) for v in incl])}", "keys": [f"{key}_in"]})
         sanitized_incl = [f"'{sanitize(v)}'" for v in incl]
         clauses.append(f'"{column}" IN ({", ".join(sanitized_incl)})')
         
     if excl: 
         # ARQUITETURA DE ESTADO: Agora guardamos o Texto Visual e as Chaves Associadas
-        ui_tracker.append({"text": f"{label} (❌): {', '.join([str(v) for v in excl])}", "keys": [f"{key}_ex"]})
+        ui_tracker.append({"text": f"❌ {label}: {', '.join([str(v) for v in excl])}", "keys": [f"{key}_ex"]})
         sanitized_excl = [f"'{sanitize(v)}'" for v in excl]
         clauses.append(f'"{column}" NOT IN ({", ".join(sanitized_excl)})')
     
@@ -291,6 +345,19 @@ def main():
 
     st.title("🎯 Gercon SRE | Advanced Root Cause Analysis")
     
+    # ==========================================
+    # SRE FIX: DICIONÁRIO MESTRE DE CORES (GLOBAL)
+    # ==========================================
+    MAPA_CORES_RISCO = {
+        'VERMELHO': '#ef4444', 
+        'LARANJA': '#f97316', 
+        'AMARELO': '#eab308', 
+        'VERDE': '#22c55e', 
+        'AZUL': '#3b82f6',
+        'BRANCO': '#e5e7eb',
+        'Não Informado': '#9ca3af'
+    }
+    
     clauses = ["1=1"]
     curr_where = "1=1"
 
@@ -406,132 +473,248 @@ def main():
     has_active_filters = any(len(v) > 0 for v in ui_filters.values())
     
     if has_active_filters:
-        with st.container(border=True):
-            st.markdown("""
-            <style>
-                /* 1. Zera o tamanho das colunas para envolver apenas o texto */
-                [data-testid="column"]:has(.text-link-marker) {
-                    width: fit-content !important;
-                    flex: 0 0 auto !important;
-                    min-width: 0 !important;
-                    padding: 0 0.8rem 0 0 !important; 
-                }
-                /* 2. Garante que cada st.columns fique numa linha, alinhado à esquerda */
-                [data-testid="stHorizontalBlock"]:has(.text-link-marker) {
-                    align-items: center !important;
-                    justify-content: flex-start !important;
-                    gap: 0 !important;
-                    flex-wrap: wrap !important;
-                }
-                
-                /* SRE FIX: Remoção da margem inferior da Categoria para "colar" na linha de baixo */
-                [data-testid="stHorizontalBlock"]:has(.header-link-marker) {
-                    margin-bottom: 0.1rem !important;
-                }
-                
-                /* SRE FIX: Adiciona um leve recuo (identação) e margem inferior aos filtros individuais */
-                [data-testid="stHorizontalBlock"]:has(.item-link-marker) {
-                    padding-left: 1.2rem !important;
-                    margin-bottom: 0.6rem !important;
-                }
-                
-                /* 3. A ANIQUILAÇÃO DO STBASEBUTTON-SECONDARY */
-                [data-testid="column"]:has(.text-link-marker) button,
-                [data-testid="column"]:has(.text-link-marker) .stBaseButton-secondary {
-                    background-color: transparent !important;
-                    border: none !important;
-                    box-shadow: none !important;
-                    padding: 0 !important;         
-                    margin: 0 !important;
-                    height: auto !important;
-                    min-height: unset !important;
-                    color: #4B5563 !important;
-                    font-size: 0.85rem !important;
-                    line-height: 1.2 !important;
-                    display: inline !important;    
-                    transition: all 0.2s ease;
-                }
-                
-                /* 4. Efeito Hover: O texto fica vermelho e é riscado */
-                [data-testid="column"]:has(.text-link-marker) button:hover,
-                [data-testid="column"]:has(.text-link-marker) .stBaseButton-secondary:hover {
-                    color: #ef4444 !important;
-                    text-decoration: line-through !important;
-                    background-color: transparent !important;
-                }
-                
-                /* 5. Estilo do Cabeçalho da Categoria (Negrito e cor mais forte) */
-                [data-testid="column"]:has(.header-link-marker) button {
-                    font-weight: 700 !important;
-                    color: #1e293b !important;
-                    font-size: 0.90rem !important;
-                }
-                
-                /* 6. O botão "Limpar Filtros" Global */
-                [data-testid="column"]:has(.global-link-marker) button {
-                    font-weight: 800 !important;
-                    color: #0f172a !important;
-                    font-size: 0.95rem !important;
-                }
-            </style>
-            """, unsafe_allow_html=True)
-            
-            # --- LINHA 1: TÍTULO GLOBAL (AÇÃO DE LIMPAR TUDO) ---
-            all_keys = [key for sublist in state_keys.values() for key in sublist]
-            c_top = st.columns(1)
-            with c_top[0]:
-                st.markdown("<div class='text-link-marker global-link-marker' style='display:none;'></div>", unsafe_allow_html=True)
-                st.button("🗑️ Limpar Todos os Filtros", key="btn_clear_all", on_click=clear_filter_state, args=(all_keys,))
-            
-            st.markdown("<hr style='margin: 0.1rem 0 0.5rem 0; border-color: #f1f5f9;'>", unsafe_allow_html=True)
-
-            # --- LINHA 2 EM DIANTE: CATEGORIA E SEUS FILTROS ---
+        total_count = sum(len(v) for v in ui_filters.values())
+        
+        with st.expander(f"🔍 Filtros Ativos ({total_count})", expanded=True):
             for category, filters in ui_filters.items():
                 if filters:
-                    # ROW A: Apenas o Cabeçalho da Categoria
-                    c_cat = st.columns(1)
-                    with c_cat[0]:
-                        st.markdown("<div class='text-link-marker header-link-marker' style='display:none;'></div>", unsafe_allow_html=True)
-                        st.button(f"{category} 🗑️", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
+                    # 1. TÍTULO NA SUA PRÓPRIA LINHA
+                    st.markdown(f"<div class='cat-title'>{category}</div>", unsafe_allow_html=True)
                     
-                    # ROW B: Os Filtros Individuais na linha de baixo
-                    cols = st.columns(len(filters))
-                    for i, f in enumerate(filters):
-                        with cols[i]:
-                            # A classe 'item-link-marker' aciona o padding-left no CSS para criar a identação visual
-                            st.markdown(f"<div class='text-link-marker item-link-marker' style='display:none;'></div>", unsafe_allow_html=True)
-                            st.button(f"{f['text']} ✖", key=f"clr_item_{category}_{i}", on_click=clear_filter_state, args=(f['keys'],))
+                    # 2. FILTROS AGRUPADOS NA LINHA SEGUINTE
+                    with st.container():
+                        st.markdown("<div class='filter-row-marker' style='display:none;'></div>", unsafe_allow_html=True)
+                        for i, f in enumerate(filters):
+                            st.button(f"{f['text']}", key=f"clr_item_{category}_{i}", on_click=clear_filter_state, args=(f['keys'],))
+            
+            # 3. LIMPAR TODOS ISOLADO NO FINAL (Sem a linha tracejada)
+            st.write("") # Micro-espaçamento natural
+            all_keys = [key for sublist in state_keys.values() for key in sublist]
+            st.button("🗑️ Limpar Todos os Filtros", key="btn_clear_all", on_click=clear_filter_state, args=(all_keys,))
         
         st.write(" ") # Um micro-espaçamento logo antes dos KPIs para respirar
+
+    # ==========================================
+    # DASHBOARD TABS: ESTRUTURADO POR NÍVEL DE DECISÃO
+    # ==========================================
+    # SRE FIX: Adicionada a aba de KPIs como a primeira (t_kpi) para Executive Summary
+    t_kpi, t_macro, t_clin, t_micro = st.tabs([
+        "📊 Visão Geral (KPIs)", 
+        "📈 Estratégia (Macro)", 
+        "🩺 Inteligência Clínica", 
+        "🔎 Auditoria (Micro)"
+    ])
 
     # ==========================================
     # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
     # ==========================================
     FINAL_WHERE = " AND ".join(clauses)
 
-    with st.spinner("Processando Modelo de Leitura (OLAP)..."):
+    with st.spinner("Processando Modelo de Leitura (OLAP) e Latência de Cauda (P90)..."):
         kpis = query_db(f"""
             SELECT COUNT(DISTINCT Protocolo) as pacientes, 
                    COUNT(*) as eventos, 
-                   COUNT(DISTINCT Especialidade) as especialidades,
-                   ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as lead_time
+                   COUNT(DISTINCT "Especialidade Mãe") as esp_mae,
+                   COUNT(DISTINCT Especialidade) as sub_esp,
+                   COUNT(DISTINCT "Médico Solicitante") as medicos,
+                   COUNT(DISTINCT "CID Descrição") as cids,
+                   COUNT(DISTINCT "Origem da Lista") as origens,
+                   ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as lead_time,
+                   MAX(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)) as max_lead_time,
+                   DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), MAX(CAST("Data Solicitação" AS DATE))) as span_dias,
+                   COUNT(DISTINCT CASE WHEN "Risco Cor" IN ('VERMELHO', 'LARANJA', 'AMARELO') THEN Protocolo END) as pac_urgentes,
+                   COUNT(DISTINCT CASE WHEN DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE) > 180 THEN Protocolo END) as pac_vencidos
             FROM gercon WHERE {FINAL_WHERE}
         """)
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("👥 Pacientes na Fila", f"{int(kpis['pacientes'].iloc[0]):,}".replace(',', '.'))
-    m2.metric("📋 Evoluções Auditadas", f"{int(kpis['eventos'].iloc[0]):,}".replace(',', '.'))
-    m3.metric("🎯 Especialidades", f"{int(kpis['especialidades'].iloc[0]):,}".replace(',', '.'))
-    m4.metric("⏱️ Lead Time Médio", f"{kpis['lead_time'].iloc[0]} dias", help="Tempo médio de espera dos pacientes ativos.")
-    st.divider()
+        # --- SRE FIX: Query de Latência de Cauda (P90) ---
+        # Agrupamos por Protocolo PRIMEIRO para garantir peso igual por paciente.
+        p90_metrics = query_db(f"""
+            SELECT 
+                PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY dias_fila) as p90_lead_time,
+                PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY dias_esquecido) as p90_esquecido
+            FROM (
+                SELECT 
+                    Protocolo,
+                    DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), CURRENT_DATE) as dias_fila,
+                    DATEDIFF('day', MAX(CAST(Data_Evolucao AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
+                FROM gercon
+                WHERE {FINAL_WHERE}
+                GROUP BY Protocolo
+            )
+        """)
 
-    # Cores Semânticas
-    cmap = {'VERMELHO': '#ef4444', 'AMARELO': '#eab308', 'VERDE': '#22c55e', 'AZUL': '#3b82f6', 'LARANJA': '#f97316'}
+    # --- Extração Segura das Variáveis Absolutas ---
+    pacientes = int(kpis['pacientes'].iloc[0])
+    eventos = int(kpis['eventos'].iloc[0])
+    esp_mae = int(kpis['esp_mae'].iloc[0])
+    sub_esp = int(kpis['sub_esp'].iloc[0])
+    medicos = int(kpis['medicos'].iloc[0])
+    cids = int(kpis['cids'].iloc[0])
+    origens = int(kpis['origens'].iloc[0])
+    lead_time = kpis['lead_time'].iloc[0]
+    max_lead_time = int(kpis['max_lead_time'].iloc[0]) if pd.notna(kpis['max_lead_time'].iloc[0]) else 0
+    span_dias = kpis['span_dias'].iloc[0]
+    pac_urgentes = int(kpis['pac_urgentes'].iloc[0])
+    pac_vencidos = int(kpis['pac_vencidos'].iloc[0])
+    
+    # Extração das Métricas P90 (Tolerância a falhas caso não haja dados)
+    p90_lead_time = int(p90_metrics['p90_lead_time'].iloc[0]) if pd.notna(p90_metrics['p90_lead_time'].iloc[0]) else 0
+    p90_esquecido = int(p90_metrics['p90_esquecido'].iloc[0]) if pd.notna(p90_metrics['p90_esquecido'].iloc[0]) else 0
+    
+    # --- Cálculos Derivados SOTA (Prevenção contra divisão por zero) ---
+    evo_por_paciente = round(eventos / pacientes, 1) if pacientes > 0 else 0.0
+    sub_por_esp = round(sub_esp / esp_mae, 1) if esp_mae > 0 else 0.0
+    cid_por_medico = round(cids / medicos, 1) if medicos > 0 else 0.0
+    evo_por_medico = round(eventos / medicos, 1) if medicos > 0 else 0.0
+
+    # SRE FIX: Motor de Taxa de Ingestão (Cadastros por Mês)
+    dias_janela = float(span_dias) if pd.notna(span_dias) else 0.0
+    meses_janela = max(dias_janela / 30.416, 1.0) 
+    cad_por_mes = round(pacientes / meses_janela, 1) if pacientes > 0 else 0.0
+    
+    taxa_urgencia = round((pac_urgentes / pacientes) * 100, 1) if pacientes > 0 else 0.0
+    taxa_vencidos = round((pac_vencidos / pacientes) * 100, 1) if pacientes > 0 else 0.0
 
     # ==========================================
-    # DASHBOARD TABS: ESTRATÉGICO -> TÁTICO -> OPERACIONAL
+    # ABA 1: VISÃO GERAL (EXECUTIVE SUMMARY)
     # ==========================================
-    t_macro, t_meso, t_micro = st.tabs(["📊 Estratégico (Macro)", "🎯 Tático & Clínica (Meso)", "🔎 Operacional & SRE (Micro)"])
+    with t_kpi:
+        st.markdown("<h4 style='font-size: 1rem; color: #4B5563;'>Painel de Desempenho (SLA e Carga)</h4>", unsafe_allow_html=True)
+        
+        # --- LINHA 1: Volume, Carga e Esforço ---
+        r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
+        r1_c1.metric("🏢 Origens do Gercon", f"{origens:,}".replace(',', '.'), help="Quantidade de portas de entrada/sistemas de origem distintos.")
+        r1_c2.metric("👥 Pacientes", f"{pacientes:,}".replace(',', '.'), help="Número total de pacientes únicos selecionados.")
+        r1_c3.metric("📋 Evoluções", f"{eventos:,}".replace(',', '.'), help="Número total de eventos no histórico clínico.")
+        r1_c4.metric("📈 Evoluções/Paciente", f"{evo_por_paciente}".replace('.', ','), help="Média de vezes que o paciente foi movimentado ou avaliado.")
+        
+        st.write(" ") 
+        
+        # --- LINHA 2: Complexidade Clínica e SLA ---
+        r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
+        r2_c1.metric("🏛️ Especialidades (Mãe)", f"{esp_mae:,}".replace(',', '.'), help="Grandes áreas clínicas abrangidas (Ex: CIRURGIA).")
+        r2_c2.metric("🎯 Subespecialidades", f"{sub_esp:,}".replace(',', '.'), help="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO).")
+        r2_c3.metric("🔀 Subs/Especialidade", f"{sub_por_esp}".replace('.', ','), help="Média de ramificações por grande área clínica.")
+        
+        lead_str = f"{lead_time} dias | {max_lead_time} dias" if pd.notna(lead_time) else "0 dias"
+        r2_c4.metric("⏱️ Fila: Média | Pior", lead_str, help="Tempo Médio vs Tempo do paciente mais antigo.")
+
+        st.write(" ") 
+
+        # --- LINHA 3: Governança e Comportamento Médico ---
+        r3_c1, r3_c2, r3_c3, r3_c4 = st.columns(4)
+        r3_c1.metric("👨⚕️ Médicos Solicitantes", f"{medicos:,}".replace(',', '.'), help="Total de médicos distintos que inseriram pacientes nesta fila.")
+        r3_c2.metric("📅 Cadastros/Mês", f"{cad_por_mes}".replace('.', ','), help="Média mensal histórica de novos pacientes inseridos na fila (baseado na janela filtrada).")
+        r3_c3.metric("🧠 Dispersão Diagnóstica", f"{cid_por_medico}".replace('.', ','), help="Média de CIDs distintos usados por médico.")
+        r3_c4.metric("⚙️ Carga/Médico", f"{evo_por_medico}".replace('.', ','), help="Volume médio de evoluções administrativas geradas por cada médico.")
+        
+        st.divider()
+
+        # --- BLOCO 2 CONSOLIDADO: ANATOMIA COMPARATIVA E RISCO ---
+        st.markdown("<h4 style='font-size: 1.1rem; font-weight: 600; color: #4B5563; margin-bottom: 0.2rem;'>Anatomia Comparativa: Dispersão e Escala de Espera</h4>", unsafe_allow_html=True)
+        
+        st.markdown("""
+            <div style="font-size: 0.85rem; color: #6b7280; margin-bottom: 1.5rem; line-height: 1.4;">
+                <b>Como ler os gráficos:</b> A <b>linha central</b> na caixa é a mediana (paciente típico). 
+                A <b>caixa</b> agrupa 50% da fila. As <b>linhas tracejadas</b> mostram as fronteiras SRE: 
+                <b>P10</b> (os 10% mais rápidos/eficiência) e <b>P90</b> (o limite de 90% da rede/garantia). 
+                Os <b>pontos individuais</b> à direita são os <i>outliers</i> (casos críticos fora do padrão).
+            </div>
+        """, unsafe_allow_html=True)
+
+        df_dist = query_db(f"""
+            SELECT 
+                DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), CURRENT_DATE) as dias_fila,
+                DATEDIFF('day', MAX(CAST(Data_Evolucao AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
+            FROM gercon
+            WHERE {FINAL_WHERE}
+            GROUP BY Protocolo
+        """)
+
+        if not df_dist.empty:
+            # Função para limpar extremos e calcular estatísticas SRE (Decis P10/P90)
+            def get_sre_stats(df, col):
+                q1 = df[col].quantile(0.25)
+                q3 = df[col].quantile(0.75)
+                iqr = q3 - q1
+                # Limpeza para escala (3.0x IQR)
+                df_clean = df[df[col] <= (q3 + 3.0 * iqr)]
+                # Cálculos de Percentis (Decile Border)
+                p10 = df[col].quantile(0.10)
+                p90 = df[col].quantile(0.90)
+                return df_clean, p10, p90
+
+            df_plot_fila, p10_fila, p90_fila = get_sre_stats(df_dist, 'dias_fila')
+            df_plot_esq, p10_esq, p90_esq = get_sre_stats(df_dist, 'dias_esquecido')
+
+            # Escala Unificada para comparação direta
+            max_val = max(df_plot_fila['dias_fila'].max(), df_plot_esq['dias_esquecido'].max()) if not df_plot_fila.empty and not df_plot_esq.empty else 100
+            limite_x = [0, max_val * 1.05]
+
+            # --- RENDERIZAÇÃO: BOXPLOT ABANDONO (VERMELHO) ---
+            fig_esq = px.box(df_plot_esq, x="dias_esquecido", title="Distribuição: Dias sem Evolução (Abandono)", 
+                             points="outliers", color_discrete_sequence=['#ef4444'], range_x=limite_x)
+            
+            # Injetar Linhas P10 e P90 (Fronteiras de Eficiência e Garantia)
+            for val, label in zip([p10_esq, p90_esq], ["P10", "P90"]):
+                fig_esq.add_vline(x=val, line_dash="dash", line_color="#4b5563", opacity=0.7)
+                fig_esq.add_annotation(x=val, y=0.8, text=f"{label}: {int(val)}d", showarrow=False, font=dict(size=10, color="#4b5563"), bgcolor="rgba(255,255,255,0.8)")
+            
+            fig_esq.update_layout(height=200, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=40, b=40))
+            fig_esq.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f1f5f9')
+            st.plotly_chart(fig_esq, use_container_width=True, config={'displayModeBar': False})
+
+            # --- RENDERIZAÇÃO: BOXPLOT CADASTRO (AZUL) ---
+            fig_fila = px.box(df_plot_fila, x="dias_fila", title="Distribuição: Dias de Espera (Cadastro)", 
+                              points="outliers", color_discrete_sequence=['#3b82f6'], range_x=limite_x)
+            
+            # Injetar Linhas P10 e P90
+            for val, label in zip([p10_fila, p90_fila], ["P10", "P90"]):
+                fig_fila.add_vline(x=val, line_dash="dash", line_color="#4b5563", opacity=0.7)
+                fig_fila.add_annotation(x=val, y=0.8, text=f"{label}: {int(val)}d", showarrow=False, font=dict(size=10, color="#4b5563"), bgcolor="rgba(255,255,255,0.8)")
+                
+            fig_fila.update_layout(height=200, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=40, b=40))
+            fig_fila.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f1f5f9')
+            st.plotly_chart(fig_fila, use_container_width=True, config={'displayModeBar': False})
+            
+            if len(df_dist) > len(df_plot_fila) or len(df_dist) > len(df_plot_esq):
+                st.caption(f"ℹ️ Escala otimizada (outliers extremos ocultos). Mediana e Quartis preservados.")
+
+            # --- 2. INDICADORES P90 (PADRÃO ST.METRIC PARA CONSISTÊNCIA VISUAL) ---
+            st.write(" ")
+            g_p90_1, g_p90_2 = st.columns(2)
+            
+            with g_p90_1:
+                st.metric(
+                    label="⏱️ P90 Tempo de Fila", 
+                    value=f"{p90_lead_time} dias", 
+                    help="90% da rede espera até este limite de dias desde o cadastro para o agendamento."
+                )
+            
+            with g_p90_2:
+                st.metric(
+                    label="⏳ P90 Tempo Esquecido", 
+                    value=f"{p90_esquecido} dias", 
+                    help="90% da rede não recebe atualizações clínicas há até este limite de dias."
+                )
+
+            # 3. GAUGES (FINAL DA SEÇÃO)
+            st.write(" ")
+            g1, g2 = st.columns(2)
+            with g1:
+                fig_gauge1 = go.Figure(go.Indicator(mode="gauge+number+delta", value=taxa_urgencia, number={'suffix': "%", 'font': {'color': '#4B5563'}}, title={'text': "Índice de Gravidade", 'font': {'size': 14}},
+                    gauge={'axis': {'range': [0, 100]}, 'bar': {'color': "#ef4444" if taxa_urgencia > 30 else "#f97316"}, 'bgcolor': "rgba(0,0,0,0)", 'steps': [{'range': [0, 15], 'color': '#dcfce7'}, {'range': [15, 30], 'color': '#fef08a'}, {'range': [30, 100], 'color': '#fee2e2'}]}))
+                fig_gauge1.update_layout(height=220, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)")
+                st.plotly_chart(fig_gauge1, use_container_width=True, config={'displayModeBar': False})
+            with g2:
+                fig_gauge2 = go.Figure(go.Indicator(mode="gauge+number", value=taxa_vencidos, number={'suffix': "%", 'font': {'color': '#4B5563'}}, title={'text': "Quebra de SLA (>180d)", 'font': {'size': 14}},
+                    gauge={'axis': {'range': [0, 100]}, 'bar': {'color': "#1e293b"}, 'bgcolor': "rgba(0,0,0,0)", 'steps': [{'range': [0, 10], 'color': '#dcfce7'}, {'range': [10, 25], 'color': '#fef08a'}, {'range': [25, 100], 'color': '#fee2e2'}]}))
+                fig_gauge2.update_layout(height=220, margin=dict(l=20, r=20, t=40, b=20), paper_bgcolor="rgba(0,0,0,0)")
+                st.plotly_chart(fig_gauge2, use_container_width=True, config={'displayModeBar': False})
+
+        st.divider()
+
 
     with t_macro:
         st.subheader("Governança e Saúde do Fluxo")
@@ -541,7 +724,8 @@ def main():
             # Matriz de Risco (Donut)
             df_risco = query_db(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1")
             if not df_risco.empty:
-                st.plotly_chart(px.pie(df_risco, values='Vol', names='Risco Cor', hole=0.5, color='Risco Cor', color_discrete_map=cmap, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
+                # SRE FIX: Usando a nova variável global MAPA_CORES_RISCO
+                st.plotly_chart(px.pie(df_risco, values='Vol', names='Risco Cor', hole=0.5, color='Risco Cor', color_discrete_map=MAPA_CORES_RISCO, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
             
         with c2:
             # Funil de Jornada (Conversão)
@@ -559,7 +743,7 @@ def main():
         df_sit = query_db(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
         st.plotly_chart(px.bar(df_sit, x='Situação', y='Vol', title="Situação Geral da Rede", color='Situação', template="plotly_white"), use_container_width=True, config={'displayModeBar': False})
 
-    with t_meso:
+    with t_clin:
         st.subheader("Inteligência Clínica & Perfil Demográfico")
         
         # Sunburst Hierárquico de 3 Níveis: Especialidade Mãe -> Especialidade Fina -> CID
@@ -678,18 +862,18 @@ def main():
             df_math = df_pivot_vol.copy().astype(float)
             
             # --- 4. MOTOR ESTATÍSTICO (Vetorização Pandas) ---
-            cmap = 'Magma' 
+            paleta_heatmap = 'Magma' 
             
             if modo_heatmap == OPT_CID:
                 medias_linhas = df_math.mean(axis=1)
                 desvios_linhas = df_math.std(axis=1).replace(0, 1)
                 df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
-                cmap = 'RdBu_r' 
+                paleta_heatmap = 'RdBu_r' 
             elif modo_heatmap == OPT_MED:
                 medias_colunas = df_math.mean(axis=0)
                 desvios_colunas = df_math.std(axis=0).replace(0, 1)
                 df_math = df_math.sub(medias_colunas, axis=1).div(desvios_colunas, axis=1)
-                cmap = 'RdBu_r'
+                paleta_heatmap = 'RdBu_r'
 
             # --- 5. FORMATADOR DE TEXTO VISUAL ---
             if modo_heatmap == OPT_ABS:
@@ -701,7 +885,7 @@ def main():
             fig_heat = px.imshow(
                 df_math, 
                 aspect="auto", 
-                color_continuous_scale=cmap,
+                color_continuous_scale=paleta_heatmap,
                 color_continuous_midpoint=0 if modo_heatmap != OPT_ABS else None, 
                 title=f"Matriz de Concentração: Top {top_x} CIDs vs Top {top_x} Médicos",
                 labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Métrica")
@@ -753,27 +937,16 @@ def main():
                 LIMIT 3000
             """)
             if not df_outliers.empty:
-                # 1. Definimos o Dicionário de Cores Clínicas
-                cmap_risco = {
-                    'VERMELHO': '#ef4444', 
-                    'LARANJA': '#f97316', 
-                    'AMARELO': '#eab308', 
-                    'VERDE': '#22c55e', 
-                    'AZUL': '#3b82f6',
-                    'BRANCO': '#e5e7eb',
-                    'Não Informado': '#9ca3af'
-                }
-
                 # 2. Prevenção de Nós Vazios
                 df_outliers['Risco Cor'] = df_outliers['Risco Cor'].replace('', 'Não Informado').fillna('Não Informado')
 
-                # 3. Plotagem do Scatter com os parâmetros matematicamente corretos
+                # 3. Plotagem do Scatter com os parâmetros matematicamente corretos usando a global
                 fig_out = px.scatter(
                     df_outliers, 
                     x='DiasFila', 
                     y='Pontos', 
                     color='Risco Cor',
-                    color_discrete_map=cmap_risco,
+                    color_discrete_map=MAPA_CORES_RISCO,
                     opacity=0.7,
                     size='Pontos',
                     hover_data=['Protocolo'],

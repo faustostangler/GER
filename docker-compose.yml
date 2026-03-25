@@ -1,8 +1,8 @@
 # --- SOTA DOCKER COMPOSE: Modular Monolith orchestration ---
-version: '3.8'
+# Integrating Ofelia for Docker-Native Job Scheduling (SRE/GitOps Ready)
 
 services:
-  # Analytics Layer (Presentation BFF)
+  # Analytics Layer (Presentation BFF & Primary Runtime)
   analytics:
     build: .
     container_name: ger-analytics
@@ -20,21 +20,26 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+    labels:
+      # JOB: Daily Sync Pipeline (03:00 AM)
+      # Atomic: Scraper -> Processor -> Parquet
+      - "ofelia.enabled=true"
+      - "ofelia.job-run.ger-daily-sync.schedule=0 0 3 * * *"
+      - "ofelia.job-run.ger-daily-sync.container=ger-analytics"
+      - "ofelia.job-run.ger-daily-sync.command=sh -c 'export HEADLESS=True && python worker.py'"
 
-  # Scraper Worker Role (Operational Role)
-  scraper:
-    build: .
-    container_name: ger-scraper
-    env_file:
-      - env/creds.env
-      - env/config.env
+  # Orquestração: Ofelia (SOTA Docker Scheduler)
+  # Monitoring Docker Events without external dependencies.
+  scheduler:
+    image: mcuadros/ofelia:latest
+    container_name: ger-scheduler
+    depends_on:
+      - analytics
     volumes:
-      - .:/app
-    command: ["python", "master_scraper.py"]
-    # We don't restart automatically here if it's meant to be a scheduled job, 
-    # but for a "Modular Monolith" concept, it represents the operational background role.
-    restart: on-failure
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    restart: unless-stopped
 
 networks:
   default:
     name: ger-infra-mesh
+
