@@ -406,29 +406,103 @@ def main():
     has_active_filters = any(len(v) > 0 for v in ui_filters.values())
     
     if has_active_filters:
-        with st.expander("🔍 **VISUALIZAR E LIMPAR FILTROS APLICADOS**", expanded=True):
+        with st.container(border=True):
+            st.markdown("""
+            <style>
+                /* 1. Zera o tamanho das colunas para envolver apenas o texto */
+                [data-testid="column"]:has(.text-link-marker) {
+                    width: fit-content !important;
+                    flex: 0 0 auto !important;
+                    min-width: 0 !important;
+                    padding: 0 0.8rem 0 0 !important; 
+                }
+                /* 2. Garante que cada st.columns fique numa linha, alinhado à esquerda */
+                [data-testid="stHorizontalBlock"]:has(.text-link-marker) {
+                    align-items: center !important;
+                    justify-content: flex-start !important;
+                    gap: 0 !important;
+                    flex-wrap: wrap !important;
+                }
+                
+                /* SRE FIX: Remoção da margem inferior da Categoria para "colar" na linha de baixo */
+                [data-testid="stHorizontalBlock"]:has(.header-link-marker) {
+                    margin-bottom: 0.1rem !important;
+                }
+                
+                /* SRE FIX: Adiciona um leve recuo (identação) e margem inferior aos filtros individuais */
+                [data-testid="stHorizontalBlock"]:has(.item-link-marker) {
+                    padding-left: 1.2rem !important;
+                    margin-bottom: 0.6rem !important;
+                }
+                
+                /* 3. A ANIQUILAÇÃO DO STBASEBUTTON-SECONDARY */
+                [data-testid="column"]:has(.text-link-marker) button,
+                [data-testid="column"]:has(.text-link-marker) .stBaseButton-secondary {
+                    background-color: transparent !important;
+                    border: none !important;
+                    box-shadow: none !important;
+                    padding: 0 !important;         
+                    margin: 0 !important;
+                    height: auto !important;
+                    min-height: unset !important;
+                    color: #4B5563 !important;
+                    font-size: 0.85rem !important;
+                    line-height: 1.2 !important;
+                    display: inline !important;    
+                    transition: all 0.2s ease;
+                }
+                
+                /* 4. Efeito Hover: O texto fica vermelho e é riscado */
+                [data-testid="column"]:has(.text-link-marker) button:hover,
+                [data-testid="column"]:has(.text-link-marker) .stBaseButton-secondary:hover {
+                    color: #ef4444 !important;
+                    text-decoration: line-through !important;
+                    background-color: transparent !important;
+                }
+                
+                /* 5. Estilo do Cabeçalho da Categoria (Negrito e cor mais forte) */
+                [data-testid="column"]:has(.header-link-marker) button {
+                    font-weight: 700 !important;
+                    color: #1e293b !important;
+                    font-size: 0.90rem !important;
+                }
+                
+                /* 6. O botão "Limpar Filtros" Global */
+                [data-testid="column"]:has(.global-link-marker) button {
+                    font-weight: 800 !important;
+                    color: #0f172a !important;
+                    font-size: 0.95rem !important;
+                }
+            </style>
+            """, unsafe_allow_html=True)
+            
+            # --- LINHA 1: TÍTULO GLOBAL (AÇÃO DE LIMPAR TUDO) ---
+            all_keys = [key for sublist in state_keys.values() for key in sublist]
+            c_top = st.columns(1)
+            with c_top[0]:
+                st.markdown("<div class='text-link-marker global-link-marker' style='display:none;'></div>", unsafe_allow_html=True)
+                st.button("🗑️ Limpar Todos os Filtros", key="btn_clear_all", on_click=clear_filter_state, args=(all_keys,))
+            
+            st.markdown("<hr style='margin: 0.1rem 0 0.5rem 0; border-color: #f1f5f9;'>", unsafe_allow_html=True)
+
+            # --- LINHA 2 EM DIANTE: CATEGORIA E SEUS FILTROS ---
             for category, filters in ui_filters.items():
                 if filters:
-                    # UX: Separa o Emoji do Nome da Categoria (Ex: "⚠️ Triagem" -> "Triagem")
-                    clean_cat_name = category.split(' ', 1)[1] if ' ' in category else category
+                    # ROW A: Apenas o Cabeçalho da Categoria
+                    c_cat = st.columns(1)
+                    with c_cat[0]:
+                        st.markdown("<div class='text-link-marker header-link-marker' style='display:none;'></div>", unsafe_allow_html=True)
+                        st.button(f"{category} 🗑️", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
                     
-                    st.markdown(f"<div class='filter-category-title'>{category}</div>", unsafe_allow_html=True)
-                    
-                    # Cria uma grelha de 3 colunas para colocar os botões lado-a-lado (formato pílula)
-                    cols = st.columns(3) 
+                    # ROW B: Os Filtros Individuais na linha de baixo
+                    cols = st.columns(len(filters))
                     for i, f in enumerate(filters):
-                        # Se clicar no botão ✖, o Streamlit apaga instantaneamente APENAS as chaves ligadas a ele
-                        cols[i % 3].button(f"{f['text']} ✖", key=f"clr_item_{category}_{i}", on_click=clear_filter_state, args=(f['keys'],))
-                    
-                    # Botão para varrer a categoria inteira
-                    st.button(f"🗑️ Limpar {clean_cat_name}", key=f"btn_clr_{category}", on_click=clear_filter_state, args=(state_keys[category],))
-                    st.markdown("---")
-            
-            # Botão de Reset Absoluto (Cor padrão neutra, não mais vermelha/primária)
-            all_keys = [key for sublist in state_keys.values() for key in sublist]
-            st.button("🗑️ Limpar Tudo", on_click=clear_filter_state, args=(all_keys,))
-    else:
-        st.info("ℹ️ Nenhum filtro aplicado. A exibir a totalidade da base de dados.")
+                        with cols[i]:
+                            # A classe 'item-link-marker' aciona o padding-left no CSS para criar a identação visual
+                            st.markdown(f"<div class='text-link-marker item-link-marker' style='display:none;'></div>", unsafe_allow_html=True)
+                            st.button(f"{f['text']} ✖", key=f"clr_item_{category}_{i}", on_click=clear_filter_state, args=(f['keys'],))
+        
+        st.write(" ") # Um micro-espaçamento logo antes dos KPIs para respirar
 
     # ==========================================
     # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
