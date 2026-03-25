@@ -192,15 +192,70 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     
     return " AND ".join(clauses)
 
-def render_range_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
-    cat_keys.append(key)
+def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+    """SRE UX FIX: Slider bidirecional sincronizado com inputs numéricos para precisão cirúrgica."""
+    cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
     vmin, vmax = get_global_bounds(column, is_date=False)
+    
     if vmin is not None and vmax is not None and vmin != vmax:
         vmin_val, vmax_val = int(vmin), int(vmax)
-        val = st.slider(label, vmin_val, vmax_val, (vmin_val, vmax_val), key=key)
+        
+        # Inicializa o estado com os limites do banco se não existir
+        if f"{key}_min" not in st.session_state: st.session_state[f"{key}_min"] = vmin_val
+        if f"{key}_max" not in st.session_state: st.session_state[f"{key}_max"] = vmax_val
+        
+        st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+        
+        # Callbacks de Sincronização de Estado (Evita loops infinitos)
+        def sync_slider():
+            st.session_state[f"{key}_min"] = st.session_state[f"{key}_sld"][0]
+            st.session_state[f"{key}_max"] = st.session_state[f"{key}_sld"][1]
+            
+        def sync_num():
+            # Proteção contra inversão de valores (min > max)
+            safe_min = min(st.session_state[f"{key}_min"], st.session_state[f"{key}_max"])
+            safe_max = max(st.session_state[f"{key}_min"], st.session_state[f"{key}_max"])
+            st.session_state[f"{key}_sld"] = (safe_min, safe_max)
+        
+        c1, c2 = st.columns(2)
+        c1.number_input("Mínimo", min_value=vmin_val, max_value=vmax_val, key=f"{key}_min", on_change=sync_num, label_visibility="collapsed")
+        c2.number_input("Máximo", min_value=vmin_val, max_value=vmax_val, key=f"{key}_max", on_change=sync_num, label_visibility="collapsed")
+        
+        val = st.slider(label, vmin_val, vmax_val, (st.session_state[f"{key}_min"], st.session_state[f"{key}_max"]), key=f"{key}_sld", on_change=sync_slider, label_visibility="collapsed")
+        
         if val[0] > vmin_val or val[1] < vmax_val:
-            ui_tracker.append({"text": f"{label}: {val[0]} a {val[1]}", "keys": [key]})
+            ui_tracker.append({"text": f"{label}: {val[0]} a {val[1]}", "keys": [f"{key}_sld", f"{key}_min", f"{key}_max"]})
             clauses.append(f"TRY_CAST(\"{column}\" AS INTEGER) BETWEEN {val[0]} AND {val[1]}")
+            
+    return " AND ".join(clauses)
+
+def render_age_slider(label: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+    """Componente de Domínio para Idade: Converte Faixa Etária visível para DATEDIFF no SQL OLAP."""
+    cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
+    vmin_val, vmax_val = 0, 120 # Limites razoáveis hardcoded para evitar subquerys desnecessárias
+    
+    if f"{key}_min" not in st.session_state: st.session_state[f"{key}_min"] = vmin_val
+    if f"{key}_max" not in st.session_state: st.session_state[f"{key}_max"] = vmax_val
+    
+    st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+    
+    def sync_slider_age():
+        st.session_state[f"{key}_min"] = st.session_state[f"{key}_sld"][0]
+        st.session_state[f"{key}_max"] = st.session_state[f"{key}_sld"][1]
+    def sync_num_age():
+        safe_min = min(st.session_state[f"{key}_min"], st.session_state[f"{key}_max"])
+        safe_max = max(st.session_state[f"{key}_min"], st.session_state[f"{key}_max"])
+        st.session_state[f"{key}_sld"] = (safe_min, safe_max)
+    
+    c1, c2 = st.columns(2)
+    c1.number_input("Idade Min", min_value=vmin_val, max_value=vmax_val, key=f"{key}_min", on_change=sync_num_age, label_visibility="collapsed")
+    c2.number_input("Idade Max", min_value=vmin_val, max_value=vmax_val, key=f"{key}_max", on_change=sync_num_age, label_visibility="collapsed")
+    
+    val = st.slider(label, vmin_val, vmax_val, (st.session_state[f"{key}_min"], st.session_state[f"{key}_max"]), key=f"{key}_sld", on_change=sync_slider_age, label_visibility="collapsed")
+    
+    if val[0] > vmin_val or val[1] < vmax_val:
+        ui_tracker.append({"text": f"{label}: {val[0]} a {val[1]} anos", "keys": [f"{key}_sld", f"{key}_min", f"{key}_max"]})
+        clauses.append(f"date_diff('year', TRY_CAST(\"Data de Nascimento\" AS DATE), CURRENT_DATE) BETWEEN {val[0]} AND {val[1]}")
     return " AND ".join(clauses)
 
 def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
@@ -237,13 +292,17 @@ def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui
         
     return " AND ".join(clauses)
 
-def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, aggregate_by: str = None):
+def render_advanced_text_search(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, aggregate_by: str = None, default_toggle: bool = False):
     """
     Renderiza um Toggle com lógica Booleana, tolerância a Acentos e suporte a Wildcards (*).
     Se aggregate_by for passado, utiliza 'bool_or' (Single-pass OLAP).
+    Adicionado 'default_toggle' para permitir Busca Profunda já aberta (Ex: Evoluções).
     """
     cat_keys.extend([f"{key}_toggle", f"{key}_and_val", f"{key}_or_val", f"{key}_not_val"])
     
+    if f"{key}_toggle" not in st.session_state:
+        st.session_state[f"{key}_toggle"] = default_toggle
+        
     for suffix in ["and", "or", "not"]:
         if f"{key}_{suffix}_val" not in st.session_state:
             st.session_state[f"{key}_{suffix}_val"] = ""
@@ -361,23 +420,70 @@ def main():
     clauses = ["1=1"]
     curr_where = "1=1"
 
+    # ==========================================
+    # SRE FIX: DICIONÁRIO MESTRE (MANTÉM CONSISTÊNCIA DE ORDEM UI/UX)
+    # ==========================================
     ui_filters = {
-        "📅 Ciclo de Vida (Datas)": [], "🌍 Demografia & Rede": [], 
-        "🩺 Clínico & Regulação": [], "⚠️ Triagem & Pontuação": [], 
-        "🏛️ Governança & Atores": [], "📝 Logs Clínicos (Eventos)": []
+        "🩺 Clínico & Regulação": [], 
+        "🏛️ Governança & Atores": [], 
+        "⚠️ Triagem & Pontuação": [], 
+        "📅 Ciclo de Vida (Datas)": [], 
+        "🌍 Demografia & Rede": [], 
+        "📝 Evoluções": []
     }
     state_keys = {k: [] for k in ui_filters.keys()}
 
     # ==========================================
-    # CASCADING SIDEBAR (TOP-DOWN FLOW)
+    # CASCADING SIDEBAR (TOP-DOWN FLOW OTIMIZADO)
     # ==========================================
     st.sidebar.header("🎛️ Filtros em Cascata")
 
+    cat = "🩺 Clínico & Regulação"
+    with st.sidebar.expander(cat, expanded=False):
+        curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat])
+        st.markdown("---")
+        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
+        st.markdown("---")
+        curr_where = " AND ".join(clauses)
+        curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat])
+
+    cat = "🏛️ Governança & Atores"
+    with st.sidebar.expander(cat, expanded=False):
+        curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat])
+        st.markdown("---")
+        state_keys[cat].append("oj_radio")
+        oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
+        if oj == "Sim": 
+            ui_filters[cat].append({"text": "Ordem Judicial: Sim", "keys": ["oj_radio"]})
+            clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
+        elif oj == "Não": 
+            ui_filters[cat].append({"text": "Ordem Judicial: Não", "keys": ["oj_radio"]})
+            clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
+        curr_where = " AND ".join(clauses)
+
+    cat = "⚠️ Triagem & Pontuação"
+    with st.sidebar.expander(cat, expanded=False):
+        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat])
+        
+        st.markdown("---")
+        # Usando os novos componentes SOTA com dupla inserção (Slider + Type)
+        curr_where = render_dual_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
+
     cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
-        # Substitui todo o código hardcoded pela nossa função SOTA
         curr_where = render_smart_date_range("Data de Solicitação", "Data Solicitação", clauses, "dt_solic", ui_filters[cat], state_keys[cat])
-        st.write(" ") # Pequeno espaçamento
+        st.write(" ")
         curr_where = render_smart_date_range("Data do Cadastro", "Data do Cadastro", clauses, "dt_cad", ui_filters[cat], state_keys[cat])
         st.write(" ")
         curr_where = render_smart_date_range("Data da Evolução", "Data_Evolucao", clauses, "dt_evo", ui_filters[cat], state_keys[cat])
@@ -387,85 +493,38 @@ def main():
         curr_where = render_include_exclude("Município de Residência", "Município de Residência", clauses, curr_where, "mun", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Bairro", "Bairro", clauses, curr_where, "bai", ui_filters[cat], state_keys[cat])
         
+        # Logradouro com a condicional injetando a numeração dento da Deep Search
         render_advanced_text_search("Logradouro", "Logradouro", clauses, "txt_logr", ui_filters[cat], state_keys[cat])
+        if st.session_state.get("txt_logr_toggle", False):
+            st.markdown("<div style='margin-left: 1rem; border-left: 2px solid #cbd5e1; padding-left: 0.5rem;'>", unsafe_allow_html=True)
+            state_keys[cat].extend(["num_min", "num_max"])
+            num_min, num_max = st.columns(2)
+            v_nmin = num_min.number_input("Nº Min", value=0, step=10, key="num_min")
+            v_nmax = num_max.number_input("Nº Max", value=99999, step=100, key="num_max")
+            if v_nmin > 0 or v_nmax < 99999: 
+                ui_filters[cat].append({"text": f"Nº Logradouro: {v_nmin} a {v_nmax}", "keys": ["num_min", "num_max"]})
+                clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
+            st.markdown("</div>", unsafe_allow_html=True)
         
-        st.write(" ")
-        state_keys[cat].extend(["num_min", "num_max"])
-        num_min, num_max = st.columns(2)
-        v_nmin = num_min.number_input("Número Min", value=0, step=10, key="num_min")
-        v_nmax = num_max.number_input("Número Max", value=99999, step=100, key="num_max")
-        if v_nmin > 0 or v_nmax < 99999: 
-            ui_filters[cat].append({"text": f"Nº: {v_nmin} a {v_nmax}", "keys": ["num_min", "num_max"]})
-            clauses.append(f"TRY_CAST(\"Número\" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}")
-        
-        state_keys[cat].append("dt_nasc")
-        dt_nasc = st.date_input("Data Nascimento (Range)", value=[], key="dt_nasc")
-        if len(dt_nasc) == 2: 
-            ui_filters[cat].append({"text": f"Nascimento: {dt_nasc[0].strftime('%d/%m/%Y')} a {dt_nasc[1].strftime('%d/%m/%Y')}", "keys": ["dt_nasc"]})
-            clauses.append(f"CAST(\"Data de Nascimento\" AS DATE) BETWEEN '{dt_nasc[0]}' AND '{dt_nasc[1]}'")
+        st.divider() # --- Separador Visual de Identificação Pessoal ---
         
         curr_where = " AND ".join(clauses)
-        curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat])
+        
+        # Novo componente que injeta idade (ao invés de calendário de Data Nasc)
+        curr_where = render_age_slider("Faixa Etária (Idade)", clauses, "f_idade", ui_filters[cat], state_keys[cat])
+        
+        curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat])
 
-    cat = "🩺 Clínico & Regulação"
+    cat = "📝 Evoluções"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Teleconsulta", "Teleconsulta", clauses, curr_where, "tele", ui_filters[cat], state_keys[cat])
-        
-        st.markdown("---")
-        curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat])
-        
-        st.markdown("---")
-        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
-        render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
-        curr_where = " AND ".join(clauses)
-
-    cat = "⚠️ Triagem & Pontuação"
-    with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat])
-        
-        curr_where = render_range_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
-        curr_where = render_range_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
-        curr_where = render_range_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
-
-    cat = "🏛️ Governança & Atores"
-    with st.sidebar.expander(cat, expanded=False):
-        state_keys[cat].append("oj_radio")
-        oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
-        if oj == "Sim": 
-            ui_filters[cat].append({"text": "Ordem Judicial: Sim", "keys": ["oj_radio"]})
-            clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
-        elif oj == "Não": 
-            ui_filters[cat].append({"text": "Ordem Judicial: Não", "keys": ["oj_radio"]})
-            clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
-        
-        curr_where = " AND ".join(clauses)
-        curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat])
-        
-        st.markdown("---")
-        curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Operador", "Operador", clauses, curr_where, "oper", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Usuário Solicitante", "Usuário Solicitante", clauses, curr_where, "usr_sol", ui_filters[cat], state_keys[cat])
-        curr_where = " AND ".join(clauses)
-
-    cat = "📝 Logs Clínicos (Eventos)"
-    with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat])
-        
+        # Evoluções (Pré-Ativado via default_toggle=True)
+        render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo", default_toggle=True)
         st.markdown("---")
         render_advanced_text_search("Origem da Informação", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
-        
-        # AQUI ACONTECE A MÁGICA CLÍNICA: Agregação pelo Protocolo inteiro
-        render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo")
+        st.write(" ")
+        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat])
 
     # ==========================================
     # VISUALIZAR E LIMPAR FILTROS ATIVOS (TOP BAR)
