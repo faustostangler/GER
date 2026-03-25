@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from datetime import date, timedelta
+from datetime import date
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
 st.set_page_config(page_title="Gercon Analytics | RCA", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
@@ -23,8 +23,7 @@ def inject_custom_css():
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
         hr { margin-top: 1rem; margin-bottom: 1rem; }
-        .filter-badge { display: inline-block; background-color: #e0f2fe; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.85rem; font-weight: 500; margin-right: 0.5rem; margin-bottom: 0.5rem; border: 1px solid #bfdbfe;}
-        .filter-category-title { font-weight: 600; font-size: 0.9rem; color: #374151; margin-bottom: 0.3rem;}
+        .deep-search-bar { border-left: 4px solid #3b82f6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
         .deep-search-bar { border-left: 4px solid #3b82f6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
         .aggregate-search-bar { border-left: 4px solid #8b5cf6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
 
@@ -116,11 +115,8 @@ def get_global_bounds(column: str, is_date=False):
 def clear_filter_state(keys_to_clear: list):
     for key in keys_to_clear:
         if key in st.session_state:
-            if key.endswith("_in") or key.endswith("_ex") or key in ["dt_solic", "dt_cad", "dt_evo", "dt_nasc"]:
+            if key.endswith("_in") or key.endswith("_ex"):
                 st.session_state[key] = []
-            elif key.endswith("_preset"): 
-                # SRE FIX: Volta para Personalizado ao limpar filtros
-                st.session_state[key] = "Personalizado"
             elif key.endswith("_val"): 
                 st.session_state[key] = ""
             elif key.endswith("_toggle"): 
@@ -136,35 +132,6 @@ def clear_filter_state(keys_to_clear: list):
                     del st.session_state[key]
                 except:
                     pass
-
-# Callbacks para o Seletor de Datas Inteligente
-def handle_preset_change(preset_key, date_key):
-    preset = st.session_state[preset_key]
-    today = date.today()
-    
-    if preset == "Hoje":
-        st.session_state[date_key] = (today, today)
-    elif preset == "Últimos 7 Dias (Past 7)":
-        st.session_state[date_key] = (today - timedelta(days=7), today)
-    elif preset == "Últimos 30 Dias (Past 30)":
-        st.session_state[date_key] = (today - timedelta(days=30), today)
-    elif preset == "Início da Semana até Hoje":
-        st.session_state[date_key] = (today - timedelta(days=today.weekday()), today)
-    elif preset == "Início do Mês até Hoje":
-        st.session_state[date_key] = (today.replace(day=1), today)
-    elif preset == "Início do Semestre até Hoje":
-        start_sem = today.replace(month=1 if today.month <= 6 else 7, day=1)
-        st.session_state[date_key] = (start_sem, today)
-    elif preset == "Início do Ano até Hoje":
-        st.session_state[date_key] = (today.replace(month=1, day=1), today)
-    elif preset == "Últimos 2 Anos até Hoje":
-        try: start_2y = today.replace(year=today.year - 2)
-        except ValueError: start_2y = today.replace(year=today.year - 2, day=28) # Previne erro em anos bissextos
-        st.session_state[date_key] = (start_2y, today)
-
-def handle_date_change(preset_key):
-    # Se o utilizador alterar o calendário manualmente, desmarca o preset
-    st.session_state[preset_key] = "Personalizado"
 
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
 def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, cat_keys: list):
@@ -259,35 +226,21 @@ def render_age_slider(label: str, clauses: list, key: str, ui_tracker: list, cat
     return " AND ".join(clauses)
 
 def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
-    preset_key = f"{key}_preset"
-    cat_keys.extend([preset_key, key])
+    """SRE UX FIX: Usa exclusivamente o seletor nativo do Streamlit, que já traz Range e Presets embutidos."""
+    cat_keys.append(key)
     
-    presets = [
-        "Personalizado", 
-        "Hoje", 
-        "Últimos 7 Dias (Past 7)",
-        "Últimos 30 Dias (Past 30)",
-        "Início da Semana até Hoje", 
-        "Início do Mês até Hoje", 
-        "Início do Semestre até Hoje", 
-        "Início do Ano até Hoje", 
-        "Últimos 2 Anos até Hoje"
-    ]
-    
-    if preset_key not in st.session_state:
-        st.session_state[preset_key] = "Personalizado"
+    # Inicializa como tupla vazia para forçar o date_input a atuar no modo Range (Início - Fim)
+    if key not in st.session_state:
+        st.session_state[key] = ()
         
     st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
     
-    # 1. Seletor de Intervalo Rápido (Vem ANTES)
-    st.selectbox("Período Rápido", presets, key=preset_key, on_change=handle_preset_change, args=(preset_key, key), label_visibility="collapsed")
+    # Renderiza o input diretamente na sidebar. Sem popovers, sem botões extras.
+    val = st.date_input(label, key=key, label_visibility="collapsed")
     
-    # 2. Calendário (Vem DEPOIS, reflete o que foi escolhido acima)
-    val = st.date_input(label, key=key, on_change=handle_date_change, args=(preset_key,), label_visibility="collapsed")
-    
-    # Validação segura (evita crash se o utilizador selecionar apenas a data de início e não a do fim)
+    # Construtor do OLAP
     if isinstance(val, tuple) and len(val) == 2:
-        ui_tracker.append({"text": f"{label}: {val[0].strftime('%d/%m/%Y')} a {val[1].strftime('%d/%m/%Y')}", "keys": [key, preset_key]})
+        ui_tracker.append({"text": f"{label}: {val[0].strftime('%d/%m/%Y')} a {val[1].strftime('%d/%m/%Y')}", "keys": [key]})
         clauses.append(f"CAST(\"{column}\" AS DATE) BETWEEN '{val[0]}' AND '{val[1]}'")
         
     return " AND ".join(clauses)
@@ -350,22 +303,21 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
                 # ESTRATÉGIA OLAP: AGRUPAMENTO POR ENTIDADE (PACIENTE)
                 if aggregate_by:
                     having_conds = []
-                    
                     if or_terms:
-                        ui_tracker.append({"text": f"{label} (OR Global): {or_terms}", "keys": [f"{key}_or_val", f"{key}_or"]})
+                        ui_tracker.append({"text": f"✅ {label}: {or_terms}", "keys": [f"{key}_or_val", f"{key}_or"]})
                         words = [w for w in or_terms.split(',') if w.strip()]
                         if words:
                             or_expr = [f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}'))" for w in words]
                             having_conds.append(f"({' OR '.join(or_expr)})")
 
                     if and_terms:
-                        ui_tracker.append({"text": f"{label} (AND Global): {and_terms}", "keys": [f"{key}_and_val", f"{key}_and"]})
+                        ui_tracker.append({"text": f"⚠️ AND {label}: {and_terms}", "keys": [f"{key}_and_val", f"{key}_and"]})
                         for w in [w for w in and_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             having_conds.append(f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}'))")
                             
                     if not_terms:
-                        ui_tracker.append({"text": f"{label} (NOT Global): {not_terms}", "keys": [f"{key}_not_val", f"{key}_not"]})
+                        ui_tracker.append({"text": f"❌ {label}: {not_terms}", "keys": [f"{key}_not_val", f"{key}_not"]})
                         for w in [w for w in not_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             having_conds.append(f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')) = FALSE")
@@ -377,20 +329,20 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
                 # ESTRATÉGIA NORMAL: FILTRO POR EVENTO/LINHA
                 else:
                     if or_terms:
-                        ui_tracker.append({"text": f"{label} (OR Linha): {or_terms}", "keys": [f"{key}_or_val", f"{key}_or"]})
+                        ui_tracker.append({"text": f"✅ {label}: {or_terms}", "keys": [f"{key}_or_val", f"{key}_or"]})
                         words = [w for w in or_terms.split(',') if w.strip()]
                         if words:
                             or_expr = [f"strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}')" for w in words]
                             clauses.append(f"({' OR '.join(or_expr)})")
 
                     if and_terms:
-                        ui_tracker.append({"text": f"{label} (AND Linha): {and_terms}", "keys": [f"{key}_and_val", f"{key}_and"]})
+                        ui_tracker.append({"text": f"⚠️ AND {label}: {and_terms}", "keys": [f"{key}_and_val", f"{key}_and"]})
                         for w in [w for w in and_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             clauses.append(f"strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')")
                             
                     if not_terms:
-                        ui_tracker.append({"text": f"{label} (NOT Linha): {not_terms}", "keys": [f"{key}_not_val", f"{key}_not"]})
+                        ui_tracker.append({"text": f"❌ {label}: {not_terms}", "keys": [f"{key}_not_val", f"{key}_not"]})
                         for w in [w for w in not_terms.split(',') if w.strip()]:
                             p_term = parse_term(w)
                             clauses.append(f"strip_accents(\"{column}\") NOT ILIKE strip_accents('{p_term}')")
@@ -443,12 +395,12 @@ def main():
         curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat])
         st.markdown("---")
-        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
-        render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
-        st.markdown("---")
-        curr_where = " AND ".join(clauses)
         curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat])
+        st.markdown("---")
+        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
+        curr_where = " AND ".join(clauses)
 
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
@@ -475,7 +427,6 @@ def main():
         curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat])
         
         st.markdown("---")
-        # Usando os novos componentes SOTA com dupla inserção (Slider + Type)
         curr_where = render_dual_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
         curr_where = render_dual_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
         curr_where = render_dual_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
@@ -511,7 +462,7 @@ def main():
         curr_where = " AND ".join(clauses)
         curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat])
         
-        # Novo componente que injeta idade (ao invés de calendário de Data Nasc)
+        # Componente que injeta idade (com Slider Duplo)
         curr_where = render_age_slider("Faixa Etária (Idade)", clauses, "f_idade", ui_filters[cat], state_keys[cat])
         
         curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat])
@@ -704,41 +655,76 @@ def main():
                 p90 = df[col].quantile(0.90)
                 return df_clean, p10, p90
 
+            # --- SRE UX FIX: Função para Anotação Integrada no Design do BoxPlot ---
+            def annotate_boxplot(fig, df_clean, col, p10, p90, line_color):
+                # Calculamos os quartis exatamente como o Plotly faz internamente
+                q1 = df_clean[col].quantile(0.25)
+                med = df_clean[col].median()
+                q3 = df_clean[col].quantile(0.75)
+                iqr = q3 - q1
+                
+                # Encontra os valores de Fences (Min/Max excluindo outliers de 1.5x IQR)
+                min_fence = df_clean[df_clean[col] >= q1 - 1.5 * iqr][col].min()
+                max_fence = df_clean[df_clean[col] <= q3 + 1.5 * iqr][col].max()
+                
+                if pd.isna(min_fence): min_fence = df_clean[col].min()
+                if pd.isna(max_fence): max_fence = df_clean[col].max()
+
+                # Separação Top/Bottom em zigue-zague para os textos NUNCA colidirem na UI
+                stats_top = {"Min": min_fence, "Q1": q1, "Q3": q3, "Max": max_fence}
+                stats_bot = {"P10": p10, "Med": med, "P90": p90}
+                
+                # Aplica cor BRANCA aos valores
+                for label, val in stats_top.items():
+                    if pd.notna(val):
+                        fig.add_annotation(x=val, y=0.58, yref="paper", text=f"{label}<br><b>{int(val)}</b>", 
+                                           showarrow=False, font=dict(size=11, color="white"), yanchor="bottom", align="center")
+                
+                for label, val in stats_bot.items():
+                    if pd.notna(val):
+                        fig.add_annotation(x=val, y=0.42, yref="paper", text=f"<b>{int(val)}</b><br>{label}", 
+                                           showarrow=False, font=dict(size=11, color="white"), yanchor="top", align="center")
+                
+                # Desenha os fences pontilhados discretos para P10 e P90 usando a cor original da linha do plot
+                for val in [p10, p90]:
+                    if pd.notna(val):
+                        fig.add_shape(type="line", x0=val, x1=val, y0=0.35, y1=0.65, yref="paper", line=dict(color=line_color, width=2, dash="dot"))
+
             df_plot_fila, p10_fila, p90_fila = get_sre_stats(df_dist, 'dias_fila')
             df_plot_esq, p10_esq, p90_esq = get_sre_stats(df_dist, 'dias_esquecido')
 
-            # Escala Unificada para comparação direta
+            # Escala Unificada para comparação direta (Adicionamos margem negativa para os textos não cortarem)
             max_val = max(df_plot_fila['dias_fila'].max(), df_plot_esq['dias_esquecido'].max()) if not df_plot_fila.empty and not df_plot_esq.empty else 100
-            limite_x = [0, max_val * 1.05]
+            limite_x = [-max_val * 0.08, max_val * 1.08]
 
             # --- RENDERIZAÇÃO: BOXPLOT ABANDONO (VERMELHO) ---
-            fig_esq = px.box(df_plot_esq, x="dias_esquecido", title="Distribuição: Dias sem Evolução (Abandono)", 
+            fig_esq = px.box(df_plot_esq, x="dias_esquecido", title="Abandono: Dias sem Evolução", 
                              points="outliers", color_discrete_sequence=['#ef4444'], range_x=limite_x)
             
-            # Injetar Linhas P10 e P90 (Fronteiras de Eficiência e Garantia)
-            for val, label in zip([p10_esq, p90_esq], ["P10", "P90"]):
-                fig_esq.add_vline(x=val, line_dash="dash", line_color="#4b5563", opacity=0.7)
-                fig_esq.add_annotation(x=val, y=0.8, text=f"{label}: {int(val)}d", showarrow=False, font=dict(size=10, color="#4b5563"), bgcolor="rgba(255,255,255,0.8)")
+            # Aplica a anotação SOTA
+            annotate_boxplot(fig_esq, df_plot_esq, 'dias_esquecido', p10_esq, p90_esq, '#ef4444')
             
-            fig_esq.update_layout(height=200, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=40, b=40))
+            # Remove Hover (SRE UX: Zero Distraction)
+            fig_esq.update_traces(hoverinfo="skip", hovertemplate=None)
+            fig_esq.update_layout(hovermode=False, height=200, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=40, b=40))
             fig_esq.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f1f5f9')
             st.plotly_chart(fig_esq, use_container_width=True, config={'displayModeBar': False})
 
             # --- RENDERIZAÇÃO: BOXPLOT CADASTRO (AZUL) ---
-            fig_fila = px.box(df_plot_fila, x="dias_fila", title="Distribuição: Dias de Espera (Cadastro)", 
+            fig_fila = px.box(df_plot_fila, x="dias_fila", title="Cadastro: Dias de Espera", 
                               points="outliers", color_discrete_sequence=['#3b82f6'], range_x=limite_x)
             
-            # Injetar Linhas P10 e P90
-            for val, label in zip([p10_fila, p90_fila], ["P10", "P90"]):
-                fig_fila.add_vline(x=val, line_dash="dash", line_color="#4b5563", opacity=0.7)
-                fig_fila.add_annotation(x=val, y=0.8, text=f"{label}: {int(val)}d", showarrow=False, font=dict(size=10, color="#4b5563"), bgcolor="rgba(255,255,255,0.8)")
+            # Aplica a anotação SOTA
+            annotate_boxplot(fig_fila, df_plot_fila, 'dias_fila', p10_fila, p90_fila, '#3b82f6')
                 
-            fig_fila.update_layout(height=200, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=40, b=40))
+            # Remove Hover (SRE UX: Zero Distraction)
+            fig_fila.update_traces(hoverinfo="skip", hovertemplate=None)
+            fig_fila.update_layout(hovermode=False, height=200, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", margin=dict(l=0, r=0, t=40, b=40))
             fig_fila.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#f1f5f9')
             st.plotly_chart(fig_fila, use_container_width=True, config={'displayModeBar': False})
             
             if len(df_dist) > len(df_plot_fila) or len(df_dist) > len(df_plot_esq):
-                st.caption(f"ℹ️ Escala otimizada (outliers extremos ocultos). Mediana e Quartis preservados.")
+                st.caption(f"ℹ️ Escala otimizada (outliers extremos ocultos do visor de alcance para facilitar visualização). Estatísticas preservadas.")
 
             # --- 2. INDICADORES P90 (PADRÃO ST.METRIC PARA CONSISTÊNCIA VISUAL) ---
             st.write(" ")
