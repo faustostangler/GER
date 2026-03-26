@@ -747,7 +747,7 @@ def main():
                     "Município de Residência", "Bairro", 
                     "Sexo", "Cor", "Nacionalidade"
                 ],
-                default=["Especialidade Mãe", "Especialidade", "Risco Cor"],
+                default=["Especialidade Mãe", "Especialidade", "CID Descrição"],
                 max_selections=5,
                 help="Arraste e solte as tags para reordenar o funil (path) do gráfico."
             )
