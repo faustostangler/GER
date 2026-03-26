@@ -35,7 +35,7 @@ COPY nginx.conf /etc/nginx/sites-available/default
 
 # Entrypoint script to run Nginx and Streamlit
 # Movemos para /entrypoint.sh (fora de /app) para evitar que o volume mount (.:/app) oculte o arquivo na VM
-RUN echo '#!/bin/bash\nnginx -g "daemon off;" & streamlit run app_analytics.py --server.port=8501 --server.address=127.0.0.1 --server.baseUrlPath=dashboard' > /entrypoint.sh
+RUN echo '#!/bin/bash\nnginx -g "daemon off;" & streamlit run app_analytics.py --server.port=8501 --server.address=0.0.0.0' > /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Role-specific entrypoints
