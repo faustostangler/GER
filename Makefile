@@ -5,11 +5,12 @@
 # Variables
 DOCKER_COMPOSE = sudo docker compose
 
-.PHONY: sync help up down restart logs clean
+.PHONY: sync update help up down restart logs clean
 
 help:
 	@echo "GER Orchestration Commands:"
-	@echo "  make sync    - Pull code from GitHub and rebuild the system (Full CI/CD Cycle)"
+	@echo "  make sync    - Pull code from GitHub and rebuild containers (Slow/Full)"
+	@echo "  make update  - Fast pull from GitHub only (No rebuild)"
 	@echo "  make logs    - Stream system logs in real-time"
 	@echo "  make restart - Restart containers without rebuilding"
 	@echo "  make clean   - Prune old images and Docker clutter"
@@ -19,7 +20,11 @@ help:
 sync:
 	git pull origin main
 	$(DOCKER_COMPOSE) up -d --build
-	@echo "🚀 Synchronization and rebuild completed successfully!"
+	@echo "🚀 Full synchronization and rebuild completed successfully!"
+
+update:
+	git pull origin main
+	@echo "✅ Code updated from GitHub (Fast Sync)."
 
 logs:
 	$(DOCKER_COMPOSE) logs -f analytics
