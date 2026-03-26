@@ -7,13 +7,14 @@ services:
     build: .
     container_name: ger-analytics
     ports:
+      - "80:80"
       - "8501:8501"
     env_file:
       - env/creds.env
       - env/config.env
     volumes:
       - .:/app
-    command: ["streamlit", "run", "app_analytics.py", "--server.port=8501", "--server.address=0.0.0.0"]
+    command: ["/app/entrypoint.sh"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]

@@ -1,4 +1,4 @@
-# --- SOTA DOCKERFILE: Multi-Role Modular Monolith ---
+# --- SOTA DOCKERFILE: Multi-Role Modular Monolith (Web + Analytics) ---
 FROM python:3.11-slim
 
 # Prevent Python from writing .pyc files and buffering stdout/stderr
@@ -9,16 +9,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# Install basic requirements
+# Install basic requirements + nginx
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     build-essential \
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv (The ultra-fast Rust-based manager)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
 
-# Install dependencies first for better caching
+# Install dependencies
 COPY pyproject.toml .
 RUN uv pip install --no-cache-dir -r pyproject.toml
 
@@ -28,10 +29,15 @@ RUN playwright install --with-deps chromium
 # Copy the rest of the application
 COPY . .
 
-# Ensure env directory exists
-RUN mkdir -p env
+# Setup static files for Nginx
+COPY static/index.html /usr/share/nginx/html/index.html
+COPY nginx.conf /etc/nginx/sites-available/default
 
-# Role-specific entrypoints defined in docker-compose
-EXPOSE 8501
+# Entrypoint script to run Nginx and Streamlit
+RUN echo '#!/bin/bash\nnginx -g "daemon off;" & streamlit run app_analytics.py --server.port=8501 --server.address=127.0.0.1 --server.baseUrlPath=dashboard' > /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
-CMD ["streamlit", "run", "app_analytics.py", "--server.port=8501", "--server.address=0.0.0.0"]
+# Role-specific entrypoints
+EXPOSE 80 8501
+
+CMD ["/app/entrypoint.sh"]
