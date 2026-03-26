@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gercon-pipeline-worker
+spec:
+  # Agendamento exato 03:00 UTC (Noite/Madrugada BRT)
+  schedule: "0 3 * * *"
+  # Substitui o fcntl na camada do SO: Só permite uma sincronização por vez no Cluster
+  concurrencyPolicy: Forbid 
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 5
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 10800 # (3 horas max TTL - FinOps fail-fast)
+      template:
+        spec:
+          serviceAccountName: gercon-worker-sa
+          restartPolicy: OnFailure
+          containers:
+            - name: pipeline-worker
+              image: "ghcr.io/faustostangler/gercon:latest"
+              command: ["uv", "run", "python", "worker.py"]
+              envFrom:
+                - secretRef:
+                    name: gercon-secrets
+              securityContext:
+                runAsNonRoot: true
+              resources:
+                requests:
+                  cpu: "250m"
+                  memory: "512Mi"
+                limits:
+                  cpu: "2000m"
+                  memory: "4Gi"

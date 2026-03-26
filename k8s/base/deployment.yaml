@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gercon-analytics-bff
+  labels:
+    app: gercon-analytics
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gercon-analytics
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: gercon-analytics
+    spec:
+      serviceAccountName: gercon-worker-sa # Para acesso ao S3 via IRSA
+      containers:
+        - name: streamlit
+          image: "ghcr.io/faustostangler/gercon:latest"
+          imagePullPolicy: Always
+          command: ["uv", "run", "streamlit", "run", "app_analytics.py"]
+          ports:
+            - containerPort: 8501
+          env:
+            - name: HEADLESS
+              value: "True"
+            - name: S3_BFF_PATH
+              value: "s3://gercon-enterprise-data-lake-prod/gercon_consolidado.parquet"
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 30
+            periodSeconds: 15

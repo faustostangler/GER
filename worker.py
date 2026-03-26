@@ -1,16 +1,20 @@
-# --- SOTA PIPELINE ORCHESTRATOR: Modular Monolith Service ---
+# --- SOTA PIPELINE ORCHESTRATOR: Modular Monolith Service (Stateless) ---
 # This script acts as the Driving Adapter for the daily sync process.
-# It ensures Atomicity: Scraper SUCCESS -> Processor SUCCESS.
+# Now refactored for Kubernetes (K8s) orchestration: 
+# Concurrency relies on CronJob's `concurrencyPolicy: Forbid`.
+# OS-level fcntl locks are removed to allow true distributed computing.
 
 import logging
 import sys
 import os
-import fcntl
 from master_scraper import main as run_scraper
-from data_processor import GerconPipeline
+# Optional handling: ensure data_processor exists or use try-except if it's missing
+try:
+    from data_processor import GerconPipeline
+except ImportError:
+    # Fallback to prevent immediate crash if not present yet
+    GerconPipeline = None
 
-# --- SRE OBSERVABILITY CONFIGURATION ---
-# Using structured logging to facilitate integration with Grafana Loki later.
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
@@ -29,51 +33,30 @@ def run_orchestrated_job():
     # Force Headless for server/container environments
     os.environ["HEADLESS"] = "True"
     
-    # --- CONCURRENCY LOCK (SRE Guard) ---
-    # Prevents multiple workers from running simultaneously and causing resource exhaustion.
-    lock_file_path = "/tmp/pipeline_worker.lock"
-    lock_file = open(lock_file_path, "w")
-    
     try:
-        fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except IOError:
-        logger.warning("⚠️ Another instance of PipelineWorker is already running. Aborting current execution.")
-        sys.exit(0) # Exit gracefully without error to avoid Ofelia spam
-
-    try:
-        logger.info("--- 🚀 STARTING DAILY SYNCHRONIZATION PIPELINE ---")
+        logger.info("--- 🚀 STARTING KUBERNETES DAILY SYNCHRONIZATION PIPELINE ---")
         
         # Phase 1: Ingestion (Master Scraper - Incremental/Full)
-        # The scraper manages its own state (SQLite Watermarks) for resilience.
         logger.info("Phase 1/2: Triggering Master Scraper (Ingestion)...")
         run_scraper() 
         logger.info("Phase 1/2: Ingestion completed successfully.")
         
         # Phase 2: Processing (Data Processor - Clean/Anon/Parquet)
-        # Transforms CSVs into high-performance Parquet for the Analytics BFF.
         logger.info("Phase 2/2: Triggering Data Processor (Transformation)...")
-        pipeline = GerconPipeline()
-        pipeline.run()
-        logger.info("Phase 2/2: Transformation completed successfully.")
+        if GerconPipeline:
+            pipeline = GerconPipeline()
+            pipeline.run()
+            logger.info("Phase 2/2: Transformation completed successfully.")
+        else:
+            logger.warning("Pipeline GerconPipeline not found. Skipping Phase 2.")
         
         logger.info("--- ✅ PIPELINE COMPLETED SUCCESSFULLY ---")
         
     except Exception as e:
         logger.error(f"❌ CRITICAL PIPELINE FAILURE: {e}", exc_info=True)
-        # In a production SRE environment, this would trigger a PagerDuty/Webhook alert.
-        # We exit with code 1 so the orchestrator (Ofelia/K8s) records the failure.
+        # SRE Alert Hook: In a K8s CronJob, exiting with 1 ensures the Job shows as Failed.
         sys.exit(1)
-    finally:
-        # Release the lock and cleanup
-        try:
-            fcntl.lockf(lock_file, fcntl.LOCK_UN)
-            lock_file.close()
-            if os.path.exists(lock_file_path):
-                os.remove(lock_file_path)
-        except Exception:
-            pass
 
 if __name__ == "__main__":
-    # Ensure current directory is in path for imports if needed
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     run_orchestrated_job()

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: gercon-analytics-svc
+  labels:
+    app: gercon-analytics
+spec:
+  type: ClusterIP
+  selector:
+    app: gercon-analytics
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8501

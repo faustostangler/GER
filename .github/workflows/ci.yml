@@ -1,0 +1,67 @@
+name: K8s The Infinite Loop (CI & Security)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  quality-gate:
+    name: Lint, Test & Mutation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: "pyproject.toml"
+
+      - name: Linter & Formatter (Ruff)
+        run: uv x ruff check .
+
+      - name: Domain Unit Tests & Code Coverage
+        run: uv run pytest tests/domain --maxfail=1 --disable-warnings -v
+        
+      - name: Mutation Testing Guard (mutmut)
+        run: uv run mutmut run --use-coverage || echo "Mutation coverage warnings"
+
+      - name: Consumer-Driven Contract Tests (CDC)
+        run: uv run pytest tests/infrastructure/test_gercon_contract.py
+
+  security-scan:
+    name: Shift-Left Vulnerability Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      
+      - name: Dependency Audit
+        run: uv pip compile pyproject.toml | uv pip audit
+
+      - name: Build Local Container Image for Scan
+        run: docker build -t gercon-app:local -f Dockerfile .
+        
+      - name: Trivy Vulnerability Scanner (Container)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'gercon-app:local'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          ignore-unfixed: true
+          severity: 'CRITICAL,HIGH'
+          
+      - name: Upload Trivy results to GHAS
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'

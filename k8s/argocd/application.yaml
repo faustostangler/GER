@@ -1,0 +1,20 @@
+apiVersion: defaults.argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gercon-analytics
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: 'https://github.com/faustostangler/GER.git'
+    path: k8s/base
+    targetRevision: HEAD
+  destination:
+    server: 'https://kubernetes.default.svc'
+    namespace: gercon
+  syncPolicy:
+    automated:
+      prune: true     # Desinstala recursos removidos do Git
+      selfHeal: true  # Zero Drift: Corrige automaticamente se alguém editar o Cluster manualmente
+    syncOptions:
+      - CreateNamespace=true
