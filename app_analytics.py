@@ -378,10 +378,9 @@ def main():
     ui_filters = {
         "🩺 Clínico & Regulação": [], 
         "🏛️ Governança & Atores": [], 
-        "⚠️ Triagem & Pontuação": [], 
         "📅 Ciclo de Vida (Datas)": [], 
-        "🌍 Demografia & Rede": [], 
-        "📝 Evoluções": []
+        "🌍 Demografia & Rede": [],
+        "⚠️ Triagem & Pontuação": []
     }
     state_keys = {k: [] for k in ui_filters.keys()}
 
@@ -400,15 +399,24 @@ def main():
         st.markdown("---")
         curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
         render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
+        # MÁGICA CLÍNICA MOVIDA: Agregação pelo Protocolo inteiro
+        st.markdown("---")
+        render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo")
         curr_where = " AND ".join(clauses)
 
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
+        # Atores movidos da antiga aba de Evoluções
+        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search("Origem da Informação", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
+        st.markdown("---")
+        
         curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat])
+        
         st.markdown("---")
         state_keys[cat].append("oj_radio")
         oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
@@ -420,16 +428,7 @@ def main():
             clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
         curr_where = " AND ".join(clauses)
 
-    cat = "⚠️ Triagem & Pontuação"
-    with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat])
-        
-        st.markdown("---")
-        curr_where = render_dual_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
-        curr_where = render_dual_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
-        curr_where = render_dual_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
+
 
     cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
@@ -468,14 +467,18 @@ def main():
         curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat])
         curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat])
 
-    cat = "📝 Evoluções"
+    cat = "⚠️ Triagem & Pontuação"
     with st.sidebar.expander(cat, expanded=False):
-        # Evoluções (Pré-Ativado via default_toggle=True)
-        render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo", default_toggle=True)
+        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat])
+        
         st.markdown("---")
-        render_advanced_text_search("Origem da Informação", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
-        st.write(" ")
-        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
+
+
 
     # ==========================================
     # VISUALIZAR E LIMPAR FILTROS ATIVOS (TOP BAR)
@@ -732,16 +735,16 @@ def main():
             
             with g_p90_1:
                 st.metric(
-                    label="⏱️ P90 Tempo de Fila", 
-                    value=f"{p90_lead_time} dias", 
-                    help="90% da rede espera até este limite de dias desde o cadastro para o agendamento."
+                    label="⏳ P90 Tempo Esquecido", 
+                    value=f"{p90_esquecido} dias", 
+                    help="90% da rede não recebe atualizações clínicas há até este limite de dias."
                 )
             
             with g_p90_2:
                 st.metric(
-                    label="⏳ P90 Tempo Esquecido", 
-                    value=f"{p90_esquecido} dias", 
-                    help="90% da rede não recebe atualizações clínicas há até este limite de dias."
+                    label="⏱️ P90 Tempo de Fila", 
+                    value=f"{p90_lead_time} dias", 
+                    help="90% da rede espera até este limite de dias desde o cadastro para o agendamento."
                 )
 
             # 3. GAUGES (FINAL DA SEÇÃO)
