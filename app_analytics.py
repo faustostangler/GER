@@ -765,8 +765,81 @@ def main():
 
 
     with t_macro:
-        st.subheader("Governança e Saúde do Fluxo")
+        # --- BLOCO 1: EXPLORADOR DINÂMICO SOTA (EXPLOSÃO SOLAR BIVARIADA) ---
+        st.markdown("---")
+        st.subheader("📊 Explorador de Fila Dinâmico: Bivariado (Carga vs Latência)")
+        
+        st.info("💡 **Como ler (Gráfico Bivariado SRE):** \n"
+                "- **Tamanho da Fatia:** Representa a **Carga (Volume)**. Fatias largas indicam muitos pacientes em espera.\n"
+                "- **Cor da Fatia:** Representa a **Latência (Tempo Médio)**. Tons quentes (vermelho/laranja) revelam gargalos graves de SLA, enquanto tons frios (azul) indicam um fluxo rápido.")
+        
+        # O usuário constrói a própria jornada. Como o gráfico é bivariado, removemos o rádio de métrica para limpar a UX.
+        niveis_sunburst = st.multiselect(
+            "Selecione a Hierarquia de Dados (Máx: 5 níveis):", 
+            options=[
+                # 🩺 Clínico
+                "Especialidade Mãe", "Especialidade", "CID Descrição", "CID Código", 
+                # 🏛️ Operacional & Risco
+                "Risco Cor", "Complexidade", "Situação", "Situação Final", 
+                # 🏛️ Institucional & Atores
+                "Médico Solicitante", "Unidade Solicitante", "Origem da Lista", "Tipo de Regulação", 
+                "Status da Especialidade", "Ordem Judicial", "Tipo_Informacao", "Origem_Informacao",
+                # 🌍 Demográfico
+                "Município de Residência", "Bairro", "Sexo", "Cor", "Nacionalidade"
+            ],
+            default=["Especialidade Mãe", "Especialidade", "Risco Cor"],
+            max_selections=5,
+            help="Arraste e solte para reordenar a hierarquia (path) do gráfico."
+        )
+        
+        if niveis_sunburst:
+            # SQL OLAP Dinâmico: Extração Simultânea (Volume e Tempo Médio) no DuckDB
+            levels_sql = ', '.join([f'"{n}"' for n in niveis_sunburst])
+            df_plot_sun = query_db(f"""
+                SELECT 
+                    {levels_sql}, 
+                    COUNT(DISTINCT Protocolo) as Vol,
+                    ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as Tempo_Medio
+                FROM gercon
+                WHERE {FINAL_WHERE}
+                GROUP BY {levels_sql}
+            """)
+            
+            if not df_plot_sun.empty:
+                # SRE FIX: Preencher nulos ou strings vazias nas colunas selecionadas para não quebrar a renderização do Plotly
+                for col in niveis_sunburst:
+                    df_plot_sun[col] = df_plot_sun[col].replace('', 'Não Informado').fillna('Não Informado')
+
+                # Paleta divergente SRE (Azul = Rápido, Amarelo = Atenção, Vermelho = Atraso Severo)
+                paleta = 'RdYlBu_r' 
+                
+                fig_sun = px.sunburst(
+                    df_plot_sun, 
+                    path=niveis_sunburst, 
+                    values='Vol',                 # O TAMANHO É SEMPRE A CARGA (PACIENTES)
+                    color='Tempo_Medio',          # A COR É SEMPRE A LATÊNCIA (TEMPO EM DIAS)
+                    color_continuous_scale=paleta,
+                    title="Análise Bivariada: Tamanho (Volume de Pacientes) vs Cor (Tempo Médio na Fila)",
+                    labels={'Vol': 'Pacientes', 'Tempo_Medio': 'Dias Médios'}
+                )
+                
+                # SRE UX: Personalizando o Hover e REMOVENDO AS BORDAS (Data-Ink Ratio)
+                fig_sun.update_traces(
+                    hovertemplate="<b>%{label}</b><br>Pacientes (Carga): %{value}<br>Tempo Médio (SLA): %{color} dias<extra></extra>",
+                    marker=dict(line=dict(width=0))  # Remove a contaminação visual das bordas em alta cardinalidade
+                )
+                
+                fig_sun.update_layout(height=700, margin=dict(l=0, r=0, t=40, b=0))
+                st.plotly_chart(fig_sun, use_container_width=True, config={'displayModeBar': False})
+            else:
+                st.warning("⚠️ Nenhuma data disponível para o Sunburst com os filtros atuais.")
+        else:
+            st.warning("⚠️ Selecione pelo menos 1 nível para renderizar o gráfico.")
+            
+        st.markdown("---")
+        st.subheader("⏱️ Golden Signals: Governança e Saúde do Fluxo")
         c1, c2 = st.columns([0.4, 0.6])
+
         
         with c1:
             # Matriz de Risco (Donut)
@@ -793,24 +866,6 @@ def main():
 
     with t_clin:
         st.subheader("Inteligência Clínica & Perfil Demográfico")
-        
-        # Sunburst Hierárquico de 3 Níveis: Especialidade Mãe -> Especialidade Fina -> CID
-        df_esp = query_db(f"SELECT \"Especialidade Mãe\", Especialidade, \"CID Descrição\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"CID Descrição\" != '' GROUP BY 1, 2, 3 ORDER BY 4 DESC LIMIT 50")
-        
-        # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
-        if not df_esp.empty:
-            df_esp['Especialidade Mãe'] = df_esp['Especialidade Mãe'].replace('', 'Sem Categoria Mãe').fillna('Sem Categoria Mãe')
-            df_esp['Especialidade'] = df_esp['Especialidade'].replace('', 'Sem Subespecialidade').fillna('Sem Subespecialidade')
-            df_esp['CID Descrição'] = df_esp['CID Descrição'].replace('', 'CID Não Informado').fillna('CID Não Informado')
-            
-            fig_sun = px.sunburst(df_esp, path=['Especialidade Mãe', 'Especialidade', 'CID Descrição'], values='Vol', color='Vol', color_continuous_scale='Blues', title="Explosão Solar: Especialidade Mãe ➔ Fina ➔ CID")
-            
-            # UX FIX: Aumentar drasticamente a altura e otimizar as margens
-            fig_sun.update_layout(
-                height=850, # Altura forçada em pixels (quase o dobro do padrão)
-                margin=dict(t=40, l=10, r=10, b=10) # Reduz o espaço em branco à volta
-            )
-            st.plotly_chart(fig_sun, use_container_width=True, config={'displayModeBar': False})
 
         c1, c2 = st.columns(2)
         with c1:
@@ -844,7 +899,6 @@ def main():
                     y='Vol', 
                     color='Sexo', 
                     barmode='group', 
-                    nbins=20,
                     color_discrete_map={'Feminino':'#ec4899', 'Masculino':'#3b82f6'},
                     title="Perfil Demográfico (Idade vs Sexo)",
                     labels={'Idade_Int': 'Idade Aproximada', 'Vol': 'Volume de Pacientes'}
@@ -858,38 +912,49 @@ def main():
         st.markdown("---")
         st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
         
-        # --- 1. DEFINIÇÃO ESTRITA DE VARIÁVEIS DE ESTADO (Elimina bugs de strings) ---
-        OPT_CID = "Z-Score (Desvio Padrão por CID)"
-        OPT_MED = "Z-Score (Desvio Padrão por Médico)"
-        OPT_ABS = "Volume Absoluto de Pacientes"
+        # --- 1. DEFINIÇÃO ESTRITA DE VARIÁVEIS DE ESTADO ---
+        OPT_CID = "Análise Horizontal (Comparação de Pares)"
+        OPT_MED = "Análise Vertical (Perfil Individual)"
         
-        # --- 2. UI UX FIX: Controles Analíticos ---
-        c_top, c_metric = st.columns([0.3, 0.7])
-        with c_top:
-            top_x = st.slider(
-                "Selecione o Top X (Volume de Análise):", 
-                min_value=5, max_value=50, value=15, step=5,
-                help="Define o tamanho da matriz cruzando os maiores ofensores."
+        # --- 2. UI UX FIX: Controles Analíticos (Sliders Independentes) ---
+        c_top1, c_top2, c_metric = st.columns([0.15, 0.15, 0.7])
+        with c_top1:
+            top_x_med = st.slider(
+                "Top Médicos:", 
+                min_value=5, max_value=100, value=15, step=1,
+                help="Define a quantidade de médicos no eixo X."
+            )
+        with c_top2:
+            top_x_cid = st.slider(
+                "Top Diagnósticos:", 
+                min_value=5, max_value=100, value=15, step=1,
+                help="Define a quantidade de CIDs no eixo Y."
             )
         with c_metric:
             st.write(" ")
             modo_heatmap = st.radio(
-                "Métrica de Visualização no Mapa de Calor:",
-                options=[OPT_CID, OPT_MED, OPT_ABS], 
+                "Métrica de Visualização Analítica (Desvio Padrão):",
+                options=[OPT_CID, OPT_MED], 
                 horizontal=True
             )
 
-        # --- 3. EXTRACÇÃO OLAP (DuckDB) ---
+        # --- CAIXA DE EXPLICAÇÃO DINÂMICA DE LEITURA (UX) ---
+        if modo_heatmap == OPT_CID:
+            st.info("💡 **Dica: Análise Horizontal (Comparação de Pares):** Avalia um mesmo **Diagnóstico (linha)** entre todos os médicos. Tons quentes (vermelho) indicam que o médico em questão solicita este CID com uma frequência **estatisticamente muito acima da média de seus colegas**. É útil para identificar profissionais que apresentam desvio sistêmico de conduta para uma doença específica.")
+        else:
+            st.info("💡 **Dica: Análise Vertical (Perfil Individual):** Avalia a rotina de um único **Médico (coluna)** comparando todos os diagnósticos que ele próprio emite. Tons quentes (vermelho) revelam quais CIDs são anomalias (excessos) que **fogem do padrão normal de trabalho daquele profissional específico**. É útil para detectar concentração atípica ou vieses de encaminhamento de um indivíduo.")
+
+        # --- 3. EXTRACÇÃO OLAP (DuckDB com Limites Independentes) ---
         df_heatmap = query_db(f"""
             WITH TopMedicos AS (
                 SELECT "Médico Solicitante" FROM gercon 
                 WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "Médico Solicitante" IS NOT NULL
-                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x}
+                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x_med}
             ),
             TopCIDs AS (
                 SELECT "CID Descrição" FROM gercon 
                 WHERE {FINAL_WHERE} AND "CID Descrição" != '' AND "CID Descrição" IS NOT NULL
-                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x}
+                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x_cid}
             )
             SELECT 
                 "Médico Solicitante", 
@@ -905,48 +970,44 @@ def main():
         if not df_heatmap.empty:
             df_heatmap['CID_Curto'] = df_heatmap['CID Descrição'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
             
-            # Cria a Matriz Base (Volumes Absolutos)
+            # Cria a Matriz Base (Volumes Absolutos para hover)
             df_pivot_vol = df_heatmap.pivot_table(index='CID_Curto', columns='Médico Solicitante', values='Vol', fill_value=0)
             df_math = df_pivot_vol.copy().astype(float)
             
             # --- 4. MOTOR ESTATÍSTICO (Vetorização Pandas) ---
-            paleta_heatmap = 'Magma' 
+            paleta_heatmap = 'RdBu_r' 
             
             if modo_heatmap == OPT_CID:
                 medias_linhas = df_math.mean(axis=1)
                 desvios_linhas = df_math.std(axis=1).replace(0, 1)
                 df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
-                paleta_heatmap = 'RdBu_r' 
             elif modo_heatmap == OPT_MED:
                 medias_colunas = df_math.mean(axis=0)
                 desvios_colunas = df_math.std(axis=0).replace(0, 1)
                 df_math = df_math.sub(medias_colunas, axis=1).div(desvios_colunas, axis=1)
-                paleta_heatmap = 'RdBu_r'
 
-            # --- 5. FORMATADOR DE TEXTO VISUAL ---
-            if modo_heatmap == OPT_ABS:
-                df_text = df_math.round(0).astype(int).astype(str)
-            else:
-                df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
+            # --- 5. FORMATADOR DE TEXTO VISUAL (Apenas Z-Score agora) ---
+            df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
 
             # --- 6. RENDERIZAÇÃO MATRICIAL SOTA (px.imshow) ---
             fig_heat = px.imshow(
                 df_math, 
                 aspect="auto", 
                 color_continuous_scale=paleta_heatmap,
-                color_continuous_midpoint=0 if modo_heatmap != OPT_ABS else None, 
-                title=f"Matriz de Concentração: Top {top_x} CIDs vs Top {top_x} Médicos",
-                labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Métrica")
+                color_continuous_midpoint=0, 
+                title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} CIDs vs Top {top_x_med} Médicos",
+                labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Z-Score")
             )
             
             fig_heat.update_traces(
                 text=df_text.values,
                 texttemplate="%{text}",
                 customdata=df_pivot_vol.values,
-                hovertemplate="<b>Médico:</b> %{x}<br><b>CID:</b> %{y}<br><b>Volume Real:</b> %{customdata} pacientes<br><b>Métrica Visível:</b> %{text}<extra></extra>"
+                hovertemplate="<b>Médico:</b> %{x}<br><b>CID:</b> %{y}<br><b>Volume Real:</b> %{customdata} pacientes<br><b>Z-Score:</b> %{text} desvios<extra></extra>"
             )
             
-            altura_dinamica = max(500, top_x * 35) 
+            # A altura agora é ditada dinamicamente pelo slider de CIDs (Eixo Y)
+            altura_dinamica = max(500, top_x_cid * 35) 
             fig_heat.update_layout(xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120))
             st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
 
