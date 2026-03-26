@@ -1,6 +1,6 @@
 import os
-import duckdb
 import streamlit as st
+from src.domain.models import FilterCriteria
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -83,33 +83,21 @@ def inject_custom_css():
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. INFRASTRUCTURE: DUCKDB ENGINE ---
+# --- 2. INFRASTRUCTURE: USE CASE & DI ---
 @st.cache_resource
-def get_connection():
-    # SRE FIX: Cria a conexão e a View UMA ÚNICA VEZ para evitar Race Conditions
-    con = duckdb.connect(database=':memory:')
-    con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{settings.OUTPUT_FILE}')")
-    return con
-
-def query_db(sql_query: str) -> pd.DataFrame:
-    # Read-Only Thread-Safe Access
-    return get_connection().execute(sql_query).df()
+def get_use_case():
+    from src.infrastructure.repositories.duckdb_repository import DuckDBAnalyticsRepository
+    from src.application.use_cases.analytics_use_case import AnalyticsUseCase
+    
+    repo = DuckDBAnalyticsRepository(settings.OUTPUT_FILE)
+    return AnalyticsUseCase(repo)
 
 def get_dynamic_options(column: str, current_where: str) -> list:
-    try:
-        q = f"SELECT DISTINCT \"{column}\" FROM gercon WHERE {current_where} AND \"{column}\" IS NOT NULL AND \"{column}\" != '' ORDER BY 1"
-        return query_db(q)[column].tolist()
-    except Exception:
-        return []
+    return get_use_case().get_dynamic_options(column, current_where)
 
 @st.cache_data(ttl=3600)
 def get_global_bounds(column: str, is_date=False):
-    cast = "DATE" if is_date else "INTEGER"
-    try:
-        df = query_db(f"SELECT MIN(TRY_CAST(\"{column}\" AS {cast})) as vmin, MAX(TRY_CAST(\"{column}\" AS {cast})) as vmax FROM gercon")
-        return df['vmin'].iloc[0], df['vmax'].iloc[0]
-    except:
-        return None, None
+    return get_use_case().get_global_bounds(column, is_date)
 
 # --- 3. STATE MANAGEMENT ---
 def clear_filter_state(keys_to_clear: list):
@@ -522,72 +510,40 @@ def main():
     # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
     # ==========================================
     FINAL_WHERE = " AND ".join(clauses)
+    filters = FilterCriteria(clauses=clauses)
+    use_case = get_use_case()
 
     with st.spinner("Processando Modelo de Leitura (OLAP) e Latência de Cauda (P90)..."):
-        kpis = query_db(f"""
-            SELECT COUNT(DISTINCT Protocolo) as pacientes, 
-                   COUNT(*) as eventos, 
-                   COUNT(DISTINCT "Especialidade Mãe") as esp_mae,
-                   COUNT(DISTINCT Especialidade) as sub_esp,
-                   COUNT(DISTINCT "Médico Solicitante") as medicos,
-                   COUNT(DISTINCT "CID Descrição") as cids,
-                   COUNT(DISTINCT "Origem da Lista") as origens,
-                   ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as lead_time,
-                   MAX(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)) as max_lead_time,
-                   DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), MAX(CAST("Data Solicitação" AS DATE))) as span_dias,
-                   COUNT(DISTINCT CASE WHEN "Risco Cor" IN ('VERMELHO', 'LARANJA', 'AMARELO') THEN Protocolo END) as pac_urgentes,
-                   COUNT(DISTINCT CASE WHEN DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE) > 180 THEN Protocolo END) as pac_vencidos
-            FROM gercon WHERE {FINAL_WHERE}
-        """)
-
-        # --- SRE FIX: Query de Latência de Cauda (P90) ---
-        # Agrupamos por Protocolo PRIMEIRO para garantir peso igual por paciente.
-        p90_metrics = query_db(f"""
-            SELECT 
-                PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY dias_fila) as p90_lead_time,
-                PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY dias_esquecido) as p90_esquecido
-            FROM (
-                SELECT 
-                    Protocolo,
-                    DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), CURRENT_DATE) as dias_fila,
-                    DATEDIFF('day', MAX(CAST(Data_Evolucao AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
-                FROM gercon
-                WHERE {FINAL_WHERE}
-                GROUP BY Protocolo
-            )
-        """)
+        kpi_data = use_case.get_executive_summary(filters)
 
     # --- Extração Segura das Variáveis Absolutas ---
-    pacientes = int(kpis['pacientes'].iloc[0])
-    eventos = int(kpis['eventos'].iloc[0])
-    esp_mae = int(kpis['esp_mae'].iloc[0])
-    sub_esp = int(kpis['sub_esp'].iloc[0])
-    medicos = int(kpis['medicos'].iloc[0])
-    cids = int(kpis['cids'].iloc[0])
-    origens = int(kpis['origens'].iloc[0])
-    lead_time = kpis['lead_time'].iloc[0]
-    max_lead_time = int(kpis['max_lead_time'].iloc[0]) if pd.notna(kpis['max_lead_time'].iloc[0]) else 0
-    span_dias = kpis['span_dias'].iloc[0]
-    pac_urgentes = int(kpis['pac_urgentes'].iloc[0])
-    pac_vencidos = int(kpis['pac_vencidos'].iloc[0])
+    pacientes = kpi_data.pacientes
+    eventos = kpi_data.eventos
+    esp_mae = kpi_data.esp_mae
+    sub_esp = kpi_data.sub_esp
+    medicos = kpi_data.medicos
+    cids = kpi_data.cids
+    origens = kpi_data.origens
+    lead_time = kpi_data.lead_time
+    max_lead_time = kpi_data.max_lead_time
+    span_dias = kpi_data.span_dias
+    pac_urgentes = kpi_data.pac_urgentes
+    pac_vencidos = kpi_data.pac_vencidos
     
     # Extração das Métricas P90 (Tolerância a falhas caso não haja dados)
-    p90_lead_time = int(p90_metrics['p90_lead_time'].iloc[0]) if pd.notna(p90_metrics['p90_lead_time'].iloc[0]) else 0
-    p90_esquecido = int(p90_metrics['p90_esquecido'].iloc[0]) if pd.notna(p90_metrics['p90_esquecido'].iloc[0]) else 0
+    p90_lead_time = int(kpi_data.p90_lead_time)
+    p90_esquecido = int(kpi_data.p90_esquecido)
     
     # --- Cálculos Derivados SOTA (Prevenção contra divisão por zero) ---
-    evo_por_paciente = round(eventos / pacientes, 1) if pacientes > 0 else 0.0
-    sub_por_esp = round(sub_esp / esp_mae, 1) if esp_mae > 0 else 0.0
-    cid_por_medico = round(cids / medicos, 1) if medicos > 0 else 0.0
-    evo_por_medico = round(eventos / medicos, 1) if medicos > 0 else 0.0
+    evo_por_paciente = kpi_data.evo_por_paciente
+    sub_por_esp = kpi_data.sub_por_esp
+    cid_por_medico = kpi_data.cid_por_medico
+    evo_por_medico = kpi_data.evo_por_medico
 
     # SRE FIX: Motor de Taxa de Ingestão (Cadastros por Mês)
-    dias_janela = float(span_dias) if pd.notna(span_dias) else 0.0
-    meses_janela = max(dias_janela / 30.416, 1.0) 
-    cad_por_mes = round(pacientes / meses_janela, 1) if pacientes > 0 else 0.0
-    
-    taxa_urgencia = round((pac_urgentes / pacientes) * 100, 1) if pacientes > 0 else 0.0
-    taxa_vencidos = round((pac_vencidos / pacientes) * 100, 1) if pacientes > 0 else 0.0
+    cad_por_mes = kpi_data.cad_por_mes
+    taxa_urgencia = kpi_data.taxa_urgencia
+    taxa_vencidos = kpi_data.taxa_vencidos
 
     # ==========================================
     # ABA 1: VISÃO GERAL (EXECUTIVE SUMMARY)
@@ -636,14 +592,7 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        df_dist = query_db(f"""
-            SELECT 
-                DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), CURRENT_DATE) as dias_fila,
-                DATEDIFF('day', MAX(CAST(Data_Evolucao AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
-            FROM gercon
-            WHERE {FINAL_WHERE}
-            GROUP BY Protocolo
-        """)
+        df_dist = use_case.get_distribution_analysis(filters)
 
         if not df_dist.empty:
             # Função para limpar extremos e calcular estatísticas SRE (Decis P10/P90)
@@ -830,7 +779,7 @@ def main():
             nome_metrica = cor_selecionada.split(" ", 1)[1] # Extrai apenas o texto sem o emoji para o gráfico
             
             # SQL OLAP Dinâmico: DuckDB calcula o cruzamento em tempo real
-            df_plot_sun = query_db(f"""
+            df_plot_sun = use_case.execute_custom_query(f"""
                 SELECT 
                     {levels_sql}, 
                     COUNT(DISTINCT Protocolo) as Vol,
@@ -878,14 +827,14 @@ def main():
         
         with c1:
             # Matriz de Risco (Donut)
-            df_risco = query_db(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1")
+            df_risco = use_case.execute_custom_query(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1")
             if not df_risco.empty:
                 # SRE FIX: Usando a nova variável global MAPA_CORES_RISCO
                 st.plotly_chart(px.pie(df_risco, values='Vol', names='Risco Cor', hole=0.5, color='Risco Cor', color_discrete_map=MAPA_CORES_RISCO, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
             
         with c2:
             # Funil de Jornada (Conversão)
-            df_funil = query_db(f"""
+            df_funil = use_case.execute_custom_query(f"""
                 SELECT '1. Solicitado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE}
                 UNION ALL
                 SELECT '2. Triado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND "Risco Cor" != ''
@@ -896,7 +845,7 @@ def main():
             """)
             st.plotly_chart(px.funnel(df_funil, x='Vol', y='Etapa', title="Funil da Jornada: Gargalos e Abandono"), use_container_width=True, config={'displayModeBar': False})
 
-        df_sit = query_db(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
+        df_sit = use_case.execute_custom_query(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
         st.plotly_chart(px.bar(df_sit, x='Situação', y='Vol', title="Situação Geral da Rede", color='Situação', template="plotly_white"), use_container_width=True, config={'displayModeBar': False})
 
     with t_clin:
@@ -905,7 +854,7 @@ def main():
         c1, c2 = st.columns(2)
         with c1:
             # Geometria da Demanda (Treemap)
-            df_mun = query_db(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
+            df_mun = use_case.execute_custom_query(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
             
             # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
             if not df_mun.empty:
@@ -913,7 +862,7 @@ def main():
                 st.plotly_chart(px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Geometria: Município ➔ Bairro", color='Vol', color_continuous_scale='Viridis'), use_container_width=True, config={'displayModeBar': False})
         with c2:
             # SRE FIX: Cálculo de Idade blindado (TRY_CAST para evitar Conversion Error)
-            df_demo = query_db(f"""
+            df_demo = use_case.execute_custom_query(f"""
                 SELECT Idade_Int, Sexo, COUNT(DISTINCT Protocolo) as Vol
                 FROM (
                     SELECT 
@@ -941,7 +890,7 @@ def main():
                 st.plotly_chart(fig_demo, use_container_width=True, config={'displayModeBar': False})
 
         # Throughput vs Capacidade (Temporal)
-        df_fluxo = query_db(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1")
+        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1")
         st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='Origem da Lista', title="Throughput Temporal: Volume de Protocolos por Origem"), use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
@@ -980,7 +929,7 @@ def main():
             st.info("💡 **Dica: Análise Vertical (Perfil Individual):** Avalia a rotina de um único **Médico (coluna)** comparando todos os diagnósticos que ele próprio emite. Tons quentes (vermelho) revelam quais CIDs são anomalias (excessos) que **fogem do padrão normal de trabalho daquele profissional específico**. É útil para detectar concentração atípica ou vieses de encaminhamento de um indivíduo.")
 
         # --- 3. EXTRACÇÃO OLAP (DuckDB com Limites Independentes) ---
-        df_heatmap = query_db(f"""
+        df_heatmap = use_case.execute_custom_query(f"""
             WITH TopMedicos AS (
                 SELECT "Médico Solicitante" FROM gercon 
                 WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "Médico Solicitante" IS NOT NULL
@@ -1047,7 +996,7 @@ def main():
             st.plotly_chart(fig_heat, use_container_width=True, config={'displayModeBar': False})
 
         # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Médico ➔ CID) ---
-        df_perfil_med = query_db(f"""
+        df_perfil_med = use_case.execute_custom_query(f"""
             SELECT "Médico Solicitante", "CID Descrição", COUNT(DISTINCT Protocolo) as Vol
             FROM gercon
             WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "CID Descrição" != ''
@@ -1071,7 +1020,7 @@ def main():
         with c1:
             # Matriz de Outliers (Scatter Plot)
             st.markdown("### 🔍 Detecção de Outliers SLA")
-            df_outliers = query_db(f"""
+            df_outliers = use_case.execute_custom_query(f"""
                 SELECT Protocolo, "Risco Cor", TRY_CAST(Pontuação AS INTEGER) as Pontos, 
                     DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE) as DiasFila,
                     Situação, Especialidade
@@ -1105,7 +1054,7 @@ def main():
         with c2:
             # Top Ofensores (Barra Horizontal)
             st.markdown("### ⚖️ Top Ofensores")
-            df_medico = query_db(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10")
+            df_medico = use_case.execute_custom_query(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10")
             fig_ofensor = px.bar(df_medico, x='Vol', y='Médico Solicitante', orientation='h', title="Top 10 Médicos (Volume)")
             fig_ofensor.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
             st.plotly_chart(fig_ofensor, use_container_width=True, config={'displayModeBar': False})
@@ -1118,7 +1067,7 @@ def main():
         with c_slider:
             limit = st.slider("Amostra para Auditoria Clínica", 10, 1000, 100)
             
-        df_audit = query_db(f"""
+        df_audit = use_case.execute_custom_query(f"""
             SELECT Protocolo, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(Data_Evolucao AS TIMESTAMP) as Data_Evolução, 
             Situação, \"Risco Cor\", Texto_Evolucao 
             FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, Data_Evolucao DESC LIMIT {limit}
