@@ -766,67 +766,102 @@ def main():
 
     with t_macro:
         # --- BLOCO 1: EXPLORADOR DINÂMICO SOTA (EXPLOSÃO SOLAR BIVARIADA) ---
-        st.markdown("---")
-        st.subheader("📊 Explorador de Fila Dinâmico: Bivariado (Carga vs Latência)")
+        st.subheader("📊 Explorador de Fila Dinâmico: Bivariado (Carga vs Latência/Risco)")
         
         st.info("💡 **Como ler (Gráfico Bivariado SRE):** \n"
                 "- **Tamanho da Fatia:** Representa a **Carga (Volume)**. Fatias largas indicam muitos pacientes em espera.\n"
-                "- **Cor da Fatia:** Representa a **Latência (Tempo Médio)**. Tons quentes (vermelho/laranja) revelam gargalos graves de SLA, enquanto tons frios (azul) indicam um fluxo rápido.")
+                "- **Cor da Fatia:** Representa a métrica de **Risco/Latência** escolhida. Tons quentes (vermelho) revelam gargalos, pacientes críticos ou faixas etárias avançadas, enquanto tons frios (azul) indicam fluxo rápido ou baixo risco.")
         
-        # O usuário constrói a própria jornada. Como o gráfico é bivariado, removemos o rádio de métrica para limpar a UX.
-        niveis_sunburst = st.multiselect(
-            "Selecione a Hierarquia de Dados (Máx: 5 níveis):", 
-            options=[
-                # 🩺 Clínico
-                "Especialidade Mãe", "Especialidade", "CID Descrição", "CID Código", 
-                # 🏛️ Operacional & Risco
-                "Risco Cor", "Complexidade", "Situação", "Situação Final", 
-                # 🏛️ Institucional & Atores
-                "Médico Solicitante", "Unidade Solicitante", "Origem da Lista", "Tipo de Regulação", 
-                "Status da Especialidade", "Ordem Judicial", "Tipo_Informacao", "Origem_Informacao",
-                # 🌍 Demográfico
-                "Município de Residência", "Bairro", "Sexo", "Cor", "Nacionalidade"
-            ],
-            default=["Especialidade Mãe", "Especialidade", "Risco Cor"],
-            max_selections=5,
-            help="Arraste e solte para reordenar a hierarquia (path) do gráfico."
-        )
+        # Dividimos a tela para os dois controles do usuário
+        c_hier, c_metric = st.columns([0.7, 0.3])
+        
+        with c_hier:
+            niveis_sunburst = st.multiselect(
+                "Selecione a Hierarquia de Dados (Máx: 5 níveis):", 
+                options=[
+                    # --- Clínico & Regulação ---
+                    "Especialidade Mãe", "Especialidade", "Especialidade CBO",
+                    "CID Código", "CID Descrição",
+                    "Origem da Lista", "Situação", "Situação Final", 
+                    "Tipo de Regulação", "Status da Especialidade", "Teleconsulta",
+                    "Central de Regulação", "Origem da Regulação",
+                    
+                    # --- Governança & Atores ---
+                    "Ordem Judicial", "Unidade Solicitante", "Unidade Razão Social", "Unidade Descrição", 
+                    "Médico Solicitante", "Operador", "Usuário Solicitante",
+                    "Origem_Informacao", "Tipo_Informacao",
+                    
+                    # --- Triagem & Pontuação ---
+                    "Complexidade", "Risco Cor", "Cor Regulador",
+                    
+                    # --- Demografia & Rede ---
+                    "Município de Residência", "Bairro", 
+                    "Sexo", "Cor", "Nacionalidade"
+                ],
+                default=["Especialidade Mãe", "Especialidade", "Risco Cor"],
+                max_selections=5,
+                help="Arraste e solte as tags para reordenar o funil (path) do gráfico."
+            )
+            
+        with c_metric:
+            st.write(" ") # Alinhamento visual com o label do multiselect
+            # Dicionário SRE: Mapeia a UX para a query OLAP
+            METRICAS_COR = {
+                "⏳ Tempo de Espera (Fila)": {"sql": "ROUND(AVG(DATEDIFF('day', CAST(\"Data Solicitação\" AS DATE), CURRENT_DATE)), 1)", "unit": "dias"},
+                "⚠️ Tempo Esquecido (Sem Evolução)": {"sql": "ROUND(AVG(DATEDIFF('day', CAST(Data_Evolucao AS TIMESTAMP), CURRENT_DATE)), 1)", "unit": "dias"},
+                "🚨 Pontos de Gravidade": {"sql": "ROUND(AVG(TRY_CAST(\"Pontos Gravidade\" AS INTEGER)), 1)", "unit": "pts"},
+                "⏱️ Pontos de Tempo": {"sql": "ROUND(AVG(TRY_CAST(\"Pontos Tempo\" AS INTEGER)), 1)", "unit": "pts"},
+                "🔥 Pontuação Total": {"sql": "ROUND(AVG(TRY_CAST(Pontuação AS INTEGER)), 1)", "unit": "pts"},
+                "🎂 Idade Média (Demografia)": {"sql": "ROUND(AVG(date_diff('year', TRY_CAST(\"Data de Nascimento\" AS DATE), CURRENT_DATE)), 1)", "unit": "anos"}
+            }
+            
+            cor_selecionada = st.selectbox(
+                "Métrica da Cor (Temperatura):",
+                options=list(METRICAS_COR.keys()),
+                index=0,
+                help="Define o que a cor de cada fatia representa. O tamanho será sempre o volume de pacientes."
+            )
         
         if niveis_sunburst:
-            # SQL OLAP Dinâmico: Extração Simultânea (Volume e Tempo Médio) no DuckDB
+            # Variáveis dinâmicas para a Query e para a UI
             levels_sql = ', '.join([f'"{n}"' for n in niveis_sunburst])
+            sql_cor = METRICAS_COR[cor_selecionada]["sql"]
+            unidade_cor = METRICAS_COR[cor_selecionada]["unit"]
+            nome_metrica = cor_selecionada.split(" ", 1)[1] # Extrai apenas o texto sem o emoji para o gráfico
+            
+            # SQL OLAP Dinâmico: DuckDB calcula o cruzamento em tempo real
             df_plot_sun = query_db(f"""
                 SELECT 
                     {levels_sql}, 
                     COUNT(DISTINCT Protocolo) as Vol,
-                    ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as Tempo_Medio
+                    {sql_cor} as Metrica_Cor
                 FROM gercon
                 WHERE {FINAL_WHERE}
                 GROUP BY {levels_sql}
             """)
             
             if not df_plot_sun.empty:
-                # SRE FIX: Preencher nulos ou strings vazias nas colunas selecionadas para não quebrar a renderização do Plotly
+                # SRE FIX: Prevenção contra Nós Folha Vazios no Plotly
                 for col in niveis_sunburst:
                     df_plot_sun[col] = df_plot_sun[col].replace('', 'Não Informado').fillna('Não Informado')
 
-                # Paleta divergente SRE (Azul = Rápido, Amarelo = Atenção, Vermelho = Atraso Severo)
+                # Paleta divergente universal (Azul = Baixo Risco/Rápido, Vermelho = Alto Risco/Atraso)
                 paleta = 'RdYlBu_r' 
                 
                 fig_sun = px.sunburst(
                     df_plot_sun, 
                     path=niveis_sunburst, 
-                    values='Vol',                 # O TAMANHO É SEMPRE A CARGA (PACIENTES)
-                    color='Tempo_Medio',          # A COR É SEMPRE A LATÊNCIA (TEMPO EM DIAS)
+                    values='Vol',                 
+                    color='Metrica_Cor',          
                     color_continuous_scale=paleta,
-                    title="Análise Bivariada: Tamanho (Volume de Pacientes) vs Cor (Tempo Médio na Fila)",
-                    labels={'Vol': 'Pacientes', 'Tempo_Medio': 'Dias Médios'}
+                    title=f"Análise Bivariada: Tamanho (Carga) vs Cor ({nome_metrica})",
+                    labels={'Vol': 'Pacientes', 'Metrica_Cor': nome_metrica}
                 )
                 
-                # SRE UX: Personalizando o Hover e REMOVENDO AS BORDAS (Data-Ink Ratio)
+                # SRE UX: Injeta dinamicamente a unidade correta (dias, pts ou anos) e remove bordas
                 fig_sun.update_traces(
-                    hovertemplate="<b>%{label}</b><br>Pacientes (Carga): %{value}<br>Tempo Médio (SLA): %{color} dias<extra></extra>",
-                    marker=dict(line=dict(width=0))  # Remove a contaminação visual das bordas em alta cardinalidade
+                    hovertemplate=f"<b>%{{label}}</b><br>Pacientes (Carga): %{{value}}<br>{nome_metrica}: %{{color}} {unidade_cor}<extra></extra>",
+                    marker=dict(line=dict(width=0)) 
                 )
                 
                 fig_sun.update_layout(height=700, margin=dict(l=0, r=0, t=40, b=0))
