@@ -41,4 +41,4 @@ RUN chmod +x /entrypoint.sh
 # Role-specific entrypoints
 EXPOSE 80 8501
 
-CMD ["/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]
