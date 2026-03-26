@@ -14,7 +14,7 @@ services:
       - env/config.env
     volumes:
       - .:/app
-    command: ["/app/entrypoint.sh"]
+    command: ["/entrypoint.sh"]
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
