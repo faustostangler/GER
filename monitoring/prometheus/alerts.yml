@@ -1,0 +1,33 @@
+groups:
+- name: gercon_symptom_based_alerts
+  rules:
+  # 1. ALERTA CRÍTICO: Integridade da Extração Danificada
+  - alert: ScraperAPIErrorRateSpike
+    expr: rate(gercon_scraper_errors_total[15m]) > 0.1
+    for: 5m
+    labels:
+      severity: critical
+      team: platform-engineering
+    annotations:
+      summary: "Alto Volume de Erros no Scraper do Gercon (>10%)"
+      description: "A API do Procempa/Gercon pode ter alterado o contrato JSON ou o Chromium está tomando Timeouts graves na lista {{ $labels.target_list }}."
+
+  # 2. ALERTA DE SATURAÇÃO: Job da Madrugada Invadindo Horário Comercial
+  - alert: PipelineDurationApproachingLimit
+    expr: histogram_quantile(0.9, rate(gercon_pipeline_job_duration_bucket[1h])) > 10800
+    labels:
+      severity: warning
+      team: data-engineering
+    annotations:
+      summary: "Risco de SLA: Janela de Ingestão próxima a Saturação (3 horas)"
+      description: "O Job noturno do K8s está demorando quase 3h para processar o Data Lake. Há risco dele colidir com o uso diurno de médicos e diretores da rede."
+
+  # 3. ALERTA DE FRESHNESS (Heartbeat do Dado)
+  - alert: StaleDataLake
+    expr: (time() - gercon_pipeline_last_success) > 100000
+    labels:
+      severity: critical
+      team: data-engineering
+    annotations:
+      summary: "Data Lake Obsoleto (Dados Velhos)"
+      description: "A última ingestão de Parquet/DuckDB finalizada com sucesso foi há mais de 27 horas. O Pipeline quebrou silenciosamente."
