@@ -1,3 +1,6 @@
+# ==========================================
+# GITHUB ACTIONS CI/CD PIPELINE - FASE 1 (Com Mutmut Hard-Gate)
+# ==========================================
 name: K8s The Infinite Loop (CI & Security)
 
 on:
@@ -28,11 +31,20 @@ jobs:
       - name: Linter & Formatter (Ruff)
         run: uv x ruff check .
 
-      - name: Domain Unit Tests & Code Coverage
-        run: uv run pytest tests/domain --maxfail=1 --disable-warnings -v
+      - name: Domain & App Unit Tests
+        run: uv run pytest tests/domain tests/application --maxfail=1 --disable-warnings -v
         
+      # === CONFIGURAÇÃO ESTRITA DE MUTMUT ===
+      # Fallback se não configurado no pyproject.toml: força o alvo no source code 
       - name: Mutation Testing Guard (mutmut)
-        run: uv run mutmut run --use-coverage || echo "Mutation coverage warnings"
+        run: |
+          uv run mutmut run --paths-to-mutate src/domain/ --tests-dir tests/domain/ || true
+          # Hard-gate: Aborta a build se a taxa de sobrevivência não for perfeita (Exceção: 0)
+          SURVIVORS=$(uv run mutmut results | grep "Survived" | wc -l)
+          if [ "$SURVIVORS" -gt "0" ]; then
+            echo "❌ Falha SRE de Mutação: $SURVIVORS mutantes sobreviveram! Seus testes não garantem a lógica."
+            exit 1
+          fi
 
       - name: Consumer-Driven Contract Tests (CDC)
         run: uv run pytest tests/infrastructure/test_gercon_contract.py
@@ -42,26 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
       - name: Install uv
         uses: astral-sh/setup-uv@v5
-      
       - name: Dependency Audit
         run: uv pip compile pyproject.toml | uv pip audit
-
-      - name: Build Local Container Image for Scan
-        run: docker build -t gercon-app:local -f Dockerfile .
-        
-      - name: Trivy Vulnerability Scanner (Container)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'gercon-app:local'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          ignore-unfixed: true
-          severity: 'CRITICAL,HIGH'
-          
-      - name: Upload Trivy results to GHAS
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'

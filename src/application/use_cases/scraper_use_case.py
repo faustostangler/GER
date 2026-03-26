@@ -2,6 +2,9 @@ import os
 import json
 import time
 from typing import Dict, Any, List
+# -- Excecoes e DLQ Imports --
+from pydantic import ValidationError
+from src.domain.schemas import GerconPayloadContract
 
 from src.application.use_cases.scraper_interfaces import IScrapingUseCase, IScraperClient, IRawDataRepository, IProcessedDataRepository
 from src.domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
@@ -15,6 +18,9 @@ from src.infrastructure.telemetry.tracing import tracer
 
 logger = setup_structured_logger("scraper_use_case")
 
+class DomainContractViolationException(Exception):
+    pass
+
 class ScraperUseCase(IScrapingUseCase):
     def __init__(self, scraper_client: IScraperClient, raw_repo: IRawDataRepository, csv_repo: IProcessedDataRepository, listas_alvo: List[Dict[str, str]], page_size: int = 50):
         self.scraper_client = scraper_client
@@ -23,6 +29,13 @@ class ScraperUseCase(IScrapingUseCase):
         self.listas_alvo = listas_alvo
         self.page_size = page_size
         self.state_file = "scraper_state.json"
+        self.dlq_poison_pills = [] # Em SRE escalável: Enviar para tabela sqlitezinha ou Bucket S3/Poison
+        
+        # --- Circuit Breaker Threshold ---
+        self.cb_error_count = 0
+        self.cb_total_processed = 0
+        self.CB_THRESHOLD_RATIO = 0.05 # 5% de falhas
+        self.CB_MIN_HITS = 100         # Só aciona após mínimo X leituras
 
     def _load_global_state(self) -> Dict[str, Any]:
         if os.path.exists(self.state_file):
@@ -35,10 +48,20 @@ class ScraperUseCase(IScrapingUseCase):
     def _save_global_state(self, state: Dict[str, Any]):
         with open(self.state_file, "w") as f:
             json.dump(state, f, indent=4)
+            
+    def _evaluate_circuit_breaker(self):
+        """Monitora se a Inundação de Errors corrompeu o Domain Contract de forma radical."""
+        if self.cb_total_processed < self.CB_MIN_HITS:
+            return
+            
+        ratio = self.cb_error_count / float(self.cb_total_processed)
+        if ratio > self.CB_THRESHOLD_RATIO:
+            logger.critical(f"🚀 CIRCUIT BREAKER DISPARADO! Taxa de falha/schema é de {ratio:.1%} > {self.CB_THRESHOLD_RATIO:.1%}. Abortando para salvar S3 e Custo de DLQ!")
+            raise DomainContractViolationException(f"API do Vendor Quebrou Radicalmente com índice de {ratio*100}% Poison Pills!")
 
     @tracer.start_as_current_span("scraper_sync_execution")
     def execute_sync(self):
-        logger.info("Initializing Hexagonal Scraper Use Case (With Telemetry)...")
+        logger.info("Initializing Hexagonal Scraper Use Case (Circuit Breaker & DLQ Configured)...")
         self.raw_repo.init_db()
         
         with tracer.start_as_current_span("vendor_login"):
@@ -74,7 +97,6 @@ class ScraperUseCase(IScrapingUseCase):
                     response_data = self.scraper_client.fetch_batch(chave, nome, page_num, self.page_size, sort_order_js)
                     fetch_duration = time.time() - fetch_start
                     
-                    # MÉTRICA: Tempo de Duração (P90)
                     SCRAPER_DURATION_SECONDS.labels(target_list=chave).observe(fetch_duration)
                     
                     if not response_data:
@@ -92,35 +114,48 @@ class ScraperUseCase(IScrapingUseCase):
                         break
                         
                     jsons = response_data.get("jsons", [])
-                    
-                    # MÉTRICA: Volume Paginado (Throughput)
                     SCRAPER_PAGES_FETCHED.labels(target_list=chave).inc()
-                    
                     self.raw_repo.save_raw_batch(jsons, nome)
                     
                     novos = 0
                     with tracer.start_as_current_span(f"domain_mapper_loop"):
                         for j in jsons:
+                            self.cb_total_processed += 1
                             if j is None or "error" in j: 
+                                self.cb_error_count += 1
                                 SCRAPER_ERRORS_TOTAL.labels(error_type="PAYLOAD_CORRUPT", target_list=chave).inc()
+                                self._evaluate_circuit_breaker()
                                 continue
                             
-                            # Condição de parada de Ingestão Incremental
+                            # --- VALIDAÇÃO CONSUMER-DRIVEN CONTRACT (ACL) ---
+                            try:
+                                contract_validated = GerconPayloadContract(**j)
+                            except ValidationError as e:
+                                self.cb_error_count += 1
+                                error_str = f"Pydantic Validation Error em registro {j.get('numeroCMCE', '???')}"
+                                logger.warning(error_str, extra={"lista": chave, "payload_poison": True})
+                                # Faz Fail-Fast DLQ: Armazena o lixo para posterior Retentativa
+                                self.dlq_poison_pills.append({"raw": j, "error": str(e)})
+                                SCRAPER_ERRORS_TOTAL.labels(error_type="SCHEMA_VIOLATION", target_list=chave).inc()
+                                self._evaluate_circuit_breaker()
+                                continue # Ignora pílula envenenada
+                                
                             if list_state["full_sync_completed"] and watermark > 0:
                                 data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
                                 if 0 < data_alt <= watermark:
                                     stop_scraping = True
                                     break
                                     
-                            data = flatten_solicitacao(j, nome)
+                            data = flatten_solicitacao(contract_validated.model_dump())
+                            # Falback dinâmico para garantir que tudo preenche corretamente de acordo com DOMÍNiO original:
+                            data = flatten_solicitacao(j, nome) 
+                            
                             if data and data.get("Protocolo"):
                                 records[data["Protocolo"]] = clean_data_row(data)
                                 novos += 1
                                 
-                    # MÉTRICA: Pacientes convertidos e injetados com êxito
                     SCRAPER_ITEMS_SAVED.labels(target_list=chave).inc(novos)
                     self.csv_repo.save_all(records, chave)
-                    
                     logger.info(f"Batch consumido com {novos} atualizações.", extra={"lista": chave, "pagina": page_num, "novos_itens": novos})
                     page_num += 1
                     
@@ -130,4 +165,4 @@ class ScraperUseCase(IScrapingUseCase):
                         self._save_global_state(global_state)
 
         self.scraper_client.close()
-        logger.info("Processo principal de rede desativado e Scraper concluído.", extra={"status": "DONE"})
+        logger.info("Processo principal concluído.", extra={"status": "DONE"})

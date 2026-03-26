@@ -7,6 +7,16 @@ from src.domain.models import AnalyticKPIs, FilterCriteria
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
         self.con = duckdb.connect(database=':memory:')
+        
+        # SOTA Config: Tratamento Nativo de S3 via IRSA Credentials K8s
+        if db_file.startswith("s3://"):
+            self.con.execute("INSTALL httpfs;")
+            self.con.execute("LOAD httpfs;")
+            self.con.execute("INSTALL aws;")
+            self.con.execute("LOAD aws;")
+            # Herda automaticamente as credenciais do ambiente (Service Account Identity no K8s/EKS)
+            self.con.execute("CALL load_aws_credentials();")
+            
         self.con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')")
 
     def _query(self, sql: str) -> pd.DataFrame:
