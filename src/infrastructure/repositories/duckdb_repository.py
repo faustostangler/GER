@@ -1,3 +1,4 @@
+import os
 import duckdb
 import pandas as pd
 from typing import List, Tuple, Any
@@ -8,13 +9,18 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
         self.con = duckdb.connect(database=':memory:')
         
-        # SOTA Config: Tratamento Nativo de S3 via IRSA Credentials K8s
+        # Limite explícito de RAM para proteção de OOMKilled no Cluster K8s (Reserva memória para Pandas)
+        self.con.execute("PRAGMA memory_limit='1.5GB';")
+        
+        # SOTA Config: Tratamento Nativo de S3 via IRSA Credentials K8s (Linguagem Agnóstica)
         if db_file.startswith("s3://"):
+            region = os.getenv("AWS_REGION", "sa-east-1")
             self.con.execute("INSTALL httpfs;")
             self.con.execute("LOAD httpfs;")
             self.con.execute("INSTALL aws;")
             self.con.execute("LOAD aws;")
-            # Herda automaticamente as credenciais do ambiente (Service Account Identity no K8s/EKS)
+            self.con.execute(f"SET s3_region='{region}';")
+            # Herda automaticamente do IRSA Identity associado ao Service Account K8s gerando chaves Zero-Trust.
             self.con.execute("CALL load_aws_credentials();")
             
         self.con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')")

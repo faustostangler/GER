@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 from src.infrastructure.adapters.playwright_scraper import PlaywrightGerconAdapter
 from src.infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository
-from src.infrastructure.repositories.csv_data_repository import CsvDataRepository
+from src.infrastructure.repositories.parquet_data_repository import ParquetDataRepository
 from src.application.use_cases.scraper_use_case import ScraperUseCase
 
 logging.basicConfig(
@@ -48,13 +48,15 @@ def main():
         headless=headless
     )
     raw_repo = SQLiteRawRepository(db_file="gercon_raw_data.db")
-    csv_repo = CsvDataRepository()
+    
+    s3_path = os.getenv("S3_LAKE_PATH", None) 
+    parquet_repo = ParquetDataRepository(s3_bucket=s3_path)
     
     # 2. Instanciar a Porta Driving (Use Case) com Injeção de Dependências
     use_case = ScraperUseCase(
         scraper_client=scraper_client,
         raw_repo=raw_repo,
-        csv_repo=csv_repo,
+        csv_repo=parquet_repo,  # Mantendo a porta IProcessedDataRepository
         listas_alvo=LISTAS_ALVO,
         page_size=page_size
     )
