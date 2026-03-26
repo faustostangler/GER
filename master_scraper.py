@@ -6,13 +6,10 @@ from src.infrastructure.adapters.playwright_scraper import PlaywrightGerconAdapt
 from src.infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository
 from src.infrastructure.repositories.parquet_data_repository import ParquetDataRepository
 from src.application.use_cases.scraper_use_case import ScraperUseCase
+from src.infrastructure.telemetry.logger import setup_structured_logger
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[logging.FileHandler("master_scraper.log", encoding='utf-8'), logging.StreamHandler()]
-)
-logger = logging.getLogger(__name__)
+# Substituindo basicConfig por Telemetria Integrada (SRE/12-Factor)
+logger = setup_structured_logger(__name__)
 
 LISTAS_ALVO = [
     {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
