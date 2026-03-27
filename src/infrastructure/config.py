@@ -17,6 +17,9 @@ class KeycloakSettings(BaseSettings):
     KEYCLOAK_CLIENT_ID: str
     KEYCLOAK_CLIENT_SECRET: SecretStr
 
+    # --- SRE: Infraestrutura Centralizada (Pydantic) ---
+    KAFKA_BOOTSTRAP_SERVERS: str = Field(default="kafka:9092")
+
     # Sanitization to ensure URL paths aren't malformed
     @field_validator("KEYCLOAK_SERVER_URL", mode="before")
     @classmethod
