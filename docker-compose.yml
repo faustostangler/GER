@@ -47,6 +47,11 @@ services:
       resources:
         limits:
           memory: '${REDIS_SESSION_MEM_LIMIT}'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   oauth2-proxy:
     image: ${OAUTH2_PROXY_IMAGE_NAME}:${OAUTH2_PROXY_IMAGE_VERSION}
@@ -66,7 +71,10 @@ services:
       OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME}_redis_session:6379"
     logging: *default-logging
     depends_on:
-      - redis-session
+      redis-session:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy # SRE FIX: Aguarda o Keycloak estar 'Listening' na 8080 (OIDC Discovery)
     networks:
       - iap-mesh
       - ger-infra-mesh 
@@ -84,6 +92,11 @@ services:
       resources:
         limits:
           memory: '${REDIS_QUEUE_MEM_LIMIT}'
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   worker:
     build: .
@@ -95,7 +108,8 @@ services:
     networks:
       - ger-infra-mesh
     depends_on:
-      - redis-queue
+      redis-queue:
+        condition: service_healthy
     restart: "on-failure"
     logging: *default-logging
     deploy:
@@ -145,6 +159,7 @@ services:
       # SRE FIX: Variáveis modernas para Keycloak 24+ (Quarkus)
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
+      KC_HEALTH_ENABLED: "true"
     ports:
       # SRE: Exposto temporariamente para o setup administrativo
       - "${DOCKER_BIND_IP}:${KEYCLOAK_EXTERNAL_PORT}:${KEYCLOAK_INTERNAL_PORT}"
@@ -158,6 +173,11 @@ services:
       resources:
         limits:
           memory: '${KEYCLOAK_MEM_LIMIT}'
+    healthcheck:
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 networks:
   ger-infra-mesh:
