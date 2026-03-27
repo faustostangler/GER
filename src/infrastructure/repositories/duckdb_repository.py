@@ -127,6 +127,24 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
 
     def execute_custom_query(self, sql: str, user: ValidatedUserToken) -> pd.DataFrame:
         cte = self._get_rls_cte(user)
-        # Injecao segura da CTE antes do select real, assume que o sql lera do BaseRLS
-        sql = sql.replace("FROM gercon", "FROM BaseRLS")
-        return self._query(f"{cte}\n{sql}")
+        
+        # 1. Substituição Robusta de RLS (Ignora maiúsculas/minúsculas, aspas e múltiplos espaços)
+        # Ex: converte 'from  "gercon"' ou 'FROM gercon' para 'FROM BaseRLS'
+        sql_seguro = re.sub(r'(?i)\bfrom\s+("?)gercon("?)\b', r'FROM \1BaseRLS\2', sql)
+        
+        # 2. Validação Fail-Close (Proteção contra Joins maliciosos ou bypass)
+        # Se a palavra gercon ainda existir na query (ex: em um JOIN gercon), abortamos.
+        if re.search(r'(?i)\bgercon\b', sql_seguro):
+            raise ValueError("Violação de Segurança: Tentativa de acesso direto à view base ou sintaxe SQL não suportada pelo RLS.")
+
+        # 3. Tratamento de Colisão de CTEs (Se a query original já usa WITH)
+        sql_upper = sql_seguro.strip().upper()
+        if sql_upper.startswith("WITH "):
+            # Removemos o "WITH " da nossa CTE base para encadear na CTE do usuário
+            cte_limpa = cte.replace("WITH BaseRLS AS", "BaseRLS AS", 1)
+            # Injeta a nossa BaseRLS como a primeira CTE da cadeia
+            sql_final = re.sub(r'(?i)^WITH\s+', f"WITH {cte_limpa}, ", sql_seguro.strip())
+        else:
+            sql_final = f"{cte}\n{sql_seguro}"
+
+        return self._query(sql_final)
