@@ -13,6 +13,9 @@ KEYCLOAK_EVENTS_DLQ = "keycloak.events.dlq"
 # Mocked Idempotency Store (e.g. DuckDB/SQLite or Redis)
 processed_events = set()
 
+# Global DLQ Producer (Long-lived connection to avoid Socket Exhaustion)
+dlq_producer: AIOKafkaProducer = None
+
 def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
     """
     Simula uma chamada de rede para validação na API do CFM.
@@ -24,19 +27,21 @@ def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
     return True
 
 async def send_to_dlq(payload: dict, error_msg: str):
-    producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
-    await producer.start()
-    try:
-        dead_letter = {
-            "original_payload": payload,
-            "error": error_msg
-        }
-        await producer.send_and_wait(KEYCLOAK_EVENTS_DLQ, json.dumps(dead_letter).encode('utf-8'))
-        logger.error(f"Mensagem enviada para DLQ. Erro: {error_msg}")
-    finally:
-        await producer.stop()
+    global dlq_producer
+    dead_letter = {
+        "original_payload": payload,
+        "error": error_msg
+    }
+    await dlq_producer.send_and_wait(KEYCLOAK_EVENTS_DLQ, json.dumps(dead_letter).encode('utf-8'))
+    logger.error(f"Mensagem enviada para DLQ. Erro: {error_msg}")
 
 async def consume_keycloak_events():
+    global dlq_producer
+    
+    # 1. Inicie o Producer da DLQ uma ÚNICA vez no ciclo de vida
+    dlq_producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
+    await dlq_producer.start()
+    
     consumer = AIOKafkaConsumer(
         KEYCLOAK_EVENTS_TOPIC,
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
@@ -97,6 +102,8 @@ async def consume_keycloak_events():
             
     finally:
         await consumer.stop()
+        if dlq_producer:
+            await dlq_producer.stop()
 
 if __name__ == "__main__":
     asyncio.run(consume_keycloak_events())

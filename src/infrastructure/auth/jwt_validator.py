@@ -22,6 +22,11 @@ def verify_token(token: str) -> ValidatedUserToken:
             signing_key = jwks_client.get_signing_key_from_jwt(token)
         except PyJWKClientError:
             # Fallback for Keycloak Key Rotation
+            # TODO(TechDebt/SRE): Thundering Herd Problem.
+            # Em ambientes altamente concorrentes (FastAPI com Uvicorn multithreading), 
+            # múltiplas threads podem acionar esta exceção simultaneamente.
+            # A forma correta futura é usar um asyncio.Lock() ou estender PyJWKClient 
+            # antes de atualizar o cache global, evitando dezenas de conexões concorrentes ao Keycloak.
             # Force a cache bypass/refresh
             global jwks_client
             jwks_client = PyJWKClient(settings.jwks_url, cache_keys=True, lifespan=86400)
