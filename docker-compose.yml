@@ -17,7 +17,7 @@ services:
     command: ["/entrypoint.sh"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -28,6 +28,28 @@ services:
       - "ofelia.job-run.ger-daily-sync.schedule=0 0 3 * * *"
       - "ofelia.job-run.ger-daily-sync.container=ger-analytics"
       - "ofelia.job-run.ger-daily-sync.command=sh -c 'export HEADLESS=True && python worker.py'"
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
+    container_name: ger-proxy
+    ports:
+      - "80:4180"  # Agora o IP da VM responderá na porta 80
+    env_file:
+      - env/creds.env
+    environment:
+      OAUTH2_PROXY_PROVIDER: "keycloak-oidc"
+      OAUTH2_PROXY_CLIENT_ID: "gercon-analytics"
+      # A URL interna do injetions via mesh do Docker
+      OAUTH2_PROXY_OIDC_ISSUER_URL: "http://ger-keycloak:8080/realms/gercon-realm"
+      OAUTH2_PROXY_UPSTREAMS: "http://ger-analytics:8501" 
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
+      # Skip provider dialog and jump to keycloak (better UX)
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "false" 
+    networks:
+      - iap-mesh
+      - ger-infra-mesh # Precisa ver o Keycloak na malha principal
 
   # Orquestração: Ofelia (SOTA Docker Scheduler)
   # Monitoring Docker Events without external dependencies.
@@ -40,8 +62,49 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     restart: unless-stopped
 
+  # 1. Banco de Dados do Keycloak (Stateful)
+  postgres-keycloak:
+    image: postgres:15-alpine
+    container_name: ger-keycloak-db
+    env_file:
+      - env/creds.env
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: ${KC_DB_PASSWORD} # SRE: Em prod, use Secrets
+    volumes:
+      - keycloak_data:/var/lib/postgresql/data
+    networks:
+      - iap-mesh
+
+  # 2. Servidor de Identidade (Keycloak)
+  keycloak:
+    image: quay.io/keycloak/keycloak:24.0.0 # Versão SOTA atual
+    container_name: ger-keycloak
+    # SRE 'start-dev': Modo de desenvolvimento para permitir acesso inicial sem certificado SSL/HTTPS obrigatório.
+    command: start-dev 
+    env_file:
+      - env/creds.env
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+      KEYCLOAK_ADMIN: admin_gercon
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_PROXY: edge # Prepara o Keycloak para confiar nos cabeçalhos do Ingress/Proxy
+    ports:
+      - "8080:8080" # Porta temporária de administração
+    depends_on:
+      - postgres-keycloak
+    networks:
+      - iap-mesh
+
 networks:
   ger-infra-mesh:
     name: ger-infra-mesh
   iap-mesh:
     name: iap-mesh
+
+volumes:
+  keycloak_data: # Define a persistência dos dados do banco
