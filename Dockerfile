@@ -1,44 +1,60 @@
-# --- SOTA DOCKERFILE: Multi-Role Modular Monolith (Web + Analytics) ---
-FROM python:3.11-slim
+# --- SOTA DOCKERFILE: Multi-Stage Modular Monolith ---
 
-# Prevent Python from writing .pyc files and buffering stdout/stderr
+# Stage 1: Base - Dependências de Sistema OS
+FROM python:3.11-slim AS base
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    UV_COMPILE_BYTECODE=1 \
-    UV_SYSTEM_PYTHON=1
+    PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
 
 WORKDIR /app
 
-# Install basic requirements + nginx
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    build-essential \
     nginx \
+    # Dependências do Playwright (Chromium)
+    libglib2.0-0 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
+    libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxext6 \
+    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install uv (The ultra-fast Rust-based manager)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+# Stage 2: Builder - Resolução rápida com UV
+FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
 
-# Install dependencies
-COPY pyproject.toml .
-RUN uv pip install --no-cache-dir -r pyproject.toml
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
+WORKDIR /app
 
-# Install Playwright and its system dependencies
-RUN playwright install --with-deps chromium
+COPY pyproject.toml uv.lock ./
+# Instala Dependências Primeiro
+RUN uv sync --frozen --no-install-project --no-dev
+# Baixa os browsers do Playwright ainda no builder (agora com binário disponível)
+RUN .venv/bin/python -m playwright install chromium
 
-# Copy the rest of the application
-COPY . .
+# Stage 3: Runtime - Imagem de Produção SecOps
+FROM base AS runtime
 
-# Setup static files for Nginx
+# Criar usuário sem privilégios para mitigar vulnerabilidades
+RUN useradd -m appuser && \
+    chown -R appuser:appuser /app && \
+    chown -R appuser:appuser /var/lib/nginx /var/log/nginx && \
+    touch /run/nginx.pid && chown appuser:appuser /run/nginx.pid
+
+# Copiar artefatos do builder com as permissões corretas
+COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
+COPY --from=builder --chown=appuser:appuser /app/pw-browsers /app/pw-browsers
+COPY --chown=appuser:appuser . /app/
+
+# Setup Nginx
 COPY static/index.html /usr/share/nginx/html/index.html
 COPY nginx.conf /etc/nginx/sites-available/default
+COPY --chown=appuser:appuser entrypoint.sh /entrypoint.sh
 
-# Entrypoint script to run Nginx and Streamlit
-# Movemos para /entrypoint.sh (fora de /app) para evitar que o volume mount (.:/app) oculte o arquivo na VM
-RUN echo '#!/bin/bash\nnginx -g "daemon off;" & streamlit run app_analytics.py --server.port=8501 --server.address=0.0.0.0 --server.baseUrlPath=dashboard' > /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+ENV PATH="/app/.venv/bin:$PATH"
 
-# Role-specific entrypoints
+USER appuser
+
 EXPOSE 80 8501
 
 ENTRYPOINT ["/entrypoint.sh"]

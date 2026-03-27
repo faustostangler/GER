@@ -14,13 +14,14 @@ help:
 	@echo "  make logs    - Stream system logs in real-time"
 	@echo "  make restart - Restart containers without rebuilding"
 	@echo "  make clean   - Prune old images and Docker clutter"
-	@echo "  make up      - Bring the system up in detached mode"
-	@echo "  make down    - Stop and remove containers and networks"
+	@echo "  make up      - Bring the system up in detached mode (App Only, No IAM)"
+	@echo "  make up-iam  - Bring the ENTIRE system up including Keycloak/Proxy"
+	@echo "  make down    - Stop and remove all containers and networks"
 
 sync:
 	git pull origin main
-	$(DOCKER_COMPOSE) up -d --build
-	@echo "🚀 Full synchronization and rebuild completed successfully!"
+	COMPOSE_PROFILES=iam $(DOCKER_COMPOSE) up -d --build
+	@echo "🚀 Full synchronization and rebuild completed successfully! (IAM Active)"
 
 update:
 	git pull origin main
@@ -35,11 +36,15 @@ restart:
 
 up:
 	$(DOCKER_COMPOSE) up -d
-	@echo "⬆️ System is up."
+	@echo "⬆️ App Core Analytics subiu (Sem IAM)."
+
+up-iam:
+	COMPOSE_PROFILES=iam $(DOCKER_COMPOSE) up -d
+	@echo "🔐 Stack completa com Identity Access Management ativa."
 
 down:
-	$(DOCKER_COMPOSE) down
-	@echo "⬇️ System is down."
+	COMPOSE_PROFILES=iam $(DOCKER_COMPOSE) down
+	@echo "⬇️ Todo o sistema (incluindo IAM) derrubado."
 
 clean:
 	sudo docker image prune -f

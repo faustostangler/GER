@@ -31,19 +31,15 @@ services:
           memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
-      interval: 30s
+      interval: 10s
       timeout: 10s
       retries: 3
-    labels:
-      - "ofelia.enabled=true"
-      - "ofelia.job-run.ger-daily-sync.schedule=0 0 3 * * *"
-      - "ofelia.job-run.ger-daily-sync.container=ger-analytics"
-      - "ofelia.job-run.ger-daily-sync.command=sh -c 'export HEADLESS=True && python worker.py'"
 
   # --- SRE FIX: Redis Session Store para suportar JWTs gigantes do Keycloak ---
   redis-session:
     image: redis:7-alpine
     container_name: ger-redis
+    profiles: ["iam"]
     networks:
       - iap-mesh
     logging: *default-logging
@@ -55,6 +51,7 @@ services:
   oauth2-proxy:
     image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
     container_name: ger-proxy
+    profiles: ["iam"]
     ports:
       - "80:4180"  
     env_file:
@@ -74,23 +71,46 @@ services:
       - iap-mesh
       - ger-infra-mesh 
 
-  # Orquestração: Ofelia (SOTA Docker Scheduler)
-  # Monitoring Docker Events without external dependencies.
-  scheduler:
-    image: mcuadros/ofelia:latest
-    container_name: ger-scheduler
-    depends_on:
-      analytics:
-        condition: service_healthy
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    restart: unless-stopped
+  # ----------------------------------------------------
+  # Async Processing Queue (SOTA Resiliency with Arq)
+  # ----------------------------------------------------
+  redis-queue:
+    image: redis:7-alpine
+    container_name: ger-redis-queue
+    networks:
+      - ger-infra-mesh
     logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 256M
 
+  worker:
+    build: .
+    container_name: ger-arq-worker
+    command: ["arq", "src.infrastructure.queue.worker_settings.WorkerConfig"]
+    env_file:
+      - env/creds.env
+      - env/config.env
+    networks:
+      - ger-infra-mesh
+    depends_on:
+      - redis-queue
+    restart: on-failure
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+
+  # ----------------------------------------------------
+  # Identity Access Management (IAM) - Profile: "iam"
+  # ----------------------------------------------------
   # 1. Banco de Dados do Keycloak (Stateful)
   postgres-keycloak:
     image: postgres:15-alpine
     container_name: ger-keycloak-db
+    profiles: ["iam"]
     env_file:
       - env/creds.env
     environment:
@@ -115,6 +135,7 @@ services:
   keycloak:
     image: quay.io/keycloak/keycloak:24.0.0 
     container_name: ger-keycloak
+    profiles: ["iam"]
     # TODO (Day2/Prod): Trocar start-dev para start quando o Ingress com SSL definitivo for configurado
     command: start-dev 
     env_file:

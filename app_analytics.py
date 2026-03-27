@@ -331,6 +331,41 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
                             p_term = parse_term(w)
                             clauses.append(f"strip_accents(\"{column}\") NOT ILIKE strip_accents('{p_term}')")
 
+# --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
+def get_authenticated_user():
+    """
+    SRE BFF Pattern: Extrai o JWT injetado pelo IAP Proxy ou Mock local.
+    """
+    # DX: Desenvolvimento Local sem IAP Proxy
+    if os.getenv("ENVIRONMENT") == "dev":
+        from src.infrastructure.auth.token_acl import ValidatedUserToken
+        import time
+        # Mock Session para Desenvolvimento Local (Bypass RLS se role for diretor_medico)
+        mock_user = ValidatedUserToken(
+            sub="dev-id-123",
+            email="dev@gercon.com",
+            preferred_username="dev_user",
+            roles=["diretor_medico"], 
+            crm_numero="99999",
+            crm_uf="RS",
+            exp=int(time.time() + 3600) # 1h exp
+        )
+        return mock_user, "mock-jwt-token"
+
+    # Prod Flow: Extração do Header injetado pelo OAuth2-Proxy (Streamlit 1.37+)
+    auth_header = st.context.headers.get("X-Forwarded-Access-Token")
+    if not auth_header:
+        st.error("🚨 Acesso Bloqueado: IAP Proxy não detectado. Contate o administrador do Cluster (Zero Trust).")
+        st.stop()
+
+    from src.infrastructure.auth.jwt_validator import verify_token
+    try:
+        user = verify_token(auth_header)
+        return user, auth_header
+    except Exception as e:
+        st.error(f"🚨 Sessão Inválida ou Expirada: {e}")
+        st.stop()
+
 # --- 5. MAIN APP ---
 def main():
     # SRE Loop: Mitigação de WebSocket Staleness via Re-Handshake (com 60s de Leeway)
