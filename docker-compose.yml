@@ -92,7 +92,9 @@ services:
       KC_DB_PASSWORD: ${KC_DB_PASSWORD}
       KEYCLOAK_ADMIN: admin_gercon
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_PROXY: edge # Prepara o Keycloak para confiar nos cabeçalhos do Ingress/Proxy
+      # SRE FIX: Variáveis modernas para Keycloak 24+ (Quarkus)
+      KC_PROXY_HEADERS: xforwarded
+      KC_HTTP_ENABLED: "true"
     ports:
       - "8080:8080" # Porta temporária de administração
     depends_on:
