@@ -160,6 +160,12 @@ services:
       resources:
         limits:
           memory: '${WORKER_MEM_LIMIT}'
+    ports:
+      - "${DOCKER_BIND_IP}:8000:8000"  # SRE: Exposição da telemetria Prometheus
+    labels:
+      - "prometheus.io/scrape=true"
+      - "prometheus.io/port=8000"
+      - "prometheus.io/path=/metrics"
 
   # ----------------------------------------------------
   # Identity Access Management (IAM) - Profile: "iam"
