@@ -11,7 +11,6 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    nginx \
     # Dependências do Playwright (Chromium)
     libglib2.0-0 libnss3 libatk1.0-0 libatk-bridge2.0-0 libcups2 \
     libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxext6 \
@@ -37,24 +36,20 @@ FROM base AS runtime
 
 # Criar usuário sem privilégios para mitigar vulnerabilidades
 RUN useradd -m appuser && \
-    chown -R appuser:appuser /app && \
-    chown -R appuser:appuser /var/lib/nginx /var/log/nginx && \
-    touch /run/nginx.pid && chown appuser:appuser /run/nginx.pid
+    chown -R appuser:appuser /app
 
 # Copiar artefatos do builder com as permissões corretas
 COPY --from=builder --chown=appuser:appuser /app/.venv /app/.venv
 COPY --from=builder --chown=appuser:appuser /app/pw-browsers /app/pw-browsers
 COPY --chown=appuser:appuser . /app/
 
-# Setup Nginx
-COPY static/index.html /usr/share/nginx/html/index.html
-COPY nginx.conf /etc/nginx/sites-available/default
+# Setup Entrypoint
 COPY --chown=appuser:appuser entrypoint.sh /entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 
 USER appuser
 
-EXPOSE 80 8501
+EXPOSE 8501
 
 ENTRYPOINT ["/entrypoint.sh"]

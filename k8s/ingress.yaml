@@ -1,0 +1,44 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gercon-analytics-ingress
+  namespace: ger-namespace
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    # --- SRE: SecOps Integration (OAuth2-Proxy Intercept) ---
+    # Instrui o NGINX a perguntar ao Proxy se o request tem um token / cookie válido
+    nginx.ingress.kubernetes.io/auth-url: "http://oauth2-proxy.ger-namespace.svc.cluster.local/oauth2/auth"
+    # Se o auth-url falhar (401), redireciona o usuário para login do Keycloak
+    nginx.ingress.kubernetes.io/auth-signin: "https://$host/oauth2/start?rd=$escaped_request_uri"
+    # Adicionar os headers recebidos do Proxy ao backend (e.g. email do médico, roles)
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Auth-Request-User,X-Auth-Request-Email,X-Auth-Request-Access-Token"
+    # Otimização para os WebSockets do Streamlit
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    # Terminação TLS provida pelo Cert-Manager
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - gercon.hospital.com.br # Substituir pelo domínio final
+      secretName: gercon-analytics-tls
+  rules:
+    - host: gercon.hospital.com.br
+      http:
+        paths:
+          # --- Rota Protegida (Aplicação Principal) ---
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: gercon-analytics-svc
+                port:
+                  number: 8501
+          # --- Rota Pública (Endpoints do Proxy de Autenticação) ---
+          - path: /oauth2
+            pathType: Prefix
+            backend:
+              service:
+                name: oauth2-proxy
+                port:
+                  number: 4180
