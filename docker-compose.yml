@@ -138,7 +138,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: 1G
 
 networks:
   ger-infra-mesh:
