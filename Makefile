@@ -18,8 +18,8 @@ help:
 	@echo "  make up      - Bring the system up in detached mode (App Only, No IAM)"
 	@echo "  make up-iam  - Bring the ENTIRE system up including Keycloak/Proxy"
 	@echo "  make bootstrap - SOTA Bootstrap: Only Identity infrastructure for manual setup"
-	@echo "  make down    - Stop and remove all containers and networks
-  make clean-volumes - Hard Reset: Nuke all persistent volumes (Clean Start)"
+	@echo "  make down    - Stop and remove all containers and networks"
+	@echo "  make clean-volumes - Hard Reset: Nuke all persistent volumes (Clean Start)"
 
 # SRE: Inicia apenas a base da identidade para permitir a configuração manual inicial
 bootstrap:
@@ -64,7 +64,6 @@ clean:
 	docker image prune -f
 	@echo "🧹 Old images removed and Docker environment cleaned."
 
-# Makefile - Adicione esta regra ao final
 clean-volumes:
 	$(DOCKER_COMPOSE) --profile iam down -v
 	@echo "⚠️  Volumes de dados removidos. O próximo boot será 100% limpo."

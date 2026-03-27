@@ -1,5 +1,4 @@
 # --- SOTA DOCKER COMPOSE: Modular Monolith orchestration ---
-# Integrating Ofelia for Docker-Native Job Scheduling (SRE/GitOps Ready)
 
 x-logging: &default-logging
   driver: "json-file"
@@ -20,6 +19,7 @@ services:
       - iap-mesh
     volumes:
       - .:/app
+      - /app/.venv  # SRE: Protege o .venv do builder contra o bind mount do host
     command: ["/entrypoint.sh"]
     restart: ${DOCKER_RESTART_POLICY}
     logging: *default-logging
@@ -34,6 +34,7 @@ services:
       interval: ${HEALTHCHECK_INTERVAL}
       timeout: ${HEALTHCHECK_TIMEOUT}
       retries: ${HEALTHCHECK_RETRIES}
+      start_period: 30s
 
   # --- SRE FIX: Redis Session Store para suportar JWTs gigantes do Keycloak ---
   redis-session:
@@ -66,6 +67,10 @@ services:
       OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:${OAUTH2_PROXY_INTERNAL_PORT}"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+      OAUTH2_PROXY_EMAIL_DOMAINS: "*"  # TODO (Day2/Prod): Restringir ao domínio do hospital
+      OAUTH2_PROXY_REDIRECT_URL: "http://localhost/oauth2/callback"
+      # SRE: Discovery via DNS Docker, skip para compatibilidade backend-frontend
+      OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
       OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME}_redis_session:6379"
@@ -155,11 +160,11 @@ services:
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://${COMPOSE_PROJECT_NAME}_keycloak_db:5432/${POSTGRES_DB}
-      # Variáveis injetadas via env_file para maior segurança
-      # SRE FIX: Variáveis modernas para Keycloak 24+ (Quarkus)
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      # SRE: Define o issuer dos tokens como localhost para o browser do médico
+      KC_HOSTNAME_URL: "http://localhost:8080"
     ports:
       # SRE: Exposto temporariamente para o setup administrativo
       - "${DOCKER_BIND_IP}:${KEYCLOAK_EXTERNAL_PORT}:${KEYCLOAK_INTERNAL_PORT}"
@@ -178,6 +183,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 60s  # SRE: Quarkus augmentation leva ~40s no cold-boot
 
 networks:
   ger-infra-mesh:
