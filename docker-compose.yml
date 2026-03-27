@@ -73,6 +73,11 @@ services:
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
       OAUTH2_PROXY_OIDC_EXTRA_AUDIENCES: "account"
+      # SRE: Split Horizon DNS - Browser via localhost, Backend via Docker DNS
+      OAUTH2_PROXY_LOGIN_URL: "http://localhost:8080/realms/gercon-realm/protocol/openid-connect/auth"
+      OAUTH2_PROXY_REDEEM_URL: "http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/token"
+      OAUTH2_PROXY_OIDC_JWKS_URL: "http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/certs"
+      OAUTH2_PROXY_VALIDATE_URL: "http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/userinfo"
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
       OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME}_redis_session:6379"
@@ -165,8 +170,6 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
-      # SRE: Define o issuer dos tokens como localhost para o browser do médico
-      KC_HOSTNAME_URL: "http://localhost:8080"
     ports:
       # SRE: Exposto temporariamente para o setup administrativo
       - "${DOCKER_BIND_IP}:${KEYCLOAK_EXTERNAL_PORT}:${KEYCLOAK_INTERNAL_PORT}"
@@ -184,8 +187,8 @@ services:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 60s  # SRE: Quarkus augmentation leva ~40s no cold-boot
+      retries: 10
+      start_period: 120s  # SRE: Quarkus augmentation varia de 40-75s + JVM boot ~10s
 
 networks:
   ger-infra-mesh:
