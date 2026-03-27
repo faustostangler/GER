@@ -11,11 +11,7 @@ from datetime import date
 # --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
 st.set_page_config(page_title="Gercon Analytics | RCA", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
 
-class AnalyticsSettings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=("env/creds.env", "env/config.env"), env_file_encoding="utf-8", extra="ignore")
-    OUTPUT_FILE: str = Field(default="gercon_consolidado.parquet")
-
-settings = AnalyticsSettings()
+from src.infrastructure.config import settings
 
 def inject_custom_css():
     st.markdown("""
