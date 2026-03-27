@@ -6,7 +6,7 @@
 ENV_FLAGS = --env-file env/creds.env --env-file env/config.env
 DOCKER_COMPOSE = docker compose $(ENV_FLAGS)
 
-.PHONY: bootstrap sync update help up down restart logs clean
+.PHONY: bootstrap sync update help up down restart logs clean clean-volumes
 
 help:
 	@echo "GER Orchestration Commands:"
@@ -18,7 +18,8 @@ help:
 	@echo "  make up      - Bring the system up in detached mode (App Only, No IAM)"
 	@echo "  make up-iam  - Bring the ENTIRE system up including Keycloak/Proxy"
 	@echo "  make bootstrap - SOTA Bootstrap: Only Identity infrastructure for manual setup"
-	@echo "  make down    - Stop and remove all containers and networks"
+	@echo "  make down    - Stop and remove all containers and networks
+  make clean-volumes - Hard Reset: Nuke all persistent volumes (Clean Start)"
 
 # SRE: Inicia apenas a base da identidade para permitir a configuração manual inicial
 bootstrap:
@@ -26,14 +27,10 @@ bootstrap:
 	$(DOCKER_COMPOSE) --profile iam up -d postgres-keycloak keycloak --wait
 	@echo "----------------------------------------------------------"
 	@echo "✅ Keycloak está ONLINE e pronto para configuração!"
-	@echo "🔗 URL: http://localhost:8080"
-	@echo "📝 Tarefas no painel administrativo:"
-	@echo "   1. Login com as credenciais do seu env/creds.env"
-	@echo "   2. Criar Realm: gercon-realm"
-	@echo "   3. Criar Client: gercon-analytics (Confidential)"
-	@echo "   4. COPIAR o Client Secret e colar no seu env/creds.env"
+	@echo "🔗 URL Administrador: http://localhost:8080"
+	@echo "📖 Documentação de Setup: BOOTSTRAP_KEYCLOAK.md"
 	@echo "----------------------------------------------------------"
-	@echo "🚀 Após colar o segredo, execute: make up-iam"
+	@echo "🚀 Após configurar e atualizar o Secret no creds.env, execute: make up-iam"
 
 sync:
 	git pull origin main
@@ -66,3 +63,8 @@ down:
 clean:
 	docker image prune -f
 	@echo "🧹 Old images removed and Docker environment cleaned."
+
+# Makefile - Adicione esta regra ao final
+clean-volumes:
+	$(DOCKER_COMPOSE) --profile iam down -v
+	@echo "⚠️  Volumes de dados removidos. O próximo boot será 100% limpo."
