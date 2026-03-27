@@ -4,14 +4,14 @@
 x-logging: &default-logging
   driver: "json-file"
   options:
-    max-size: "50m"
-    max-file: "3"
+    max-size: "${DOCKER_LOG_MAX_SIZE}"
+    max-file: "${DOCKER_LOG_MAX_FILE}"
 
 services:
   # Analytics Layer (Presentation BFF & Primary Runtime)
   analytics:
     build: .
-    container_name: ger-analytics
+    container_name: ${COMPOSE_PROJECT_NAME}_${ANALYTICS_SERVICE_NAME}
     env_file:
       - env/creds.env
       - env/config.env
@@ -21,24 +21,24 @@ services:
     volumes:
       - .:/app
     command: ["/entrypoint.sh"]
-    restart: unless-stopped
+    restart: ${DOCKER_RESTART_POLICY}
     logging: *default-logging
     deploy:
       resources:
         limits:
-          memory: 4G
+          memory: '${ANALYTICS_MEM_LIMIT}'
         reservations:
-          memory: 1G
+          memory: '${ANALYTICS_MEM_RESERVATION}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
-      interval: 10s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "curl", "-f", "http://localhost:${ANALYTICS_INTERNAL_PORT}/dashboard/_stcore/health"]
+      interval: ${HEALTHCHECK_INTERVAL}
+      timeout: ${HEALTHCHECK_TIMEOUT}
+      retries: ${HEALTHCHECK_RETRIES}
 
   # --- SRE FIX: Redis Session Store para suportar JWTs gigantes do Keycloak ---
   redis-session:
-    image: redis:7-alpine
-    container_name: ger-redis
+    image: ${REDIS_IMAGE_NAME}:${REDIS_IMAGE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}_redis_session
     profiles: ["iam"]
     networks:
       - iap-mesh
@@ -46,24 +46,24 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: '${REDIS_SESSION_MEM_LIMIT}'
 
   oauth2-proxy:
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.6.0
-    container_name: ger-proxy
+    image: ${OAUTH2_PROXY_IMAGE_NAME}:${OAUTH2_PROXY_IMAGE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}_proxy
     profiles: ["iam"]
     ports:
-      - "80:4180"  
+      - "${DOCKER_BIND_IP}:${OAUTH2_PROXY_EXTERNAL_PORT}:${OAUTH2_PROXY_INTERNAL_PORT}"  
     env_file:
       - env/creds.env
     environment:
       OAUTH2_PROXY_PROVIDER: "keycloak-oidc"
-      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:4180"
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:${OAUTH2_PROXY_INTERNAL_PORT}"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
-      OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://redis-session:6379"
+      OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME}_redis_session:6379"
     logging: *default-logging
     depends_on:
       - redis-session
@@ -75,19 +75,19 @@ services:
   # Async Processing Queue (SOTA Resiliency with Arq)
   # ----------------------------------------------------
   redis-queue:
-    image: redis:7-alpine
-    container_name: ger-redis-queue
+    image: ${REDIS_IMAGE_NAME}:${REDIS_IMAGE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}_redis_queue
     networks:
       - ger-infra-mesh
     logging: *default-logging
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: '${REDIS_QUEUE_MEM_LIMIT}'
 
   worker:
     build: .
-    container_name: ger-arq-worker
+    container_name: ${COMPOSE_PROJECT_NAME}_arq_worker
     command: ["arq", "src.infrastructure.queue.worker_settings.WorkerConfig"]
     env_file:
       - env/creds.env
@@ -96,26 +96,24 @@ services:
       - ger-infra-mesh
     depends_on:
       - redis-queue
-    restart: on-failure
+    restart: "on-failure"
     logging: *default-logging
     deploy:
       resources:
         limits:
-          memory: 2G
+          memory: '${WORKER_MEM_LIMIT}'
 
   # ----------------------------------------------------
   # Identity Access Management (IAM) - Profile: "iam"
   # ----------------------------------------------------
   # 1. Banco de Dados do Keycloak (Stateful)
   postgres-keycloak:
-    image: postgres:15-alpine
-    container_name: ger-keycloak-db
+    image: ${POSTGRES_IMAGE_NAME}:${POSTGRES_IMAGE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}_keycloak_db
     profiles: ["iam"]
     env_file:
       - env/creds.env
-    environment:
-      # POSTGRES_DB, POSTGRES_USER e POSTGRES_PASSWORD injetados via creds.env
-      KC_DB_PASSWORD: ${KC_DB_PASSWORD}
+    # POSTGRES_DB, POSTGRES_USER e POSTGRES_PASSWORD já injetados via env/creds.env
     volumes:
       - keycloak_data:/var/lib/postgresql/data
     networks:
@@ -124,17 +122,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: '${KEYCLOAK_DB_MEM_LIMIT}'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: ${HEALTHCHECK_INTERVAL}
+      timeout: ${HEALTHCHECK_TIMEOUT}
+      retries: ${HEALTHCHECK_RETRIES}
 
   # 2. Servidor de Identidade (Keycloak)
   keycloak:
-    image: quay.io/keycloak/keycloak:24.0.0 
-    container_name: ger-keycloak
+    image: ${KEYCLOAK_IMAGE_NAME}:${KEYCLOAK_IMAGE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}_keycloak
     profiles: ["iam"]
     # TODO (Day2/Prod): Trocar start-dev para start quando o Ingress com SSL definitivo for configurado
     command: start-dev 
@@ -142,14 +140,14 @@ services:
       - env/creds.env
     environment:
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres-keycloak:5432/keycloak
+      KC_DB_URL: jdbc:postgresql://${COMPOSE_PROJECT_NAME}_keycloak_db:5432/${POSTGRES_DB}
       # Variáveis injetadas via env_file para maior segurança
       # SRE FIX: Variáveis modernas para Keycloak 24+ (Quarkus)
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
     ports:
       # SRE: Exposto temporariamente para o setup administrativo
-      - "8080:8080"
+      - "${DOCKER_BIND_IP}:${KEYCLOAK_EXTERNAL_PORT}:${KEYCLOAK_INTERNAL_PORT}"
     depends_on:
       postgres-keycloak:
         condition: service_healthy
@@ -159,13 +157,14 @@ services:
     deploy:
       resources:
         limits:
-          memory: 1G
+          memory: '${KEYCLOAK_MEM_LIMIT}'
 
 networks:
   ger-infra-mesh:
-    name: ger-infra-mesh
+    name: ${COMPOSE_PROJECT_NAME}_${INFRA_NETWORK_NAME}
   iap-mesh:
-    name: iap-mesh
+    name: ${COMPOSE_PROJECT_NAME}_${IAP_NETWORK_NAME}
 
 volumes:
   keycloak_data:
+    name: ${COMPOSE_PROJECT_NAME}_keycloak_data

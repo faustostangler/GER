@@ -3,7 +3,8 @@
 # It prioritizes cleanliness, automation, and SRE-grade local management.
 
 # Variables
-DOCKER_COMPOSE = sudo docker compose
+ENV_FLAGS = --env-file env/creds.env --env-file env/config.env
+DOCKER_COMPOSE = sudo docker compose $(ENV_FLAGS)
 
 .PHONY: sync update help up down restart logs clean
 
@@ -20,8 +21,8 @@ help:
 
 sync:
 	git pull origin main
-	COMPOSE_PROFILES=iam $(DOCKER_COMPOSE) up -d --build
-	@echo "🚀 Full synchronization and rebuild completed successfully! (IAM Active)"
+	$(DOCKER_COMPOSE) --profile iam up -d --build
+	@echo "🚀 Sistema sincronizado e reconstruído com IAM."
 
 update:
 	git pull origin main
@@ -39,11 +40,11 @@ up:
 	@echo "⬆️ App Core Analytics subiu (Sem IAM)."
 
 up-iam:
-	COMPOSE_PROFILES=iam $(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) --profile iam up -d
 	@echo "🔐 Stack completa com Identity Access Management ativa."
 
 down:
-	COMPOSE_PROFILES=iam $(DOCKER_COMPOSE) down
+	$(DOCKER_COMPOSE) --profile iam down
 	@echo "⬇️ Todo o sistema (incluindo IAM) derrubado."
 
 clean:
