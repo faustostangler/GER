@@ -55,7 +55,8 @@ def verify_token(token: str) -> ValidatedUserToken:
             preferred_username=payload.get("preferred_username", ""),
             roles=roles,
             crm_numero=payload.get("crm_numero"),
-            crm_uf=payload.get("crm_uf")
+            crm_uf=payload.get("crm_uf"),
+            exp=payload.get("exp")
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(

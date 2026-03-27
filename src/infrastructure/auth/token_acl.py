@@ -15,3 +15,4 @@ class ValidatedUserToken(BaseModel):
     roles: List[str] = Field(default_factory=list, description="RBAC Roles extracted from token")
     crm_numero: Optional[str] = None
     crm_uf: Optional[str] = None
+    exp: Optional[int] = Field(None, description="Expiration time of the JWT for Staleness checks")

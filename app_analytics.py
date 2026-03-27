@@ -88,8 +88,8 @@ def get_use_case():
     repo = DuckDBAnalyticsRepository(settings.OUTPUT_FILE)
     return AnalyticsUseCase(repo)
 
-def get_dynamic_options(column: str, current_where: str) -> list:
-    return get_use_case().get_dynamic_options(column, current_where)
+def get_dynamic_options(column: str, current_where: str, current_user) -> list:
+    return get_use_case().get_dynamic_options(column, current_where, current_user)
 
 @st.cache_data(ttl=3600)
 def get_global_bounds(column: str, is_date=False):
@@ -333,6 +333,23 @@ def render_advanced_text_search(label: str, column: str, clauses: list, key: str
 
 # --- 5. MAIN APP ---
 def main():
+    # SRE Loop: Mitigação de WebSocket Staleness via Re-Handshake (com 60s de Leeway)
+    import time
+    import streamlit.components.v1 as components
+    
+    if "token_exp" in st.session_state and time.time() > (st.session_state.token_exp - 60):
+        st.warning("🔄 Sua sessão segura foi renovada no background. Clique abaixo para sincronizar o túnel Proxy.")
+        # TODO(UX/SRE): Sincronizar FilterCriteria com st.query_params antes do reload
+        if st.button("Sincronizar Sessão", type="primary"):
+            components.html("<script>window.parent.location.reload();</script>", height=0, width=0)
+        st.stop() # Mata a execução do Python imediatamente. Previne vazamento de dados via token vencido.
+        
+    if "user" not in st.session_state:
+        user_domain, jwt_str = get_authenticated_user()
+        st.session_state.user = user_domain
+        st.session_state.raw_jwt = jwt_str
+        st.session_state.token_exp = user_domain.exp if user_domain.exp else (time.time() + 86400)
+
     inject_custom_css()
     if not os.path.exists(settings.OUTPUT_FILE):
         st.error(f"⚠️ Base Parquet não encontrada ({settings.OUTPUT_FILE}).")
@@ -510,7 +527,7 @@ def main():
     use_case = get_use_case()
 
     with st.spinner("Processando Modelo de Leitura (OLAP) e Latência de Cauda (P90)..."):
-        kpi_data = use_case.get_executive_summary(filters)
+        kpi_data = use_case.get_executive_summary(filters, st.session_state.user)
 
     # --- Extração Segura das Variáveis Absolutas ---
     pacientes = kpi_data.pacientes
@@ -588,7 +605,7 @@ def main():
             </div>
         """, unsafe_allow_html=True)
 
-        df_dist = use_case.get_distribution_analysis(filters)
+        df_dist = use_case.get_distribution_analysis(filters, st.session_state.user)
 
         if not df_dist.empty:
             # Função para limpar extremos e calcular estatísticas SRE (Decis P10/P90)
@@ -823,7 +840,7 @@ def main():
         
         with c1:
             # Matriz de Risco (Donut)
-            df_risco = use_case.execute_custom_query(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1")
+            df_risco = use_case.execute_custom_query(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1", filters=filters, current_user=st.session_state.user)
             if not df_risco.empty:
                 # SRE FIX: Usando a nova variável global MAPA_CORES_RISCO
                 st.plotly_chart(px.pie(df_risco, values='Vol', names='Risco Cor', hole=0.5, color='Risco Cor', color_discrete_map=MAPA_CORES_RISCO, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
@@ -841,7 +858,7 @@ def main():
             """)
             st.plotly_chart(px.funnel(df_funil, x='Vol', y='Etapa', title="Funil da Jornada: Gargalos e Abandono"), use_container_width=True, config={'displayModeBar': False})
 
-        df_sit = use_case.execute_custom_query(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC")
+        df_sit = use_case.execute_custom_query(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC", filters=filters, current_user=st.session_state.user)
         st.plotly_chart(px.bar(df_sit, x='Situação', y='Vol', title="Situação Geral da Rede", color='Situação', template="plotly_white"), use_container_width=True, config={'displayModeBar': False})
 
     with t_clin:
@@ -850,7 +867,7 @@ def main():
         c1, c2 = st.columns(2)
         with c1:
             # Geometria da Demanda (Treemap)
-            df_mun = use_case.execute_custom_query(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30")
+            df_mun = use_case.execute_custom_query(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30", filters=filters, current_user=st.session_state.user)
             
             # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
             if not df_mun.empty:
@@ -886,7 +903,7 @@ def main():
                 st.plotly_chart(fig_demo, use_container_width=True, config={'displayModeBar': False})
 
         # Throughput vs Capacidade (Temporal)
-        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1")
+        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1", filters=filters, current_user=st.session_state.user)
         st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='Origem da Lista', title="Throughput Temporal: Volume de Protocolos por Origem"), use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
@@ -1050,7 +1067,7 @@ def main():
         with c2:
             # Top Ofensores (Barra Horizontal)
             st.markdown("### ⚖️ Top Ofensores")
-            df_medico = use_case.execute_custom_query(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10")
+            df_medico = use_case.execute_custom_query(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", filters=filters, current_user=st.session_state.user)
             fig_ofensor = px.bar(df_medico, x='Vol', y='Médico Solicitante', orientation='h', title="Top 10 Médicos (Volume)")
             fig_ofensor.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
             st.plotly_chart(fig_ofensor, use_container_width=True, config={'displayModeBar': False})

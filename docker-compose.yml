@@ -6,12 +6,12 @@ services:
   analytics:
     build: .
     container_name: ger-analytics
-    ports:
-      - "80:80"
-      - "8501:8501"
     env_file:
       - env/creds.env
       - env/config.env
+    networks:
+      - ger-infra-mesh
+      - iap-mesh
     volumes:
       - .:/app
     command: ["/entrypoint.sh"]
@@ -41,6 +41,7 @@ services:
     restart: unless-stopped
 
 networks:
-  default:
+  ger-infra-mesh:
     name: ger-infra-mesh
-
+  iap-mesh:
+    name: iap-mesh
