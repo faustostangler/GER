@@ -50,9 +50,9 @@ services:
           memory: '${REDIS_SESSION_MEM_LIMIT}'
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   oauth2-proxy:
     image: ${OAUTH2_PROXY_IMAGE_NAME}:${OAUTH2_PROXY_IMAGE_VERSION}
@@ -118,9 +118,9 @@ services:
           memory: '512M'
     healthcheck:
       test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   # ----------------------------------------------------
   # Async Processing Queue (SOTA Resiliency with Arq)
@@ -137,9 +137,9 @@ services:
           memory: '${REDIS_QUEUE_MEM_LIMIT}'
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   worker:
     build: .
@@ -222,10 +222,10 @@ services:
           memory: '${KEYCLOAK_MEM_LIMIT}'
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 120s  # SRE: Quarkus augmentation varia de 40-75s + JVM boot ~10s
+      interval: 2s
+      timeout: 2s
+      retries: 60
+      start_period: 10s  # SRE: Quarkus augmentation varia de 40-75s + JVM boot ~10s
 
 networks:
   ger-infra-mesh:

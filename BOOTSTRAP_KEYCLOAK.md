@@ -37,7 +37,8 @@ Esta é a "senha" que o seu contêiner de Proxy usará para falar com o Keycloak
 
 1. Ainda no client `gercon-analytics`, clique na aba superior **Credentials**.
 2. Copie o valor de **Client Secret**.
-3. **Ação no Código**: Abra o seu arquivo `env/creds.env` e substitua o texto `colocar_secrect_quando_criar_o_client` por este código copiado.
+3. **Ação no Código**: Abra o seu arquivo `env/creds.env` e substitua o valor 
+em OAUTH2_PROXY_CLIENT_SECRET=`colocar_secrect_quando_criar_o_client` por este código copiado.
 
 ---
 
@@ -57,11 +58,26 @@ Para que esses dados apareçam no "envelope" enviado ao Python:
 
 1. Vá em **Clients** ➔ **gercon-analytics** ➔ Aba **Client scopes**.
 2. Clique no link **gercon-analytics-dedicated**.
-3. Clique em **Add mapper** ➔ **By configuration** ➔ **User Attribute**.
-4. **Name**: `crm_mapper`.
+3. Clique em **Add mapper** ➔ **Configure a new mapper** ou **By configuration** ➔ **User Attribute**.
+4. **Name**: `crm_numero_mapper` ou `crm_uf_mapper`.
 5. **User Attribute**: `crm_numero`.
 6. **Token Claim Name**: `crm_numero`.
 7. Clique em **Save**. (Repita o processo para o `crm_uf`).
+
+## 5. Provisionar a Primeira Identidade (Primeiro Usuário)
+A criação do seu primeiro usuário "real" é a última etapa do seu Bootstrap para validar o fluxo ponta-a-ponta.
+
+1. No canto superior esquerdo, certifique-se de que o **`gercon-realm`** está selecionado (nunca use o `master` para usuários da aplicação).
+2. No menu lateral, clique em **Users** ➔ **Create new user**.
+3. Preencha os campos essenciais:
+   - **Username**: (ex: `medico_teste`)
+   - **Email**: (ex: `teste@hospital.com`)
+   - **First Name** e **Last Name**.
+   - **CRM Number** e **CRM State**.
+4. Clique em **Create**.
+5. Vá até a aba superior **Credentials** ➔ clique em **Set password**.
+6. **SRE DX Hack**: Digite a senha e **DESLIGUE** a chave **Temporary**. Isso evita que o Keycloak force a troca de senha no primeiro login, acelerando imensamente o ciclo de testes locais. Ou deixe ligado para segurança do usuário. 
+7. Clique em **Save** e confirme.
 
 ---
 
