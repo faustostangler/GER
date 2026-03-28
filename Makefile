@@ -6,13 +6,13 @@
 ENV_FLAGS = --env-file env/creds.env --env-file env/config.env
 DOCKER_COMPOSE = docker compose $(ENV_FLAGS)
 
-.PHONY: bootstrap sync update help up down restart logs clean clean-volumes
+.PHONY: bootstrap sync update help up down up-iam restart logs logs-proxy logs-worker logs-keycloak ps shell shell-worker db-cli cache-cli clean clean-volumes
 
 help:
 	@echo "GER Orchestration Commands:"
 	@echo "  make sync    - Pull code from GitHub and rebuild containers (Slow/Full)"
 	@echo "  make update  - Fast pull from GitHub only (No rebuild)"
-	@echo "  make logs    - Stream system logs in real-time"
+	@echo "  make logs    - Stream analytics system logs"
 	@echo "  make restart - Restart containers without rebuilding"
 	@echo "  make clean   - Prune old images and Docker clutter"
 	@echo "  make up      - Bring the system up in detached mode (App Only, No IAM)"
@@ -20,6 +20,13 @@ help:
 	@echo "  make bootstrap - SOTA Bootstrap: Only Identity infrastructure for manual setup"
 	@echo "  make down    - Stop and remove all containers and networks"
 	@echo "  make clean-volumes - Hard Reset: Nuke all persistent volumes (Clean Start)"
+	@echo ""
+	@echo "Interactive Shortcuts:"
+	@echo "  make ps           - List all running services status"
+	@echo "  make shell        - Drop into Analytics (Streamlit) shell"
+	@echo "  make shell-worker - Drop into Arq Worker shell"
+	@echo "  make db-cli       - Enter Keycloak PostgreSQL CLI"
+	@echo "  make cache-cli    - Enter Redis (ArQ Queue) CLI"
 
 # SRE: Inicia apenas a base da identidade para permitir a configuração manual inicial
 bootstrap:
@@ -33,16 +40,40 @@ bootstrap:
 	@echo "🚀 Após configurar e atualizar o Secret no creds.env, execute: make up-iam"
 
 sync:
-	git pull origin main
+	git pull origin main || true
 	$(DOCKER_COMPOSE) --profile iam up -d --build --wait
 	@echo "🚀 Sistema sincronizado, reconstruído e VALIDADO com IAM!"
 
 update:
-	git pull origin main
+	git pull origin main || true
 	@echo "✅ Code updated from GitHub (Fast Sync)."
 
 logs:
 	$(DOCKER_COMPOSE) logs -f analytics
+
+logs-proxy:
+	$(DOCKER_COMPOSE) logs -f oauth2-proxy
+
+logs-worker:
+	$(DOCKER_COMPOSE) logs -f worker
+
+logs-keycloak:
+	$(DOCKER_COMPOSE) logs -f keycloak
+
+ps:
+	$(DOCKER_COMPOSE) --profile iam ps
+
+shell:
+	$(DOCKER_COMPOSE) exec analytics bash
+
+shell-worker:
+	$(DOCKER_COMPOSE) exec worker bash
+
+db-cli:
+	$(DOCKER_COMPOSE) exec postgres-keycloak psql -U admin_stangler -d keycloak
+
+cache-cli:
+	$(DOCKER_COMPOSE) exec redis-queue redis-cli
 
 restart:
 	$(DOCKER_COMPOSE) restart
