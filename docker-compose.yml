@@ -92,36 +92,35 @@ services:
       - ger-infra-mesh 
 
   # ----------------------------------------------------
-  # Event Streaming (SOTA IAM Sync with KRaft, no Zookeeper)
+  # Event Streaming (SOTA Redpanda, Thread-per-core)
   # ----------------------------------------------------
-  kafka:
-    image: ${KAFKA_IMAGE_NAME}:${KAFKA_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_kafka
+  redpanda-0:
+    image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_IMAGE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}_event_bus
     networks:
       - ger-infra-mesh
-    environment:
-      # KRaft Settings (Zookeeper-less)
-      - KAFKA_CFG_NODE_ID=1
-      - KAFKA_CFG_PROCESS_ROLES=controller,broker
-      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
-      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093
-      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092
-      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
-      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
-      - ALLOW_PLAINTEXT_LISTENER=yes
-    volumes:
-      - kafka_data:/bitnami/kafka
+    ports:
+      - "127.0.0.1:19092:19092"
+      - "127.0.0.1:19644:9644"
+    command:
+      - redpanda
+      - start
+      - --smp 1
+      - --memory 512M
+      - --reserve-memory 0M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
     logging: *default-logging
     deploy:
       resources:
         limits:
-          memory: '${KAFKA_MEM_LIMIT}'
+          memory: '512M'
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server kafka:9092 --list"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 5s
+      timeout: 3s
       retries: 5
-      start_period: 20s
 
   # ----------------------------------------------------
   # Async Processing Queue (SOTA Resiliency with Arq)
@@ -237,5 +236,3 @@ networks:
 volumes:
   keycloak_data:
     name: ${COMPOSE_PROJECT_NAME}_keycloak_data
-  kafka_data:
-    name: ${COMPOSE_PROJECT_NAME}_kafka_data

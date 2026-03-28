@@ -7,7 +7,7 @@ from src.infrastructure.config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("keycloak_events_consumer")
 
-KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_BOOTSTRAP_SERVERS
+KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_URL
 KEYCLOAK_EVENTS_TOPIC = "keycloak.events.register"
 KEYCLOAK_EVENTS_DLQ = "keycloak.events.dlq"
 
