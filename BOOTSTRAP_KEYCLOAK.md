@@ -26,7 +26,7 @@ O `oauth2-proxy` precisa de um cadastro para se identificar perfeitamente.
    - Mantenha **Standard flow** e **Direct access grants** ativados.
 5. Clique em **Next**.
 6. **Login settings**:
-   - **Valid redirect URIs**: `http://localhost/*` (Para desenvolvimento local).
+   - **Valid redirect URIs**: `http://localhost/*` e `http://127.0.0.1.nip.io/*` (Para desenvolvimento local).
    - **Web Origins**: `*`.
 7. Clique em **Save**.
 
@@ -63,6 +63,15 @@ Para que esses dados apareçam no "envelope" enviado ao Python:
 5. **User Attribute**: `crm_numero`.
 6. **Token Claim Name**: `crm_numero`.
 7. Clique em **Save**. (Repita o processo para o `crm_uf`).
+
+### Passo C: OIDC Audience Mapper (Zero Trust Audience)
+Para garantir que o JWT seja validado pelo Proxy, force o mapeamento da audiência para o client.
+1. Ainda na aba **Client scopes** ➔ link **gercon-analytics-dedicated**.
+2. Clique em **Add mapper** ➔ **By configuration** ➔ **Audience**.
+3. **Name**: `gercon_audience`.
+4. **Included Client Audience**: Selecione `gercon-analytics` do dropdown.
+5. Verifique se `Add to ID token` e `Add to access token` estão **ON**.
+6. Clique em **Save**.
 
 ## 5. Provisionar a Primeira Identidade (Primeiro Usuário)
 A criação do seu primeiro usuário "real" é a última etapa do seu Bootstrap para validar o fluxo ponta-a-ponta.

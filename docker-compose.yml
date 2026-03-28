@@ -73,11 +73,8 @@ services:
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
       OAUTH2_PROXY_OIDC_EXTRA_AUDIENCES: "account"
-      # SRE: Split Horizon DNS resoluto - Browser via Domain, Backend via Docker DNS
-      OAUTH2_PROXY_LOGIN_URL: "http://${EXTERNAL_DOMAIN}:${KEYCLOAK_EXTERNAL_PORT}/realms/gercon-realm/protocol/openid-connect/auth"
-      OAUTH2_PROXY_REDEEM_URL: "http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/token"
-      OAUTH2_PROXY_OIDC_JWKS_URL: "http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/certs"
-      OAUTH2_PROXY_VALIDATE_URL: "http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/userinfo"
+      # SRE: As variáveis de Split-Horizon DNS (LOGIN_URL, REDEEM_URL, JWKS_URL, VALIDATE_URL) 
+      # foram movidas para o env/config.env para evitar interpolação precoce e permitir o Fix manual.
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
       OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME}_redis_session:6379"
