@@ -1,6 +1,11 @@
 from typing import Dict, Any
 import json
 from datetime import datetime
+import unicodedata
+
+def remove_accents(input_str: str) -> str:
+    nfkd_form = unicodedata.normalize('NFKD', input_str)
+    return u"".join([c for c in nfkd_form if not unicodedata.combining(c)])
 
 COLUNAS = [
     # Metadados e Identificação
@@ -113,7 +118,11 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     data["Cartão SUS"] = u.get("cartaoSus", "")
     data["Nacionalidade"] = u.get("nacionalidade", "")
     
-    data["Telefones Paciente"] = u.get("telefones", "")
+    tels = u.get("telefones", "")
+    if isinstance(tels, list):
+        data["Telefones Paciente"] = " / ".join([str(t) for t in tels])
+    else:
+        data["Telefones Paciente"] = str(tels) if tels is not None else ""
     mun_pac_nome, mun_pac_uf = extract_municipio(u.get("municipioResidencia"))
     data["Município Paciente"] = mun_pac_nome
     data["UF Paciente"] = mun_pac_uf
@@ -215,7 +224,8 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     
     # -- 7. Evoluções (SRE Dual-Write Strategy) --
     evolucoes_json_raw = j.get("evolucoes", [])
-    evolucoes_json_raw.sort(key=lambda x: x.get("data", 0))
+    # Garante que o valor é sempre convertido para inteiro de forma segura (mitiga NoneType)
+    evolucoes_json_raw.sort(key=lambda x: int(x.get("data") or 0))
     
     data["Data do Cadastro"] = ""
     data["Médico Solicitante"] = ""
@@ -274,7 +284,8 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
                 bloco_txt_completo += f" | {label}: {texto}"
                 
                 # Se for evolução (parecer), anexa no Micro Clínico
-                if label.lower() in ['evolução', 'parecer', 'comentários']:
+                label_normalizado = remove_accents(label.lower())
+                if label_normalizado in ['evolucao', 'parecer', 'comentarios']:
                     textos_clinicos.append(f"[{dt_evo} | {usuario_nome}]: {texto}")
                     tem_detalhe_clinico = True
 
