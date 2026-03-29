@@ -148,7 +148,8 @@ def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_trac
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
     vmin, vmax = get_global_bounds(column, is_date=False)
     
-    if vmin is not None and vmax is not None and vmin != vmax:
+    # SRE FIX: Usando pd.notna() para proteger contra valores ausentes (<NA>) do banco
+    if pd.notna(vmin) and pd.notna(vmax) and vmin != vmax:
         vmin_val, vmax_val = int(vmin), int(vmax)
         
         # Inicializa o estado com os limites do banco se não existir

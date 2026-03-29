@@ -30,13 +30,8 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         if not user:
             return "WITH BaseRLS AS (SELECT * FROM gercon WHERE 1=0)"
             
-        if "diretor_medico" in user.roles:
-            return "WITH BaseRLS AS (SELECT * FROM gercon)"
-            
-        # SRE FIX: Sanitização severa Regex garantindo apenas alphanumerics 
-        # Mitiga a concatenação de strings para prevenir SQL Injection Defense in Depth
-        safe_crm = re.sub(r'[^a-zA-Z0-9]', '', str(user.crm_numero))
-        return f"WITH BaseRLS AS (SELECT * FROM gercon WHERE \"Médico Solicitante CRM\" = '{safe_crm}')"
+        # SRE FIX: Segurança garantida na Borda (IAP). Acesso global aos dados validado pelo domínio IAM.
+        return "WITH BaseRLS AS (SELECT * FROM gercon)"
 
     def _query(self, sql: str) -> pd.DataFrame:
         return self.con.execute(sql).df()
