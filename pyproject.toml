@@ -22,6 +22,10 @@ dependencies = [
     "aiokafka>=0.10.0",
     "arq>=0.25.0",
     "redis>=5.0.0",
+    "s3fs>=2026.3.0",
+    "python-json-logger>=4.1.0",
+    "prometheus-client>=0.24.1",
+    "rq>=2.7.0",
 ]
 
 [tool.uv]

@@ -74,6 +74,7 @@ PATTERN_EVOLUCAO = (
 # Lists for Anonymization as per DDD privacy patterns
 IDENTIFICADORES_DIRETOS = [
     "Nome do Paciente", "CPF", "Cartão SUS", "Nome da Mãe", 
+    "Telefones Paciente", "Operador CPF", "Usuário Solicitante CPF"
 ]
 
 # --- APPLICATION: CORE SERVICES (The Engine) ---
@@ -170,8 +171,9 @@ class GerconPipeline:
         # 4. Use Case: Anonymization
         df = self.anonymizer.process(df, IDENTIFICADORES_DIRETOS)
 
-        # 5. Use Case: History Explosion
-        df = self.exploder.explode(df)
+        # 5. Use Case: History Explosion (DEPRECATED - Moved to Ingestion Mapper)
+        # O novo parser Parquet gera as views de timeline usando Dual-Write (String Plana + JSON SRE)
+        # df = self.exploder.explode(df)
 
         # 6. Persistence/Egress (Infrastructure Adapter)
         self._export_data(df)
