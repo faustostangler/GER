@@ -836,7 +836,7 @@ def main():
                 FROM gercon
                 WHERE {FINAL_WHERE}
                 GROUP BY {levels_sql}
-            """)
+            """, filters, st.session_state.user)
             
             if not df_plot_sun.empty:
                 # SRE FIX: Prevenção contra Nós Folha Vazios no Plotly
@@ -891,7 +891,7 @@ def main():
                 SELECT '3. Agendado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND Situação ILIKE '%AGENDADA%'
                 UNION ALL
                 SELECT '4. Realizado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND ("Situação Final" ILIKE '%ATENDIDO%' OR "Situação Final" ILIKE '%REALIZADO%')
-            """)
+            """, filters, st.session_state.user)
             st.plotly_chart(px.funnel(df_funil, x='Vol', y='Etapa', title="Funil da Jornada: Gargalos e Abandono"), use_container_width=True, config={'displayModeBar': False})
 
         df_sit = use_case.execute_custom_query(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC", filters=filters, current_user=st.session_state.user)
@@ -923,7 +923,7 @@ def main():
                 ) 
                 WHERE Idade_Int IS NOT NULL AND Idade_Int >= 0
                 GROUP BY 1, 2
-            """)
+            """, filters, st.session_state.user)
             
             if not df_demo.empty:
                 fig_demo = px.histogram(
@@ -998,7 +998,7 @@ def main():
               AND "Médico Solicitante" IN (SELECT "Médico Solicitante" FROM TopMedicos)
               AND "CID Descrição" IN (SELECT "CID Descrição" FROM TopCIDs)
             GROUP BY 1, 2
-        """)
+        """, filters, st.session_state.user)
 
         if not df_heatmap.empty:
             df_heatmap['CID_Curto'] = df_heatmap['CID Descrição'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
@@ -1050,7 +1050,7 @@ def main():
             FROM gercon
             WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "CID Descrição" != ''
             GROUP BY 1, 2 HAVING COUNT(DISTINCT Protocolo) >= 3 ORDER BY 3 DESC LIMIT 100
-        """)
+        """, filters, st.session_state.user)
 
         if not df_perfil_med.empty:
             df_perfil_med['Médico Solicitante'] = df_perfil_med['Médico Solicitante'].replace('', 'Médico Não Informado')
@@ -1077,7 +1077,7 @@ def main():
                 WHERE {FINAL_WHERE} AND "Data Solicitação" IS NOT NULL AND Situação NOT ILIKE '%ENCERRADA%'
                 ORDER BY DiasFila DESC, Pontos DESC
                 LIMIT 3000
-            """)
+            """, filters, st.session_state.user)
             if not df_outliers.empty:
                 # 2. Prevenção de Nós Vazios
                 df_outliers['Risco Cor'] = df_outliers['Risco Cor'].replace('', 'Não Informado').fillna('Não Informado')
@@ -1120,7 +1120,7 @@ def main():
             SELECT Protocolo, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(Data_Evolucao AS TIMESTAMP) as Data_Evolução, 
             Situação, \"Risco Cor\", Texto_Evolucao 
             FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, Data_Evolucao DESC LIMIT {limit}
-        """)
+        """, filters, st.session_state.user)
         
         with c_export:
             st.write(" ") # Espaçamento vertical
