@@ -36,6 +36,20 @@ services:
       retries: ${HEALTHCHECK_RETRIES}
       start_period: 30s
 
+  # SRE: Router de Borda Interno para lidar com Redirecionamentos de Root (/) 
+  router:
+    image: nginx:alpine
+    container_name: ${COMPOSE_PROJECT_NAME}_router
+    networks:
+      - ger-infra-mesh
+      - iap-mesh
+    volumes:
+      - ./infra/router/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      analytics:
+        condition: service_healthy
+    logging: *default-logging
+
   # --- SRE FIX: Redis Session Store para suportar JWTs gigantes do Keycloak ---
   redis-session:
     image: ${REDIS_IMAGE_NAME}:${REDIS_IMAGE_VERSION}
@@ -84,6 +98,8 @@ services:
         condition: service_healthy
       keycloak:
         condition: service_healthy # SRE FIX: Aguarda o Keycloak estar 'Listening' na 8080 (OIDC Discovery)
+      router:
+        condition: service_started
     networks:
       - iap-mesh
       - ger-infra-mesh 

@@ -88,7 +88,7 @@ up-iam:
 	@echo "🔐 Stack completa e VALIDADA (App e Identity Provider ativos)!"
 
 down:
-	$(DOCKER_COMPOSE) --profile iam down
+	$(DOCKER_COMPOSE) --profile iam down --remove-orphans
 	@echo "⬇️ Todo o sistema (incluindo IAM) derrubado."
 
 clean:
@@ -96,5 +96,5 @@ clean:
 	@echo "🧹 Old images removed and Docker environment cleaned."
 
 clean-volumes:
-	$(DOCKER_COMPOSE) --profile iam down -v
+	$(DOCKER_COMPOSE) --profile iam down -v --remove-orphans
 	@echo "⚠️  Volumes de dados removidos. O próximo boot será 100% limpo."
