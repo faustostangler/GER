@@ -11,6 +11,7 @@ class InvalidTokenFormatError(Exception):
 jwks_client = PyJWKClient(settings.jwks_url, cache_keys=True, lifespan=86400)
 
 def verify_token(token: str) -> ValidatedUserToken:
+    global jwks_client # SRE FIX: Declarado no topo do escopo para evitar SyntaxError de reatribuição tardia
     try:
         # Extract kid from unverified header
         header = jwt.get_unverified_header(token)
@@ -28,7 +29,6 @@ def verify_token(token: str) -> ValidatedUserToken:
             # A forma correta futura é usar um asyncio.Lock() ou estender PyJWKClient 
             # antes de atualizar o cache global, evitando dezenas de conexões concorrentes ao Keycloak.
             # Force a cache bypass/refresh
-            global jwks_client
             jwks_client = PyJWKClient(settings.jwks_url, cache_keys=True, lifespan=86400)
             try:
                 signing_key = jwks_client.get_signing_key_from_jwt(token)

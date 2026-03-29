@@ -118,9 +118,9 @@ def clear_filter_state(keys_to_clear: list):
                     pass
 
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
-def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, cat_keys: list):
+def render_include_exclude(label: str, column: str, clauses: list, current_where: str, key: str, ui_tracker: list, cat_keys: list, current_user):
     cat_keys.extend([f"{key}_in", f"{key}_ex"])
-    options = get_dynamic_options(column, current_where)
+    options = get_dynamic_options(column, current_where, current_user)
     if not options: return current_where
     
     st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
@@ -427,13 +427,13 @@ def main():
 
     cat = "🩺 Clínico & Regulação"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat], st.session_state.user)
         st.markdown("---")
-        curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat], st.session_state.user)
         st.markdown("---")
-        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat], st.session_state.user)
         render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
         # MÁGICA CLÍNICA MOVIDA: Agregação pelo Protocolo inteiro
         st.markdown("---")
@@ -443,15 +443,15 @@ def main():
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
         # Atores movidos da antiga aba de Evoluções
-        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat], st.session_state.user)
         render_advanced_text_search("Origem da Informação", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
         st.markdown("---")
         
-        curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
         state_keys[cat].append("oj_radio")
@@ -476,8 +476,8 @@ def main():
 
     cat = "🌍 Demografia & Rede"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Município de Residência", "Município de Residência", clauses, curr_where, "mun", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Bairro", "Bairro", clauses, curr_where, "bai", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Município de Residência", "Município de Residência", clauses, curr_where, "mun", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Bairro", "Bairro", clauses, curr_where, "bai", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         # Logradouro com a condicional injetando a numeração dento da Deep Search
         render_advanced_text_search("Logradouro", "Logradouro", clauses, "txt_logr", ui_filters[cat], state_keys[cat])
@@ -495,19 +495,19 @@ def main():
         st.divider() # --- Separador Visual de Identificação Pessoal ---
         
         curr_where = " AND ".join(clauses)
-        curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         # Componente que injeta idade (com Slider Duplo)
         curr_where = render_age_slider("Faixa Etária (Idade)", clauses, "f_idade", ui_filters[cat], state_keys[cat])
         
-        curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat], st.session_state.user)
 
     cat = "⚠️ Triagem & Pontuação"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat])
-        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
         curr_where = render_dual_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
