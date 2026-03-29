@@ -4,89 +4,25 @@ Este guia detalha a configuração manual necessária no console do Keycloak par
 
 ---
 
-## 1. Criar o Realm (O Domínio do App)
-O realm `master` é apenas para administração global. Vamos criar um espaço isolado para o projeto.
+## 🔐 O Bounded Context de Identity (IaC / GitOps)
 
-1. Acesse: **http://localhost:8080**
-2. Login: Use as credenciais `KEYCLOAK_ADMIN` e `KEYCLOAK_ADMIN_PASSWORD` do seu `env/creds.env`.
-3. No canto superior esquerdo, clique em **Master** ➔ **Create Realm**.
-4. **Realm name**: `gercon-realm`.
-5. Clique em **Create**.
+Nossa arquitetura utiliza a filosofia de **Infraestrutura como Código (IaC)** baseada nos princípios *Keep It Simple, Stupid (KISS)* e *12-Factor App*. 
 
----
+**Você NÃO precisa configurar o Realm ou o Client manualmente.**
 
-## 2. Criar o Client (O "RG" do Proxy)
-O `oauth2-proxy` precisa de um cadastro para se identificar perfeitamente.
+O estado de autorização da aplicação, o client `gercon-analytics` e as *Redirect URIs* do Split-Horizon DNS já estão declarados no arquivo estático localizado em `infra/identity/gercon-realm-export.json`.
 
-1. No menu lateral, clique em **Clients** ➔ **Create client**.
-2. **Client ID**: `gercon-analytics`.
-3. Clique em **Next**.
-4. **Capability config**:
-   - **Client authentication**: Mude para **ON** (Isso ativa o Segredo/Secret).
-   - Mantenha **Standard flow** e **Direct access grants** ativados.
-5. Clique em **Next**.
-6. **Login settings**:
-   - **Valid redirect URIs**: `http://localhost/*` e `http://127.0.0.1.nip.io/*` (Para desenvolvimento local).
-   - **Web Origins**: `*`.
-7. Clique em **Save**.
+### Como Funciona:
+Ao executar o comando `make up-iam`, o Docker injeta esse JSON diretamente no diretório `/opt/keycloak/data/import/` do motor Quarkus. A flag `--import-realm` garante que o Keycloak aplique o estado exato deste arquivo na inicialização.
 
----
+### Day-2 Operations (Evoluindo a configuração):
+Se você precisar adicionar novas *roles*, novos *clients* ou mapeadores (OIDC Audience Mappers) durante o desenvolvimento:
+1. Faça a alteração via GUI no Keycloak local.
+2. Vá em **Realm settings -> Partial export**.
+3. Sobrescreva o arquivo `infra/identity/gercon-realm-export.json` com a nova exportação.
+4. Faça o *commit* no repositório.
 
-## 3. Capturar o Client Secret
-Esta é a "senha" que o seu contêiner de Proxy usará para falar com o Keycloak.
-
-1. Ainda no client `gercon-analytics`, clique na aba superior **Credentials**.
-2. Copie o valor de **Client Secret**.
-3. **Ação no Código**: Abra o seu arquivo `env/creds.env` e substitua o valor 
-em OAUTH2_PROXY_CLIENT_SECRET=`colocar_secrect_quando_criar_o_client` por este código copiado.
-
----
-
-## 4. Configurar os Atributos de CRM (Zero Trust Data)
-Para que o gráfico do Streamlit filtre os dados por médico, o Token JWT precisa carregar o CRM.
-
-### Passo A: Definir o Perfil do Usuário
-1. No menu lateral, vá em **Realm settings** ➔ Aba **User profile**.
-2. Clique em **Attributes** ➔ **Create attribute**.
-3. Crie dois atributos exatamente com estes nomes:
-   - `crm_numero`
-   - `crm_uf`
-4. Para ambos, marque as permissões de **View** e **Edit** para o usuário e clique em **Save**.
-
-### Passo B: Mapear para o Token
-Para que esses dados apareçam no "envelope" enviado ao Python:
-
-1. Vá em **Clients** ➔ **gercon-analytics** ➔ Aba **Client scopes**.
-2. Clique no link **gercon-analytics-dedicated**.
-3. Clique em **Add mapper** ➔ **Configure a new mapper** ou **By configuration** ➔ **User Attribute**.
-4. **Name**: `crm_numero_mapper` ou `crm_uf_mapper`.
-5. **User Attribute**: `crm_numero`.
-6. **Token Claim Name**: `crm_numero`.
-7. Clique em **Save**. (Repita o processo para o `crm_uf`).
-
-### Passo C: OIDC Audience Mapper (Zero Trust Audience)
-Para garantir que o JWT seja validado pelo Proxy, force o mapeamento da audiência para o client.
-1. Ainda na aba **Client scopes** ➔ link **gercon-analytics-dedicated**.
-2. Clique em **Add mapper** ➔ **By configuration** ➔ **Audience**.
-3. **Name**: `gercon_audience`.
-4. **Included Client Audience**: Selecione `gercon-analytics` do dropdown.
-5. Verifique se `Add to ID token` e `Add to access token` estão **ON**.
-6. Clique em **Save**.
-
-## 5. Provisionar a Primeira Identidade (Primeiro Usuário)
-A criação do seu primeiro usuário "real" é a última etapa do seu Bootstrap para validar o fluxo ponta-a-ponta.
-
-1. No canto superior esquerdo, certifique-se de que o **`gercon-realm`** está selecionado (nunca use o `master` para usuários da aplicação).
-2. No menu lateral, clique em **Users** ➔ **Create new user**.
-3. Preencha os campos essenciais:
-   - **Username**: (ex: `medico_teste`)
-   - **Email**: (ex: `teste@hospital.com`)
-   - **First Name** e **Last Name**.
-   - **CRM Number** e **CRM State**.
-4. Clique em **Create**.
-5. Vá até a aba superior **Credentials** ➔ clique em **Set password**.
-6. **SRE DX Hack**: Digite a senha e **DESLIGUE** a chave **Temporary**. Isso evita que o Keycloak force a troca de senha no primeiro login, acelerando imensamente o ciclo de testes locais. Ou deixe ligado para segurança do usuário. 
-7. Clique em **Save** e confirme.
+*Nota para Produção:* Em ambientes definitivos, a injeção inicial do JSON resolve o Bootstrap. A evolução do estado será assumida pelos módulos do Terraform (`terraform/main.tf`) atuando como o Keycloak Provider no cluster EKS via ArgoCD.
 
 ---
 
@@ -96,3 +32,7 @@ Após atualizar o `env/creds.env` com o seu **Client Secret**, você está pront
 ```bash
 make up-iam
 ```
+
+### 🔗 Ponto de Entrada do Sistema
+Após subir a malha, o seu Bounded Context de Analytics estará disponível em:
+👉 **http://127.0.0.1.nip.io**

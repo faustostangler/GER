@@ -194,8 +194,8 @@ services:
     image: ${KEYCLOAK_IMAGE_NAME}:${KEYCLOAK_IMAGE_VERSION}
     container_name: ${COMPOSE_PROJECT_NAME}_keycloak
     profiles: ["iam"]
-    # TODO (Day2/Prod): Trocar start-dev para start quando o Ingress com SSL definitivo for configurado
-    command: start-dev 
+    # SRE FIX: Importação declarativa do estado do Realm (IaC)
+    command: start-dev --import-realm
     env_file:
       - env/creds.env
     environment:
@@ -204,6 +204,12 @@ services:
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      # --- SRE FIX: Edge Identity & Split-Horizon DNS ---
+      KC_HOSTNAME_URL: "http://${EXTERNAL_DOMAIN}:${KEYCLOAK_EXTERNAL_PORT}"
+      KC_HOSTNAME_ADMIN_URL: "http://${EXTERNAL_DOMAIN}:${KEYCLOAK_EXTERNAL_PORT}"
+      KC_HOSTNAME_STRICT_BACKCHANNEL: "false" # Permite que chamadas de backend continuem usando 'http://keycloak'
+    volumes:
+      - ./infra/identity/gercon-realm-export.json:/opt/keycloak/data/import/realm.json:ro
     ports:
       # SRE: Exposto temporariamente para o setup administrativo
       - "${DOCKER_BIND_IP}:${KEYCLOAK_EXTERNAL_PORT}:${KEYCLOAK_INTERNAL_PORT}"
@@ -211,7 +217,9 @@ services:
       postgres-keycloak:
         condition: service_healthy
     networks:
-      - iap-mesh
+      iap-mesh:
+        aliases:
+          - 127.0.0.1.nip.io  # SRE: Hack de DNS Interno para o Proxy achar o IdP
     logging: *default-logging
     deploy:
       resources:
@@ -222,7 +230,7 @@ services:
       interval: 2s
       timeout: 2s
       retries: 60
-      start_period: 10s  # SRE: Quarkus augmentation varia de 40-75s + JVM boot ~10s
+      start_period: 300s  # SRE: Acomoda a criação massiva de tabelas no DB em cold boots
 
 networks:
   ger-infra-mesh:
