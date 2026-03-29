@@ -6,7 +6,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from datetime import date
+from datetime import date, timedelta
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
 st.set_page_config(page_title="Gercon Analytics | RCA", page_icon="🎯", layout="wide", initial_sidebar_state="expanded")
@@ -210,13 +210,17 @@ def render_age_slider(label: str, clauses: list, key: str, ui_tracker: list, cat
         clauses.append(f"date_diff('year', TRY_CAST(\"Data de Nascimento\" AS DATE), CURRENT_DATE) BETWEEN {val[0]} AND {val[1]}")
     return " AND ".join(clauses)
 
-def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, default_to_30_days: bool = False):
     """SRE UX FIX: Usa exclusivamente o seletor nativo do Streamlit, que já traz Range e Presets embutidos."""
     cat_keys.append(key)
     
-    # Inicializa como tupla vazia para forçar o date_input a atuar no modo Range (Início - Fim)
+    # Inicializa estado dinâmico (Otimização Cold Start vs UX Cross-Sectional)
     if key not in st.session_state:
-        st.session_state[key] = ()
+        if default_to_30_days:
+            hoje = date.today()
+            st.session_state[key] = (hoje - timedelta(days=30), hoje)
+        else:
+            st.session_state[key] = ()
         
     st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
     
@@ -469,7 +473,7 @@ def main():
 
     cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_smart_date_range("Data de Solicitação", "Data Solicitação", clauses, "dt_solic", ui_filters[cat], state_keys[cat])
+        curr_where = render_smart_date_range("Data de Solicitação", "Data Solicitação", clauses, "dt_solic", ui_filters[cat], state_keys[cat], default_to_30_days=True)
         st.write(" ")
         curr_where = render_smart_date_range("Data do Cadastro", "Data do Cadastro", clauses, "dt_cad", ui_filters[cat], state_keys[cat])
         st.write(" ")
