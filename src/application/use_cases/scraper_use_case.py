@@ -146,12 +146,10 @@ class ScraperUseCase(IScrapingUseCase):
                                     stop_scraping = True
                                     break
                                     
-                            data = flatten_solicitacao(contract_validated.model_dump())
-                            # Falback dinâmico para garantir que tudo preenche corretamente de acordo com DOMÍNiO original:
-                            data = flatten_solicitacao(j, nome) 
+                            data = flatten_solicitacao(j, nome)
                             
-                            if data and data.get("Protocolo"):
-                                records[data["Protocolo"]] = clean_data_row(data)
+                            if data and data.get("numeroCMCE"):
+                                records[data["numeroCMCE"]] = clean_data_row(data)
                                 novos += 1
                                 
                     SCRAPER_ITEMS_SAVED.labels(target_list=chave).inc(novos)

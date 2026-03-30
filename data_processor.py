@@ -47,21 +47,23 @@ logger = logging.getLogger("GerconProcessor")
 
 # --- DOMAIN: DATA TYPES & SCHEMAS (Ubiquitous Language) ---
 DTYPES_CARGA = {
-    'Protocolo': str,
-    'Teleconsulta': str,
-    'Origem da Regulação': str,
-    'Situação': str,
-    'Complexidade': str,
-    'Risco Cor': str,
-    'Cartão SUS': str,
-    'CPF': str,
-    'CEP': str
+    'numeroCMCE': str,
+    'situacao': str,
+    'corRegulador': str,
+    'entidade_complexidade': str,
+    'entidade_classificacaoRisco_cor': str,
+    'usuarioSUS_cartaoSus': str,
+    'usuarioSUS_cpf': str,
+    'usuarioSUS_cep': str,
+    'entidade_especialidade_teleconsulta': str,
 }
 
 COLUNAS_DATA = [
-    "Data Solicitação", 
-    "Data de Nascimento", 
-    "Data do Cadastro"
+    "dataSolicitacao",
+    "usuarioSUS_dataNascimento",
+    "dataCadastro",
+    "dataPrimeiroAgendamento",
+    "dataPrimeiraAutorizacao",
 ]
 
 PATTERN_EVOLUCAO = (
@@ -73,8 +75,9 @@ PATTERN_EVOLUCAO = (
 
 # Lists for Anonymization as per DDD privacy patterns
 IDENTIFICADORES_DIRETOS = [
-    "Nome do Paciente", "CPF", "Cartão SUS", "Nome da Mãe", 
-    "Telefones Paciente", "Operador CPF", "Usuário Solicitante CPF"
+    "usuarioSUS_nomeCompleto", "usuarioSUS_cpf", "usuarioSUS_cartaoSus",
+    "usuarioSUS_nomeMae", "usuarioSUS_telefones",
+    "operador_cpf", "usuarioSolicitante_cpf",
 ]
 
 # --- APPLICATION: CORE SERVICES (The Engine) ---
@@ -214,19 +217,19 @@ class GerconPipeline:
 
     def _optimize_types(self, df: pd.DataFrame) -> pd.DataFrame:
         # Categorical conversion for low cardinality to reduce memory footprint
-        for col in ['Situação', 'Complexidade', 'Risco Cor']:
+        for col in ['situacao', 'entidade_complexidade', 'entidade_classificacaoRisco_cor']:
             if col in df.columns:
                 df[col] = df[col].astype('category')
         return df
 
     def _clean_duplicates(self, df: pd.DataFrame) -> pd.DataFrame:
-        if 'Protocolo' not in df.columns:
+        if 'numeroCMCE' not in df.columns:
             return df
         
-        # Protocol schema enforcement (Ubiquitous Language: must have '-')
+        # Protocol schema enforcement: numeroCMCE must be non-empty
         original_count = len(df)
-        df = df[df['Protocolo'].str.contains('-', na=False)]
-        df = df.drop_duplicates(subset=['Protocolo'], keep='last')
+        df = df[df['numeroCMCE'].astype(str).str.strip().ne('')]
+        df = df.drop_duplicates(subset=['numeroCMCE'], keep='last')
         
         removed = original_count - len(df)
         if removed > 0:
@@ -239,7 +242,8 @@ class GerconPipeline:
         try:
             # Data Quality: Parquet exige tipos consistentes. Colunas mixed-type (object) costumam falhar.
             # Forçamos o cast para string em colunas que sabemos serem problemáticas.
-            for col in ['Número', 'Complemento', 'CEP', 'CID Código', 'CID Descrição']:
+            for col in ['usuarioSUS_numero', 'usuarioSUS_complemento', 'usuarioSUS_cep',
+                        'entidade_cidPrincipal_codigo', 'entidade_cidPrincipal_descricao']:
                 if col in df.columns:
                     df[col] = df[col].astype(str).replace('nan', '')
 

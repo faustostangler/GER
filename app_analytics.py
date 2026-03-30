@@ -421,7 +421,7 @@ def main():
         "🏛️ Governança & Atores": [], 
         "📅 Ciclo de Vida (Datas)": [], 
         "🌍 Demografia & Rede": [],
-        "⚠️ Triagem & Pontuação": []
+        "⚠️ Triagem & entidade_classificacaoRisco_totalPontos": []
     }
     state_keys = {k: [] for k in ui_filters.keys()}
 
@@ -432,35 +432,35 @@ def main():
 
     cat = "🩺 Clínico & Regulação"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Especialidade Mãe", "Especialidade Mãe", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Especialidade Fina", "Especialidade", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(entidade_especialidade_especialidadeMae_descricao, entidade_especialidade_especialidadeMae_descricao, clauses, curr_where, "espm", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("entidade_especialidade_descricao Fina", entidade_especialidade_descricao, clauses, curr_where, "espf", ui_filters[cat], state_keys[cat], st.session_state.user)
         st.markdown("---")
-        curr_where = render_include_exclude("Médico Solicitante", "Médico Solicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Unidade Solicitante", "Unidade Solicitante", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(medicoSolicitante, medicoSolicitante, clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(entidade_unidadeOperador_nome, entidade_unidadeOperador_nome, clauses, curr_where, "usol", ui_filters[cat], state_keys[cat], st.session_state.user)
         st.markdown("---")
-        curr_where = render_include_exclude("CID Código", "CID Código", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat], st.session_state.user)
-        render_advanced_text_search("CID Descrição", "CID Descrição", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
-        # MÁGICA CLÍNICA MOVIDA: Agregação pelo Protocolo inteiro
+        curr_where = render_include_exclude(entidade_cidPrincipal_codigo, entidade_cidPrincipal_codigo, clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat], st.session_state.user)
+        render_advanced_text_search(entidade_cidPrincipal_descricao, entidade_cidPrincipal_descricao, clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
+        # MÁGICA CLÍNICA MOVIDA: Agregação pelo numeroCMCE inteiro
         st.markdown("---")
-        render_advanced_text_search("Evoluções do Paciente", "Texto_Evolucao", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="Protocolo")
+        render_advanced_text_search("Evoluções do Paciente", "historico_quadro_clinico", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="numeroCMCE")
         curr_where = " AND ".join(clauses)
 
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
         # Atores movidos da antiga aba de Evoluções
-        curr_where = render_include_exclude("Tipo de Informação", "Tipo_Informacao", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat], st.session_state.user)
-        render_advanced_text_search("Origem da Informação", "Origem_Informacao", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("Tipo de Informação", "historico_evolucoes_completo", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        render_advanced_text_search("Origem da Informação", evolucoes_json, clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
         st.markdown("---")
         
-        curr_where = render_include_exclude("Origem da Lista", "Origem da Lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Situação Atual", "Situação", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Situação Final", "Situação Final", clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Tipo de Regulação", "Tipo de Regulação", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Status da Especialidade", "Status da Especialidade", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(origem_lista, origem_lista, clauses, curr_where, "lst", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("situacao Atual", "situacao", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(situacao, situacao, clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(entidade_especialidade_tipoRegulacao, entidade_especialidade_tipoRegulacao, clauses, curr_where, "treg", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(entidade_especialidade_ativa, entidade_especialidade_ativa, clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
         state_keys[cat].append("oj_radio")
-        oj = st.radio("Ordem Judicial", ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
+        oj = st.radio(liminarOrdemJudicial, ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
         if oj == "Sim": 
             ui_filters[cat].append({"text": "Ordem Judicial: Sim", "keys": ["oj_radio"]})
             clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
@@ -473,19 +473,19 @@ def main():
 
     cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_smart_date_range("Data de Solicitação", "Data Solicitação", clauses, "dt_solic", ui_filters[cat], state_keys[cat], default_to_30_days=True)
+        curr_where = render_smart_date_range("Data de Solicitação", dataSolicitacao, clauses, "dt_solic", ui_filters[cat], state_keys[cat], default_to_30_days=True)
         st.write(" ")
-        curr_where = render_smart_date_range("Data do Cadastro", "Data do Cadastro", clauses, "dt_cad", ui_filters[cat], state_keys[cat])
+        curr_where = render_smart_date_range(dataCadastro, dataCadastro, clauses, "dt_cad", ui_filters[cat], state_keys[cat])
         st.write(" ")
-        curr_where = render_smart_date_range("Data da Evolução", "Data_Evolucao", clauses, "dt_evo", ui_filters[cat], state_keys[cat])
+        curr_where = render_smart_date_range("Data da Evolução", "dataCadastro", clauses, "dt_evo", ui_filters[cat], state_keys[cat])
 
     cat = "🌍 Demografia & Rede"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Município de Residência", "Município de Residência", clauses, curr_where, "mun", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Bairro", "Bairro", clauses, curr_where, "bai", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(usuarioSUS_municipioResidencia_nome, usuarioSUS_municipioResidencia_nome, clauses, curr_where, "mun", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(usuarioSUS_bairro, usuarioSUS_bairro, clauses, curr_where, "bai", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         # Logradouro com a condicional injetando a numeração dento da Deep Search
-        render_advanced_text_search("Logradouro", "Logradouro", clauses, "txt_logr", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search(usuarioSUS_logradouro, usuarioSUS_logradouro, clauses, "txt_logr", ui_filters[cat], state_keys[cat])
         if st.session_state.get("txt_logr_toggle", False):
             st.markdown("<div style='margin-left: 1rem; border-left: 2px solid #cbd5e1; padding-left: 0.5rem;'>", unsafe_allow_html=True)
             state_keys[cat].extend(["num_min", "num_max"])
@@ -500,24 +500,24 @@ def main():
         st.divider() # --- Separador Visual de Identificação Pessoal ---
         
         curr_where = " AND ".join(clauses)
-        curr_where = render_include_exclude("Sexo", "Sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(usuarioSUS_sexo, usuarioSUS_sexo, clauses, curr_where, "sex", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         # Componente que injeta idade (com Slider Duplo)
         curr_where = render_age_slider("Faixa Etária (Idade)", clauses, "f_idade", ui_filters[cat], state_keys[cat])
         
-        curr_where = render_include_exclude("Cor/Raça", "Cor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Nacionalidade", "Nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Cor/Raça", usuarioSUS_racaCor, clauses, curr_where, "cor", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude(usuarioSUS_nacionalidade, usuarioSUS_nacionalidade, clauses, curr_where, "nac", ui_filters[cat], state_keys[cat], st.session_state.user)
 
-    cat = "⚠️ Triagem & Pontuação"
+    cat = "⚠️ Triagem & entidade_classificacaoRisco_totalPontos"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("Complexidade", "Complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Risco Cor (Atual)", "Risco Cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Cor do Regulador", "Cor Regulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("entidade_complexidade", "entidade_complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Risco Cor (Atual)", entidade_classificacaoRisco_cor, clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Cor do Regulador", corRegulador, clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
-        curr_where = render_dual_slider("Pontos Gravidade", "Pontos Gravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
-        curr_where = render_dual_slider("Pontos Tempo", "Pontos Tempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
-        curr_where = render_dual_slider("Pontuação Total", "Pontuação", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider(entidade_classificacaoRisco_pontosGravidade, entidade_classificacaoRisco_pontosGravidade, clauses, "pt_grav", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider(entidade_classificacaoRisco_pontosTempo, entidade_classificacaoRisco_pontosTempo, clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("entidade_classificacaoRisco_totalPontos Total", "entidade_classificacaoRisco_totalPontos", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
 
 
 
@@ -613,11 +613,11 @@ def main():
         
         st.write(" ") 
         
-        # --- LINHA 2: Complexidade Clínica e SLA ---
+        # --- LINHA 2: entidade_complexidade Clínica e SLA ---
         r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-        r2_c1.metric("🏛️ Especialidades (Mãe)", f"{esp_mae:,}".replace(',', '.'), help="Grandes áreas clínicas abrangidas (Ex: CIRURGIA).")
-        r2_c2.metric("🎯 Subespecialidades", f"{sub_esp:,}".replace(',', '.'), help="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO).")
-        r2_c3.metric("🔀 Subs/Especialidade", f"{sub_por_esp}".replace('.', ','), help="Média de ramificações por grande área clínica.")
+        r2_c1.metric("🏛️ entidade_especialidade_descricaos (Mãe)", f"{esp_mae:,}".replace(',', '.'), help="Grandes áreas clínicas abrangidas (Ex: CIRURGIA).")
+        r2_c2.metric("🎯 Subespecialidades", f"{sub_esp:,}".replace(',', '.'), help="entidade_especialidade_descricaos finas abrangidas (Ex: CIRURGIA DA MÃO).")
+        r2_c3.metric("🔀 Subs/entidade_especialidade_descricao", f"{sub_por_esp}".replace('.', ','), help="Média de ramificações por grande área clínica.")
         
         lead_str = f"{lead_time} dias | {max_lead_time} dias" if pd.notna(lead_time) else "0 dias"
         r2_c4.metric("⏱️ Fila: Média | Pior", lead_str, help="Tempo Médio vs Tempo do paciente mais antigo.")
@@ -782,25 +782,25 @@ def main():
                 "Selecione a Hierarquia de Dados (Máx: 5 níveis):", 
                 options=[
                     # --- Clínico & Regulação ---
-                    "Especialidade Mãe", "Especialidade", "Especialidade CBO",
-                    "CID Código", "CID Descrição",
-                    "Origem da Lista", "Situação", "Situação Final", 
-                    "Tipo de Regulação", "Status da Especialidade", "Teleconsulta",
-                    "Central de Regulação", "Origem da Regulação",
+                    entidade_especialidade_especialidadeMae_descricao, entidade_especialidade_descricao, entidade_especialidade_cbo_descricao,
+                    entidade_cidPrincipal_codigo, entidade_cidPrincipal_descricao,
+                    origem_lista, "situacao", situacao, 
+                    entidade_especialidade_tipoRegulacao, entidade_especialidade_ativa, "entidade_especialidade_teleconsulta",
+                    entidade_centralRegulacao_nome, entidade_unidadeOperador_centralRegulacao_nome,
                     
                     # --- Governança & Atores ---
-                    "Ordem Judicial", "Unidade Solicitante", "Unidade Razão Social", "Unidade Descrição", 
-                    "Médico Solicitante", "Operador", "Usuário Solicitante",
-                    "Origem_Informacao", "Tipo_Informacao",
+                    liminarOrdemJudicial, entidade_unidadeOperador_nome, entidade_unidadeOperador_razaoSocial, entidade_unidadeOperador_tipoUnidade_descricao, 
+                    medicoSolicitante, operador_nome, usuarioSolicitante_nome,
+                    evolucoes_json, "historico_evolucoes_completo",
                     
-                    # --- Triagem & Pontuação ---
-                    "Complexidade", "Risco Cor", "Cor Regulador",
+                    # --- Triagem & entidade_classificacaoRisco_totalPontos ---
+                    "entidade_complexidade", entidade_classificacaoRisco_cor, corRegulador,
                     
                     # --- Demografia & Rede ---
-                    "Município de Residência", "Bairro", 
-                    "Sexo", "Cor", "Nacionalidade"
+                    usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, 
+                    usuarioSUS_sexo, usuarioSUS_racaCor, usuarioSUS_nacionalidade
                 ],
-                default=["Especialidade Mãe", "Especialidade", "CID Descrição"],
+                default=[entidade_especialidade_especialidadeMae_descricao, entidade_especialidade_descricao, entidade_cidPrincipal_descricao],
                 max_selections=5,
                 help="Arraste e solte as tags para reordenar o funil (path) do gráfico."
             )
@@ -809,12 +809,12 @@ def main():
             st.write(" ") # Alinhamento visual com o label do multiselect
             # Dicionário SRE: Mapeia a UX para a query OLAP
             METRICAS_COR = {
-                "⏳ Tempo de Espera (Fila)": {"sql": "ROUND(AVG(DATEDIFF('day', CAST(\"Data Solicitação\" AS DATE), CURRENT_DATE)), 1)", "unit": "dias"},
-                "⚠️ Tempo Esquecido (Sem Evolução)": {"sql": "ROUND(AVG(DATEDIFF('day', CAST(Data_Evolucao AS TIMESTAMP), CURRENT_DATE)), 1)", "unit": "dias"},
-                "🚨 Pontos de Gravidade": {"sql": "ROUND(AVG(TRY_CAST(\"Pontos Gravidade\" AS INTEGER)), 1)", "unit": "pts"},
-                "⏱️ Pontos de Tempo": {"sql": "ROUND(AVG(TRY_CAST(\"Pontos Tempo\" AS INTEGER)), 1)", "unit": "pts"},
-                "🔥 Pontuação Total": {"sql": "ROUND(AVG(TRY_CAST(Pontuação AS INTEGER)), 1)", "unit": "pts"},
-                "🎂 Idade Média (Demografia)": {"sql": "ROUND(AVG(date_diff('year', TRY_CAST(\"Data de Nascimento\" AS DATE), CURRENT_DATE)), 1)", "unit": "anos"}
+                "⏳ Tempo de Espera (Fila)": {"sql": "ROUND(AVG(SLA_Lead_Time_Total_Dias), 1)", "unit": "dias"},
+                "⚠️ Tempo Esquecido (Sem Evolução)": {"sql": "ROUND(AVG(SLA_Tempo_Regulador_Dias), 1)", "unit": "dias"},
+                "🚨 Pontos de Gravidade": {"sql": "ROUND(AVG(entidade_classificacaoRisco_pontosGravidade), 1)", "unit": "pts"},
+                "⏱️ Pontos de Tempo": {"sql": "ROUND(AVG(entidade_classificacaoRisco_pontosTempo), 1)", "unit": "pts"},
+                "🔥 Pontuação Total": {"sql": "ROUND(AVG(entidade_classificacaoRisco_totalPontos), 1)", "unit": "pts"},
+                "🎂 Idade Média (Demografia)": {"sql": "ROUND(AVG(date_diff('year', usuarioSUS_dataNascimento, CURRENT_DATE)), 1)", "unit": "anos"}
             }
             
             cor_selecionada = st.selectbox(
@@ -835,7 +835,7 @@ def main():
             df_plot_sun = use_case.execute_custom_query(f"""
                 SELECT 
                     {levels_sql}, 
-                    COUNT(DISTINCT Protocolo) as Vol,
+                    COUNT(DISTINCT numeroCMCE) as Vol,
                     {sql_cor} as Metrica_Cor
                 FROM gercon
                 WHERE {FINAL_WHERE}
@@ -880,26 +880,26 @@ def main():
         
         with c1:
             # Matriz de Risco (Donut)
-            df_risco = use_case.execute_custom_query(f"SELECT \"Risco Cor\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1", filters=filters, current_user=st.session_state.user)
+            df_risco = use_case.execute_custom_query(f"SELECT \"Risco Cor\", COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1", filters=filters, current_user=st.session_state.user)
             if not df_risco.empty:
                 # SRE FIX: Usando a nova variável global MAPA_CORES_RISCO
-                st.plotly_chart(px.pie(df_risco, values='Vol', names='Risco Cor', hole=0.5, color='Risco Cor', color_discrete_map=MAPA_CORES_RISCO, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
+                st.plotly_chart(px.pie(df_risco, values='Vol', names='entidade_classificacaoRisco_cor', hole=0.5, color='entidade_classificacaoRisco_cor', color_discrete_map=MAPA_CORES_RISCO, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
             
         with c2:
             # Funil de Jornada (Conversão)
             df_funil = use_case.execute_custom_query(f"""
-                SELECT '1. Solicitado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE}
+                SELECT '1. Solicitado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE}
                 UNION ALL
-                SELECT '2. Triado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND "Risco Cor" != ''
+                SELECT '2. Triado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != ''
                 UNION ALL
-                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND Situação ILIKE '%AGENDADA%'
+                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND situacao ILIKE '%AGENDADA%'
                 UNION ALL
-                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND ("Situação Final" ILIKE '%ATENDIDO%' OR "Situação Final" ILIKE '%REALIZADO%')
+                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND (situacao ILIKE '%ATENDIDO%' OR situacao ILIKE '%REALIZADO%')
             """, filters, st.session_state.user)
             st.plotly_chart(px.funnel(df_funil, x='Vol', y='Etapa', title="Funil da Jornada: Gargalos e Abandono"), use_container_width=True, config={'displayModeBar': False})
 
-        df_sit = use_case.execute_custom_query(f"SELECT Situação, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC", filters=filters, current_user=st.session_state.user)
-        st.plotly_chart(px.bar(df_sit, x='Situação', y='Vol', title="Situação Geral da Rede", color='Situação', template="plotly_white"), use_container_width=True, config={'displayModeBar': False})
+        df_sit = use_case.execute_custom_query(f"SELECT situacao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC", filters=filters, current_user=st.session_state.user)
+        st.plotly_chart(px.bar(df_sit, x='situacao', y='Vol', title="situacao Geral da Rede", color='situacao', template="plotly_white"), use_container_width=True, config={'displayModeBar': False})
 
     with t_clin:
         st.subheader("Inteligência Clínica & Perfil Demográfico")
@@ -907,21 +907,21 @@ def main():
         c1, c2 = st.columns(2)
         with c1:
             # Geometria da Demanda (Treemap)
-            df_mun = use_case.execute_custom_query(f"SELECT \"Município de Residência\", Bairro, COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30", filters=filters, current_user=st.session_state.user)
+            df_mun = use_case.execute_custom_query(f"SELECT \"Município de Residência\", usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30", filters=filters, current_user=st.session_state.user)
             
             # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
             if not df_mun.empty:
-                df_mun['Bairro'] = df_mun['Bairro'].replace('', 'Não Informado').fillna('Não Informado')
-                st.plotly_chart(px.treemap(df_mun, path=['Município de Residência', 'Bairro'], values='Vol', title="Geometria: Município ➔ Bairro", color='Vol', color_continuous_scale='Viridis'), use_container_width=True, config={'displayModeBar': False})
+                df_mun['usuarioSUS_bairro'] = df_mun['usuarioSUS_bairro'].replace('', 'Não Informado').fillna('Não Informado')
+                st.plotly_chart(px.treemap(df_mun, path=['usuarioSUS_municipioResidencia_nome', 'usuarioSUS_bairro'], values='Vol', title="Geometria: Município ➔ usuarioSUS_bairro", color='Vol', color_continuous_scale='Viridis'), use_container_width=True, config={'displayModeBar': False})
         with c2:
             # SRE FIX: Cálculo de Idade blindado (TRY_CAST para evitar Conversion Error)
             df_demo = use_case.execute_custom_query(f"""
-                SELECT Idade_Int, Sexo, COUNT(DISTINCT Protocolo) as Vol
+                SELECT Idade_Int, usuarioSUS_sexo, COUNT(DISTINCT numeroCMCE) as Vol
                 FROM (
                     SELECT 
-                        date_diff('year', TRY_CAST("Data de Nascimento" AS DATE), CURRENT_DATE) as Idade_Int, 
-                        Sexo, 
-                        Protocolo
+                        date_diff('year', TRY_CAST(usuarioSUS_dataNascimento AS DATE), CURRENT_DATE) as Idade_Int, 
+                        usuarioSUS_sexo, 
+                        numeroCMCE
                     FROM gercon 
                     WHERE {FINAL_WHERE}
                 ) 
@@ -934,17 +934,17 @@ def main():
                     df_demo, 
                     x='Idade_Int', 
                     y='Vol', 
-                    color='Sexo', 
+                    color='usuarioSUS_sexo', 
                     barmode='group', 
                     color_discrete_map={'Feminino':'#ec4899', 'Masculino':'#3b82f6'},
-                    title="Perfil Demográfico (Idade vs Sexo)",
+                    title="Perfil Demográfico (Idade vs usuarioSUS_sexo)",
                     labels={'Idade_Int': 'Idade Aproximada', 'Vol': 'Volume de Pacientes'}
                 )
                 st.plotly_chart(fig_demo, use_container_width=True, config={'displayModeBar': False})
 
         # Throughput vs Capacidade (Temporal)
-        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1", filters=filters, current_user=st.session_state.user)
-        st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='Origem da Lista', title="Throughput Temporal: Volume de Protocolos por Origem"), use_container_width=True, config={'displayModeBar': False})
+        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1", filters=filters, current_user=st.session_state.user)
+        st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='origem_lista', title="Throughput Temporal: Volume de numeroCMCEs por Origem"), use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
         st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
@@ -984,31 +984,31 @@ def main():
         # --- 3. EXTRACÇÃO OLAP (DuckDB com Limites Independentes) ---
         df_heatmap = use_case.execute_custom_query(f"""
             WITH TopMedicos AS (
-                SELECT "Médico Solicitante" FROM gercon 
-                WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "Médico Solicitante" IS NOT NULL
-                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x_med}
+                SELECT medicoSolicitante FROM gercon 
+                WHERE {FINAL_WHERE} AND medicoSolicitante != '' AND medicoSolicitante IS NOT NULL
+                GROUP BY 1 ORDER BY COUNT(DISTINCT numeroCMCE) DESC LIMIT {top_x_med}
             ),
             TopCIDs AS (
-                SELECT "CID Descrição" FROM gercon 
-                WHERE {FINAL_WHERE} AND "CID Descrição" != '' AND "CID Descrição" IS NOT NULL
-                GROUP BY 1 ORDER BY COUNT(DISTINCT Protocolo) DESC LIMIT {top_x_cid}
+                SELECT entidade_cidPrincipal_descricao FROM gercon 
+                WHERE {FINAL_WHERE} AND entidade_cidPrincipal_descricao != '' AND entidade_cidPrincipal_descricao IS NOT NULL
+                GROUP BY 1 ORDER BY COUNT(DISTINCT numeroCMCE) DESC LIMIT {top_x_cid}
             )
             SELECT 
-                "Médico Solicitante", 
-                "CID Descrição", 
-                COUNT(DISTINCT Protocolo) as Vol
+                medicoSolicitante, 
+                entidade_cidPrincipal_descricao, 
+                COUNT(DISTINCT numeroCMCE) as Vol
             FROM gercon
             WHERE {FINAL_WHERE}
-              AND "Médico Solicitante" IN (SELECT "Médico Solicitante" FROM TopMedicos)
-              AND "CID Descrição" IN (SELECT "CID Descrição" FROM TopCIDs)
+              AND medicoSolicitante IN (SELECT medicoSolicitante FROM TopMedicos)
+              AND entidade_cidPrincipal_descricao IN (SELECT entidade_cidPrincipal_descricao FROM TopCIDs)
             GROUP BY 1, 2
         """, filters, st.session_state.user)
 
         if not df_heatmap.empty:
-            df_heatmap['CID_Curto'] = df_heatmap['CID Descrição'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
+            df_heatmap['CID_Curto'] = df_heatmap['entidade_cidPrincipal_descricao'].apply(lambda x: x[:45] + '...' if len(x) > 45 else x)
             
             # Cria a Matriz Base (Volumes Absolutos para hover)
-            df_pivot_vol = df_heatmap.pivot_table(index='CID_Curto', columns='Médico Solicitante', values='Vol', fill_value=0)
+            df_pivot_vol = df_heatmap.pivot_table(index='CID_Curto', columns='medicoSolicitante', values='Vol', fill_value=0)
             df_math = df_pivot_vol.copy().astype(float)
             
             # --- 4. MOTOR ESTATÍSTICO (Vetorização Pandas) ---
@@ -1033,7 +1033,7 @@ def main():
                 color_continuous_scale=paleta_heatmap,
                 color_continuous_midpoint=0, 
                 title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} CIDs vs Top {top_x_med} Médicos",
-                labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Z-Score")
+                labels=dict(x=medicoSolicitante, y="Diagnóstico (CID)", color="Z-Score")
             )
             
             fig_heat.update_traces(
@@ -1050,17 +1050,17 @@ def main():
 
         # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Médico ➔ CID) ---
         df_perfil_med = use_case.execute_custom_query(f"""
-            SELECT "Médico Solicitante", "CID Descrição", COUNT(DISTINCT Protocolo) as Vol
+            SELECT medicoSolicitante, entidade_cidPrincipal_descricao, COUNT(DISTINCT numeroCMCE) as Vol
             FROM gercon
-            WHERE {FINAL_WHERE} AND "Médico Solicitante" != '' AND "CID Descrição" != ''
-            GROUP BY 1, 2 HAVING COUNT(DISTINCT Protocolo) >= 3 ORDER BY 3 DESC LIMIT 100
+            WHERE {FINAL_WHERE} AND medicoSolicitante != '' AND entidade_cidPrincipal_descricao != ''
+            GROUP BY 1, 2 HAVING COUNT(DISTINCT numeroCMCE) >= 3 ORDER BY 3 DESC LIMIT 100
         """, filters, st.session_state.user)
 
         if not df_perfil_med.empty:
-            df_perfil_med['Médico Solicitante'] = df_perfil_med['Médico Solicitante'].replace('', 'Médico Não Informado')
-            df_perfil_med['CID Descrição'] = df_perfil_med['CID Descrição'].replace('', 'CID Não Informado')
+            df_perfil_med['medicoSolicitante'] = df_perfil_med['medicoSolicitante'].replace('', 'Médico Não Informado')
+            df_perfil_med['entidade_cidPrincipal_descricao'] = df_perfil_med['entidade_cidPrincipal_descricao'].replace('', 'CID Não Informado')
             fig_tree_med = px.treemap(
-                df_perfil_med, path=['Médico Solicitante', 'CID Descrição'], values='Vol',
+                df_perfil_med, path=['medicoSolicitante', 'entidade_cidPrincipal_descricao'], values='Vol',
                 color='Vol', color_continuous_scale='Teal', title="Perfil de Diagnóstico por Médico (Clique no Médico para expandir)"
             )
             fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
@@ -1074,30 +1074,30 @@ def main():
             # Matriz de Outliers (Scatter Plot)
             st.markdown("### 🔍 Detecção de Outliers SLA")
             df_outliers = use_case.execute_custom_query(f"""
-                SELECT Protocolo, "Risco Cor", TRY_CAST(Pontuação AS INTEGER) as Pontos, 
-                    DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE) as DiasFila,
-                    Situação, Especialidade
+                SELECT numeroCMCE, entidade_classificacaoRisco_cor, TRY_CAST(entidade_classificacaoRisco_totalPontos AS INTEGER) as Pontos, 
+                    DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) as DiasFila,
+                    situacao, entidade_especialidade_descricao
                 FROM gercon 
-                WHERE {FINAL_WHERE} AND "Data Solicitação" IS NOT NULL AND Situação NOT ILIKE '%ENCERRADA%'
+                WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
                 ORDER BY DiasFila DESC, Pontos DESC
                 LIMIT 3000
             """, filters, st.session_state.user)
             if not df_outliers.empty:
                 # 2. Prevenção de Nós Vazios
-                df_outliers['Risco Cor'] = df_outliers['Risco Cor'].replace('', 'Não Informado').fillna('Não Informado')
+                df_outliers['entidade_classificacaoRisco_cor'] = df_outliers['entidade_classificacaoRisco_cor'].replace('', 'Não Informado').fillna('Não Informado')
 
                 # 3. Plotagem do Scatter com os parâmetros matematicamente corretos usando a global
                 fig_out = px.scatter(
                     df_outliers, 
                     x='DiasFila', 
                     y='Pontos', 
-                    color='Risco Cor',
+                    color='entidade_classificacaoRisco_cor',
                     color_discrete_map=MAPA_CORES_RISCO,
                     opacity=0.7,
                     size='Pontos',
-                    hover_data=['Protocolo'],
+                    hover_data=['numeroCMCE'],
                     title="Deteção de Outliers: Tempo de Fila vs Gravidade",
-                    labels={'DiasFila': 'Tempo de Espera (Dias)', 'Pontos': 'Pontuação de Gravidade'},
+                    labels={'DiasFila': 'Tempo de Espera (Dias)', 'Pontos': 'entidade_classificacaoRisco_totalPontos de Gravidade'},
                     render_mode="svg" 
                 )
                 fig_out.add_hline(y=40, line_dash="dot", annotation_text="Alta Gravidade")
@@ -1107,8 +1107,8 @@ def main():
         with c2:
             # Top Ofensores (Barra Horizontal)
             st.markdown("### ⚖️ Top Ofensores")
-            df_medico = use_case.execute_custom_query(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT Protocolo) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", filters=filters, current_user=st.session_state.user)
-            fig_ofensor = px.bar(df_medico, x='Vol', y='Médico Solicitante', orientation='h', title="Top 10 Médicos (Volume)")
+            df_medico = use_case.execute_custom_query(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", filters=filters, current_user=st.session_state.user)
+            fig_ofensor = px.bar(df_medico, x='Vol', y='medicoSolicitante', orientation='h', title="Top 10 Médicos (Volume)")
             fig_ofensor.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
             st.plotly_chart(fig_ofensor, use_container_width=True, config={'displayModeBar': False})
 
@@ -1121,9 +1121,9 @@ def main():
             limit = st.slider("Amostra para Auditoria Clínica", 10, 1000, 100)
             
         df_audit = use_case.execute_custom_query(f"""
-            SELECT Protocolo, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(Data_Evolucao AS TIMESTAMP) as Data_Evolução, 
-            Situação, \"Risco Cor\", Texto_Evolucao 
-            FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, Data_Evolucao DESC LIMIT {limit}
+            SELECT numeroCMCE, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(dataCadastro AS TIMESTAMP) as Data_Evolução, 
+            situacao, \"Risco Cor\", historico_quadro_clinico 
+            FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, dataCadastro DESC LIMIT {limit}
         """, filters, st.session_state.user)
         
         with c_export:
