@@ -163,6 +163,25 @@ def render_boolean_radio(label: str, column: str, clauses: list, key: str, ui_tr
         
     return " AND ".join(clauses)
 
+def render_presence_radio(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+    """Componente SRE para campos de texto/ID onde a presença de valor valida a flag verdadeira (Ex: Liminar)."""
+    cat_keys.append(f"{key}_radio")
+    
+    if f"{key}_radio" not in st.session_state:
+        st.session_state[f"{key}_radio"] = "Ambos"
+        
+    st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+    val = st.radio(label, ["Ambos", "Sim", "Não"], horizontal=True, key=f"{key}_radio", label_visibility="collapsed")
+    
+    if val == "Sim":
+        ui_tracker.append({"text": f"{label}: Sim", "keys": [f"{key}_radio"]})
+        clauses.append(f"(\"{column}\" IS NOT NULL AND \"{column}\" != '')")
+    elif val == "Não":
+        ui_tracker.append({"text": f"{label}: Não", "keys": [f"{key}_radio"]})
+        clauses.append(f"(\"{column}\" IS NULL OR \"{column}\" = '')")
+        
+    return " AND ".join(clauses)
+
 def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
     """SRE UX FIX: Slider bidirecional sincronizado com inputs numéricos para precisão cirúrgica."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
@@ -175,6 +194,7 @@ def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_trac
         # Inicializa o estado com os limites do banco se não existir
         if f"{key}_min" not in st.session_state: st.session_state[f"{key}_min"] = vmin_val
         if f"{key}_max" not in st.session_state: st.session_state[f"{key}_max"] = vmax_val
+        if f"{key}_sld" not in st.session_state: st.session_state[f"{key}_sld"] = (vmin_val, vmax_val)
         
         st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
         
@@ -193,7 +213,7 @@ def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_trac
         c1.number_input("Mínimo", min_value=vmin_val, max_value=vmax_val, key=f"{key}_min", on_change=sync_num, label_visibility="collapsed")
         c2.number_input("Máximo", min_value=vmin_val, max_value=vmax_val, key=f"{key}_max", on_change=sync_num, label_visibility="collapsed")
         
-        val = st.slider(label, vmin_val, vmax_val, (st.session_state[f"{key}_min"], st.session_state[f"{key}_max"]), key=f"{key}_sld", on_change=sync_slider, label_visibility="collapsed")
+        val = st.slider(label, vmin_val, vmax_val, key=f"{key}_sld", on_change=sync_slider, label_visibility="collapsed")
         
         if val[0] > vmin_val or val[1] < vmax_val:
             ui_tracker.append({"text": f"{label}: {val[0]} a {val[1]}", "keys": [f"{key}_sld", f"{key}_min", f"{key}_max"]})
@@ -208,6 +228,7 @@ def render_age_slider(label: str, clauses: list, key: str, ui_tracker: list, cat
     
     if f"{key}_min" not in st.session_state: st.session_state[f"{key}_min"] = vmin_val
     if f"{key}_max" not in st.session_state: st.session_state[f"{key}_max"] = vmax_val
+    if f"{key}_sld" not in st.session_state: st.session_state[f"{key}_sld"] = (vmin_val, vmax_val)
     
     st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
     
@@ -223,11 +244,11 @@ def render_age_slider(label: str, clauses: list, key: str, ui_tracker: list, cat
     c1.number_input("Idade Min", min_value=vmin_val, max_value=vmax_val, key=f"{key}_min", on_change=sync_num_age, label_visibility="collapsed")
     c2.number_input("Idade Max", min_value=vmin_val, max_value=vmax_val, key=f"{key}_max", on_change=sync_num_age, label_visibility="collapsed")
     
-    val = st.slider(label, vmin_val, vmax_val, (st.session_state[f"{key}_min"], st.session_state[f"{key}_max"]), key=f"{key}_sld", on_change=sync_slider_age, label_visibility="collapsed")
+    val = st.slider(label, vmin_val, vmax_val, key=f"{key}_sld", on_change=sync_slider_age, label_visibility="collapsed")
     
     if val[0] > vmin_val or val[1] < vmax_val:
         ui_tracker.append({"text": f"{label}: {val[0]} a {val[1]} anos", "keys": [f"{key}_sld", f"{key}_min", f"{key}_max"]})
-        clauses.append(f"date_diff('year', TRY_CAST(\"Data de Nascimento\" AS DATE), CURRENT_DATE) BETWEEN {val[0]} AND {val[1]}")
+        clauses.append(f"date_diff('year', TRY_CAST(usuarioSUS_dataNascimento AS DATE), CURRENT_DATE) BETWEEN {val[0]} AND {val[1]}")
     return " AND ".join(clauses)
 
 def render_smart_date_range(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list, default_to_30_days: bool = False):
@@ -483,7 +504,7 @@ def main():
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
         # Atores movidos da antiga aba de Evoluções
-        curr_where = render_include_exclude("Tipo de Informação", "historico_evolucoes_completo", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        render_advanced_text_search("Tipo de Informação", "historico_evolucoes_completo", clauses, "txt_tinf", ui_filters[cat], state_keys[cat])
         render_advanced_text_search("Origem da Informação", "evolucoes_json", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
         st.markdown("---")
         
@@ -493,7 +514,7 @@ def main():
         curr_where = render_include_exclude("Especialidade Ativa", "entidade_especialidade_ativa", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
-        curr_where = render_boolean_radio("Liminar / Ordem Judicial", "Ordem Judicial", clauses, "oj", ui_filters[cat], state_keys[cat])
+        curr_where = render_presence_radio("Liminar / Ordem Judicial", "liminarOrdemJudicial", clauses, "oj", ui_filters[cat], state_keys[cat])
         
         st.markdown("---")
         curr_where = render_include_exclude("Operador", "operador_nome", clauses, curr_where, "op_nome", ui_filters[cat], state_keys[cat], st.session_state.user)
@@ -898,7 +919,7 @@ def main():
                 "🚨 Pontos de Gravidade": {"sql": "ROUND(AVG(entidade_classificacaoRisco_pontosGravidade), 1)", "unit": "pts"},
                 "⏱️ Pontos de Tempo": {"sql": "ROUND(AVG(entidade_classificacaoRisco_pontosTempo), 1)", "unit": "pts"},
                 "🔥 Pontuação Total": {"sql": "ROUND(AVG(entidade_classificacaoRisco_totalPontos), 1)", "unit": "pts"},
-                "🎂 Idade Média (Demografia)": {"sql": "ROUND(AVG(date_diff('year', usuarioSUS_dataNascimento, CURRENT_DATE)), 1)", "unit": "anos"}
+                "🎂 Idade Média (Demografia)": {"sql": "ROUND(AVG(date_diff('year', TRY_CAST(usuarioSUS_dataNascimento AS DATE), CURRENT_DATE)), 1)", "unit": "anos"}
             }
             
             cor_selecionada = st.selectbox(
@@ -964,7 +985,7 @@ def main():
         
         with c1:
             # Matriz de Risco (Donut)
-            df_risco = use_case.execute_custom_query(f"SELECT \"Risco Cor\", COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Risco Cor\" != '' GROUP BY 1", filters=filters, current_user=st.session_state.user)
+            df_risco = use_case.execute_custom_query(f"SELECT entidade_classificacaoRisco_cor, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != '' GROUP BY 1", filters=filters, current_user=st.session_state.user)
             if not df_risco.empty:
                 # SRE FIX: Usando a nova variável global MAPA_CORES_RISCO
                 st.plotly_chart(px.pie(df_risco, values='Vol', names='entidade_classificacaoRisco_cor', hole=0.5, color='entidade_classificacaoRisco_cor', color_discrete_map=MAPA_CORES_RISCO, title="Matriz de Risco (Prioridade)"), use_container_width=True, config={'displayModeBar': False})
@@ -991,7 +1012,7 @@ def main():
         c1, c2 = st.columns(2)
         with c1:
             # Geometria da Demanda (Treemap)
-            df_mun = use_case.execute_custom_query(f"SELECT \"Município de Residência\", usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Município de Residência\" != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30", filters=filters, current_user=st.session_state.user)
+            df_mun = use_case.execute_custom_query(f"SELECT usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND usuarioSUS_municipioResidencia_nome != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30", filters=filters, current_user=st.session_state.user)
             
             # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
             if not df_mun.empty:
@@ -1117,7 +1138,7 @@ def main():
                 color_continuous_scale=paleta_heatmap,
                 color_continuous_midpoint=0, 
                 title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} CIDs vs Top {top_x_med} Médicos",
-                labels=dict(x=medicoSolicitante, y="Diagnóstico (CID)", color="Z-Score")
+                labels=dict(x="Médico Solicitante", y="Diagnóstico (CID)", color="Z-Score")
             )
             
             fig_heat.update_traces(
@@ -1191,7 +1212,7 @@ def main():
         with c2:
             # Top Ofensores (Barra Horizontal)
             st.markdown("### ⚖️ Top Ofensores")
-            df_medico = use_case.execute_custom_query(f"SELECT \"Médico Solicitante\", COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Médico Solicitante\" != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", filters=filters, current_user=st.session_state.user)
+            df_medico = use_case.execute_custom_query(f"SELECT medicoSolicitante, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND medicoSolicitante != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10", filters=filters, current_user=st.session_state.user)
             fig_ofensor = px.bar(df_medico, x='Vol', y='medicoSolicitante', orientation='h', title="Top 10 Médicos (Volume)")
             fig_ofensor.update_layout(yaxis={'categoryorder':'total ascending'}, height=450)
             st.plotly_chart(fig_ofensor, use_container_width=True, config={'displayModeBar': False})
