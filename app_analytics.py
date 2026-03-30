@@ -143,6 +143,26 @@ def render_include_exclude(label: str, column: str, clauses: list, current_where
     
     return " AND ".join(clauses)
 
+def render_boolean_radio(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
+    """Componente SRE para campos booleanos (True/False/Null)"""
+    cat_keys.append(f"{key}_radio")
+    
+    if f"{key}_radio" not in st.session_state:
+        st.session_state[f"{key}_radio"] = "Ambos"
+        
+    st.write(f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>", unsafe_allow_html=True)
+    val = st.radio(label, ["Ambos", "Sim", "Não"], horizontal=True, key=f"{key}_radio", label_visibility="collapsed")
+    
+    if val == "Sim":
+        ui_tracker.append({"text": f"{label}: Sim", "keys": [f"{key}_radio"]})
+        clauses.append(f"\"{column}\" = true")
+    elif val == "Não":
+        ui_tracker.append({"text": f"{label}: Não", "keys": [f"{key}_radio"]})
+        # Tratamento seguro para Falsos ou Nulos
+        clauses.append(f"(\"{column}\" = false OR \"{column}\" IS NULL)")
+        
+    return " AND ".join(clauses)
+
 def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
     """SRE UX FIX: Slider bidirecional sincronizado com inputs numéricos para precisão cirúrgica."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
@@ -364,15 +384,15 @@ def get_authenticated_user():
         st.stop()
 
     from src.infrastructure.auth.jwt_validator import verify_token
-    try:
-        user = verify_token(auth_header)
-        return user, auth_header
-    except Exception as e:
-        st.error(f"🚨 Sessão Inválida ou Expirada: {e}")
-        st.stop()
+    user = verify_token(auth_header)
+    return user, auth_header
 
 # --- 5. MAIN APP ---
 def main():
+    # Cache Bust Temporário para instanciar as novas bibliotecas e códigos importados:
+    st.cache_resource.clear()
+    st.cache_data.clear()
+    
     # SRE Loop: Mitigação de WebSocket Staleness via Re-Handshake (com 60s de Leeway)
     import time
     import streamlit.components.v1 as components
@@ -385,10 +405,22 @@ def main():
         st.stop() # Mata a execução do Python imediatamente. Previne vazamento de dados via token vencido.
         
     if "user" not in st.session_state:
-        user_domain, jwt_str = get_authenticated_user()
-        st.session_state.user = user_domain
-        st.session_state.raw_jwt = jwt_str
-        st.session_state.token_exp = user_domain.exp if user_domain.exp else (time.time() + 86400)
+        try:
+            user_domain, jwt_str = get_authenticated_user()
+            st.session_state.user = user_domain
+            st.session_state.raw_jwt = jwt_str
+            st.session_state.token_exp = user_domain.exp if user_domain.exp else (time.time() + 86400)
+        except Exception as e:
+            st.warning("⏱️ A sua sessão expirou devido a um longo período de inatividade.")
+            st.info("Para proteger os seus dados, a ligação ao servidor foi encerrada.")
+            
+            # Rota de Fuga SRE: Força o OAuth2-Proxy a destruir a sessão e redireciona para o dashboard
+            st.link_button(
+                "Renovar Sessão / Fazer Login", 
+                "/oauth2/sign_out?rd=/dashboard/",
+                type="primary"
+            )
+            st.stop() # Interrompe a renderização do resto do painel
 
     inject_custom_css()
     if not os.path.exists(settings.OUTPUT_FILE):
@@ -421,7 +453,8 @@ def main():
         "🏛️ Governança & Atores": [], 
         "📅 Ciclo de Vida (Datas)": [], 
         "🌍 Demografia & Rede": [],
-        "⚠️ Triagem & entidade_classificacaoRisco_totalPontos": []
+        "⚠️ Triagem & entidade_classificacaoRisco_totalPontos": [],
+        "🎯 Desfechos, Gargalos & SLA": []
     }
     state_keys = {k: [] for k in ui_filters.keys()}
 
@@ -432,14 +465,16 @@ def main():
 
     cat = "🩺 Clínico & Regulação"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude(entidade_especialidade_especialidadeMae_descricao, entidade_especialidade_especialidadeMae_descricao, clauses, curr_where, "espm", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("entidade_especialidade_descricao Fina", entidade_especialidade_descricao, clauses, curr_where, "espf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Especialidade Mãe", "entidade_especialidade_especialidadeMae_descricao", clauses, curr_where, "espm", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Especialidade Fina", "entidade_especialidade_descricao", clauses, curr_where, "espf", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("CBO Especialidade", "entidade_especialidade_cbo_descricao", clauses, curr_where, "esp_cbo", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Descrição Auxiliar", "entidade_especialidade_descricaoAuxiliar", clauses, curr_where, "esp_aux", ui_filters[cat], state_keys[cat], st.session_state.user)
         st.markdown("---")
-        curr_where = render_include_exclude(medicoSolicitante, medicoSolicitante, clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude(entidade_unidadeOperador_nome, entidade_unidadeOperador_nome, clauses, curr_where, "usol", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Médico Solicitante", "medicoSolicitante", clauses, curr_where, "med_sol", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Unidade Operadora", "entidade_unidadeOperador_nome", clauses, curr_where, "usol", ui_filters[cat], state_keys[cat], st.session_state.user)
         st.markdown("---")
-        curr_where = render_include_exclude(entidade_cidPrincipal_codigo, entidade_cidPrincipal_codigo, clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat], st.session_state.user)
-        render_advanced_text_search(entidade_cidPrincipal_descricao, entidade_cidPrincipal_descricao, clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
+        curr_where = render_include_exclude("CID Principal (Código)", "entidade_cidPrincipal_codigo", clauses, curr_where, "cid_cod", ui_filters[cat], state_keys[cat], st.session_state.user)
+        render_advanced_text_search("CID Principal (Descrição)", "entidade_cidPrincipal_descricao", clauses, "txt_cid_desc", ui_filters[cat], state_keys[cat])
         # MÁGICA CLÍNICA MOVIDA: Agregação pelo numeroCMCE inteiro
         st.markdown("---")
         render_advanced_text_search("Evoluções do Paciente", "historico_quadro_clinico", clauses, "txt_evo", ui_filters[cat], state_keys[cat], aggregate_by="numeroCMCE")
@@ -449,43 +484,61 @@ def main():
     with st.sidebar.expander(cat, expanded=False):
         # Atores movidos da antiga aba de Evoluções
         curr_where = render_include_exclude("Tipo de Informação", "historico_evolucoes_completo", clauses, curr_where, "tinf", ui_filters[cat], state_keys[cat], st.session_state.user)
-        render_advanced_text_search("Origem da Informação", evolucoes_json, clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search("Origem da Informação", "evolucoes_json", clauses, "txt_orig_inf", ui_filters[cat], state_keys[cat])
         st.markdown("---")
         
-        curr_where = render_include_exclude(origem_lista, origem_lista, clauses, curr_where, "lst", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("situacao Atual", "situacao", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude(situacao, situacao, clauses, curr_where, "sitf", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude(entidade_especialidade_tipoRegulacao, entidade_especialidade_tipoRegulacao, clauses, curr_where, "treg", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude(entidade_especialidade_ativa, entidade_especialidade_ativa, clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Origem (Lista)", "origem_lista", clauses, curr_where, "lst", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Situação Atual", "situacao", clauses, curr_where, "sit", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Tipo de Regulação", "entidade_especialidade_tipoRegulacao", clauses, curr_where, "treg", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Especialidade Ativa", "entidade_especialidade_ativa", clauses, curr_where, "stesp", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
-        state_keys[cat].append("oj_radio")
-        oj = st.radio(liminarOrdemJudicial, ["Ambos", "Sim", "Não"], horizontal=True, key="oj_radio")
-        if oj == "Sim": 
-            ui_filters[cat].append({"text": "Ordem Judicial: Sim", "keys": ["oj_radio"]})
-            clauses.append("(\"Ordem Judicial\" IS NOT NULL AND \"Ordem Judicial\" != '')")
-        elif oj == "Não": 
-            ui_filters[cat].append({"text": "Ordem Judicial: Não", "keys": ["oj_radio"]})
-            clauses.append("(\"Ordem Judicial\" IS NULL OR \"Ordem Judicial\" = '')")
+        curr_where = render_boolean_radio("Liminar / Ordem Judicial", "Ordem Judicial", clauses, "oj", ui_filters[cat], state_keys[cat])
+        
+        st.markdown("---")
+        curr_where = render_include_exclude("Operador", "operador_nome", clauses, curr_where, "op_nome", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Usuário Solicitante", "usuarioSolicitante_nome", clauses, curr_where, "usu_sol_nome", ui_filters[cat], state_keys[cat], st.session_state.user)
+        
+        st.markdown("---")
+        curr_where = render_include_exclude("Central de Regulação", "entidade_centralRegulacao_nome", clauses, curr_where, "cent_reg", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Unidade Op. Central Regulação", "entidade_unidadeOperador_centralRegulacao_nome", clauses, curr_where, "uni_op_cent", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Unidade de Referência", "entidade_unidadeReferencia_nome", clauses, curr_where, "uni_ref", ui_filters[cat], state_keys[cat], st.session_state.user)
+        
+        st.markdown("---")
+        curr_where = render_boolean_radio("Possui DITA", "entidade_possuiDita", clauses, "dita", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Fora da Regionalização", "entidade_foraDaRegionalizacao", clauses, "freg", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Regularização de Acesso", "regularizacaoAcesso", clauses, "reg_acc", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Aceita Teleconsulta", "entidade_especialidade_teleconsulta", clauses, "tele", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Matriciamento", "entidade_especialidade_matriciamento", clauses, "matri", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Sem Classificação", "entidade_semClassificacao", clauses, "sem_class", ui_filters[cat], state_keys[cat])
+
         curr_where = " AND ".join(clauses)
 
 
 
     cat = "📅 Ciclo de Vida (Datas)"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_smart_date_range("Data de Solicitação", dataSolicitacao, clauses, "dt_solic", ui_filters[cat], state_keys[cat], default_to_30_days=True)
+        curr_where = render_smart_date_range("Data de Solicitação", "dataSolicitacao", clauses, "dt_solic", ui_filters[cat], state_keys[cat], default_to_30_days=True)
         st.write(" ")
-        curr_where = render_smart_date_range(dataCadastro, dataCadastro, clauses, "dt_cad", ui_filters[cat], state_keys[cat])
+        curr_where = render_smart_date_range("Data de Cadastro", "dataCadastro", clauses, "dt_cad", ui_filters[cat], state_keys[cat])
         st.write(" ")
         curr_where = render_smart_date_range("Data da Evolução", "dataCadastro", clauses, "dt_evo", ui_filters[cat], state_keys[cat])
+        st.write(" ")
+        curr_where = render_smart_date_range("Primeiro Agendamento", "dataPrimeiroAgendamento", clauses, "dt_pagend", ui_filters[cat], state_keys[cat])
+        st.write(" ")
+        curr_where = render_smart_date_range("Primeira Autorização", "dataPrimeiraAutorizacao", clauses, "dt_paut", ui_filters[cat], state_keys[cat])
 
     cat = "🌍 Demografia & Rede"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude(usuarioSUS_municipioResidencia_nome, usuarioSUS_municipioResidencia_nome, clauses, curr_where, "mun", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude(usuarioSUS_bairro, usuarioSUS_bairro, clauses, curr_where, "bai", ui_filters[cat], state_keys[cat], st.session_state.user)
+        render_advanced_text_search("Pesquisa: Nome do Paciente", "usuarioSUS_nomeCompleto", clauses, "txt_pac_nome", ui_filters[cat], state_keys[cat])
+        curr_where = " AND ".join(clauses)
+        st.markdown("---")
+        
+        curr_where = render_include_exclude("Município de Residência", "usuarioSUS_municipioResidencia_nome", clauses, curr_where, "mun", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Bairro", "usuarioSUS_bairro", clauses, curr_where, "bai", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         # Logradouro com a condicional injetando a numeração dento da Deep Search
-        render_advanced_text_search(usuarioSUS_logradouro, usuarioSUS_logradouro, clauses, "txt_logr", ui_filters[cat], state_keys[cat])
+        render_advanced_text_search("Logradouro", "usuarioSUS_logradouro", clauses, "txt_logr", ui_filters[cat], state_keys[cat])
         if st.session_state.get("txt_logr_toggle", False):
             st.markdown("<div style='margin-left: 1rem; border-left: 2px solid #cbd5e1; padding-left: 0.5rem;'>", unsafe_allow_html=True)
             state_keys[cat].extend(["num_min", "num_max"])
@@ -500,26 +553,54 @@ def main():
         st.divider() # --- Separador Visual de Identificação Pessoal ---
         
         curr_where = " AND ".join(clauses)
-        curr_where = render_include_exclude(usuarioSUS_sexo, usuarioSUS_sexo, clauses, curr_where, "sex", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Sexo", "usuarioSUS_sexo", clauses, curr_where, "sex", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         # Componente que injeta idade (com Slider Duplo)
         curr_where = render_age_slider("Faixa Etária (Idade)", clauses, "f_idade", ui_filters[cat], state_keys[cat])
         
-        curr_where = render_include_exclude("Cor/Raça", usuarioSUS_racaCor, clauses, curr_where, "cor", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude(usuarioSUS_nacionalidade, usuarioSUS_nacionalidade, clauses, curr_where, "nac", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Cor/Raça", "usuarioSUS_racaCor", clauses, curr_where, "cor", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Nacionalidade", "usuarioSUS_nacionalidade", clauses, curr_where, "nac", ui_filters[cat], state_keys[cat], st.session_state.user)
 
     cat = "⚠️ Triagem & entidade_classificacaoRisco_totalPontos"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude("entidade_complexidade", "entidade_complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Risco Cor (Atual)", entidade_classificacaoRisco_cor, clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat], st.session_state.user)
-        curr_where = render_include_exclude("Cor do Regulador", corRegulador, clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Complexidade", "entidade_complexidade", clauses, curr_where, "cpx", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Risco Cor (Atual)", "entidade_classificacaoRisco_cor", clauses, curr_where, "r_cor", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Cor do Regulador", "corRegulador", clauses, curr_where, "c_reg", ui_filters[cat], state_keys[cat], st.session_state.user)
         
         st.markdown("---")
-        curr_where = render_dual_slider(entidade_classificacaoRisco_pontosGravidade, entidade_classificacaoRisco_pontosGravidade, clauses, "pt_grav", ui_filters[cat], state_keys[cat])
-        curr_where = render_dual_slider(entidade_classificacaoRisco_pontosTempo, entidade_classificacaoRisco_pontosTempo, clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Reclassificada pelo Solicitante", "entidade_classificacaoRisco_reclassificadaSolicitante", clauses, "r_recl", ui_filters[cat], state_keys[cat])
+        
+        st.markdown("---")
+        curr_where = render_dual_slider("Pontos Gravidade", "entidade_classificacaoRisco_pontosGravidade", clauses, "pt_grav", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Pontos Tempo", "entidade_classificacaoRisco_pontosTempo", clauses, "pt_tmp", ui_filters[cat], state_keys[cat])
         curr_where = render_dual_slider("entidade_classificacaoRisco_totalPontos Total", "entidade_classificacaoRisco_totalPontos", clauses, "pt_tot", ui_filters[cat], state_keys[cat])
 
-
+    cat = "🎯 Desfechos, Gargalos & SLA"
+    with st.sidebar.expander(cat, expanded=False):
+        # 1. Funil e Motivos (Include/Exclude)
+        curr_where = render_include_exclude("Tipo de Desfecho", "SLA_Tipo_Desfecho", clauses, curr_where, "sla_tipo", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Status Provisório", "statusProvisorio", clauses, curr_where, "st_prov", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Motivo Pendência", "motivoPendencia", clauses, curr_where, "mot_pend", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Motivo Cancelamento", "motivoCancelamento", clauses, curr_where, "mot_canc", ui_filters[cat], state_keys[cat], st.session_state.user)
+        curr_where = render_include_exclude("Motivo Encerramento", "motivoEncerramento", clauses, curr_where, "mot_enc", ui_filters[cat], state_keys[cat], st.session_state.user)
+        
+        st.markdown("---")
+        # 2. Textos de Justificativa (Deep Search)
+        render_advanced_text_search("Justificativa de Retorno", "justificativaRetorno", clauses, "txt_retorno", ui_filters[cat], state_keys[cat])
+        
+        st.markdown("---")
+        # 3. Marcos de Sucesso (Booleans)
+        curr_where = render_boolean_radio("1. Passou por Autorização?", "SLA_Marco_Autorizada", clauses, "m_aut", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("2. Chegou a Agendar?", "SLA_Marco_Agendada", clauses, "m_agd", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("3. Foi Realizada?", "SLA_Marco_Realizada", clauses, "m_rea", ui_filters[cat], state_keys[cat])
+        curr_where = render_boolean_radio("Fila Finalizada? (Timer Parado)", "SLA_Desfecho_Atingido", clauses, "m_fim", ui_filters[cat], state_keys[cat])
+        
+        st.markdown("---")
+        # 4. Sliders de SLA (Métricas calculadas em dias e interações)
+        curr_where = render_dual_slider("Lead Time Total (Dias)", "SLA_Lead_Time_Total_Dias", clauses, "sla_tot", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Tempo com Regulador (Dias)", "SLA_Tempo_Regulador_Dias", clauses, "sla_reg", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Tempo com Solicitante (Dias)", "SLA_Tempo_Solicitante_Dias", clauses, "sla_sol", ui_filters[cat], state_keys[cat])
+        curr_where = render_dual_slider("Volume de Interações (Ping-Pong)", "SLA_Interacoes_Regulacao", clauses, "sla_int", ui_filters[cat], state_keys[cat])
 
     # ==========================================
     # VISUALIZAR E LIMPAR FILTROS ATIVOS (TOP BAR)
@@ -782,25 +863,25 @@ def main():
                 "Selecione a Hierarquia de Dados (Máx: 5 níveis):", 
                 options=[
                     # --- Clínico & Regulação ---
-                    entidade_especialidade_especialidadeMae_descricao, entidade_especialidade_descricao, entidade_especialidade_cbo_descricao,
-                    entidade_cidPrincipal_codigo, entidade_cidPrincipal_descricao,
-                    origem_lista, "situacao", situacao, 
-                    entidade_especialidade_tipoRegulacao, entidade_especialidade_ativa, "entidade_especialidade_teleconsulta",
-                    entidade_centralRegulacao_nome, entidade_unidadeOperador_centralRegulacao_nome,
+                    "entidade_especialidade_especialidadeMae_descricao", "entidade_especialidade_descricao", "entidade_especialidade_cbo_descricao",
+                    "entidade_cidPrincipal_codigo", "entidade_cidPrincipal_descricao",
+                    "origem_lista", "situacao", 
+                    "entidade_especialidade_tipoRegulacao", "entidade_especialidade_ativa", "entidade_especialidade_teleconsulta",
+                    "entidade_centralRegulacao_nome", "entidade_unidadeOperador_centralRegulacao_nome",
                     
                     # --- Governança & Atores ---
-                    liminarOrdemJudicial, entidade_unidadeOperador_nome, entidade_unidadeOperador_razaoSocial, entidade_unidadeOperador_tipoUnidade_descricao, 
-                    medicoSolicitante, operador_nome, usuarioSolicitante_nome,
-                    evolucoes_json, "historico_evolucoes_completo",
+                    "Ordem Judicial", "entidade_unidadeOperador_nome", "entidade_unidadeOperador_razaoSocial", "entidade_unidadeOperador_tipoUnidade_descricao", 
+                    "medicoSolicitante", "operador_nome", "usuarioSolicitante_nome",
+                    "evolucoes_json", "historico_evolucoes_completo",
                     
                     # --- Triagem & entidade_classificacaoRisco_totalPontos ---
-                    "entidade_complexidade", entidade_classificacaoRisco_cor, corRegulador,
+                    "entidade_complexidade", "entidade_classificacaoRisco_cor", "corRegulador",
                     
                     # --- Demografia & Rede ---
-                    usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, 
-                    usuarioSUS_sexo, usuarioSUS_racaCor, usuarioSUS_nacionalidade
+                    "usuarioSUS_municipioResidencia_nome", "usuarioSUS_bairro", 
+                    "usuarioSUS_sexo", "usuarioSUS_racaCor", "usuarioSUS_nacionalidade"
                 ],
-                default=[entidade_especialidade_especialidadeMae_descricao, entidade_especialidade_descricao, entidade_cidPrincipal_descricao],
+                default=["entidade_especialidade_especialidadeMae_descricao", "entidade_especialidade_descricao", "entidade_cidPrincipal_descricao"],
                 max_selections=5,
                 help="Arraste e solte as tags para reordenar o funil (path) do gráfico."
             )

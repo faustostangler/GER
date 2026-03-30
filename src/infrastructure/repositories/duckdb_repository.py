@@ -42,18 +42,18 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         
         kpis_df = self._query(f"""
             {cte}
-            SELECT COUNT(DISTINCT Protocolo) as pacientes, 
+            SELECT COUNT(DISTINCT numeroCMCE) as pacientes, 
                    COUNT(*) as eventos, 
-                   COUNT(DISTINCT "Especialidade Mãe") as esp_mae,
-                   COUNT(DISTINCT Especialidade) as sub_esp,
-                   COUNT(DISTINCT "Médico Solicitante") as medicos,
-                   COUNT(DISTINCT "CID Descrição") as cids,
-                   COUNT(DISTINCT "Origem da Lista") as origens,
-                   ROUND(AVG(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)), 1) as lead_time,
-                   MAX(DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE)) as max_lead_time,
-                   DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), MAX(CAST("Data Solicitação" AS DATE))) as span_dias,
-                   COUNT(DISTINCT CASE WHEN "Risco Cor" IN ('VERMELHO', 'LARANJA', 'AMARELO') THEN Protocolo END) as pac_urgentes,
-                   COUNT(DISTINCT CASE WHEN DATEDIFF('day', CAST("Data Solicitação" AS DATE), CURRENT_DATE) > 180 THEN Protocolo END) as pac_vencidos
+                   COUNT(DISTINCT entidade_especialidade_especialidadeMae_descricao) as esp_mae,
+                   COUNT(DISTINCT entidade_especialidade_descricao) as sub_esp,
+                   COUNT(DISTINCT medicoSolicitante) as medicos,
+                   COUNT(DISTINCT entidade_cidPrincipal_descricao) as cids,
+                   COUNT(DISTINCT origem_lista) as origens,
+                   ROUND(AVG(DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE)), 1) as lead_time,
+                   MAX(DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE)) as max_lead_time,
+                   DATEDIFF('day', MIN(CAST(dataSolicitacao AS DATE)), MAX(CAST(dataSolicitacao AS DATE))) as span_dias,
+                   COUNT(DISTINCT CASE WHEN entidade_classificacaoRisco_cor IN ('VERMELHO', 'LARANJA', 'AMARELO') THEN numeroCMCE END) as pac_urgentes,
+                   COUNT(DISTINCT CASE WHEN DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > 180 THEN numeroCMCE END) as pac_vencidos
             FROM BaseRLS WHERE {final_where}
         """)
 
@@ -64,12 +64,12 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
                 PERCENTILE_CONT(0.90) WITHIN GROUP (ORDER BY dias_esquecido) as p90_esquecido
             FROM (
                 SELECT 
-                    Protocolo,
-                    DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), CURRENT_DATE) as dias_fila,
-                    DATEDIFF('day', MAX(CAST(Data_Evolucao AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
+                    numeroCMCE,
+                    DATEDIFF('day', MIN(CAST(dataSolicitacao AS DATE)), CURRENT_DATE) as dias_fila,
+                    DATEDIFF('day', MAX(CAST(dataCadastro AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
                 FROM BaseRLS
                 WHERE {final_where}
-                GROUP BY Protocolo
+                GROUP BY numeroCMCE
             )
         """)
 
@@ -96,11 +96,11 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         return self._query(f"""
             {cte}
             SELECT 
-                DATEDIFF('day', MIN(CAST("Data Solicitação" AS DATE)), CURRENT_DATE) as dias_fila,
-                DATEDIFF('day', MAX(CAST(Data_Evolucao AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
+                DATEDIFF('day', MIN(CAST(dataSolicitacao AS DATE)), CURRENT_DATE) as dias_fila,
+                DATEDIFF('day', MAX(CAST(dataCadastro AS TIMESTAMP)), CURRENT_DATE) as dias_esquecido
             FROM BaseRLS
             WHERE {final_where}
-            GROUP BY Protocolo
+            GROUP BY numeroCMCE
         """)
 
     def get_dynamic_options(self, column: str, current_where: str, user: ValidatedUserToken) -> List[Any]:
