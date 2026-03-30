@@ -12,11 +12,21 @@ from typing import Dict, Any
 from datetime import datetime
 import json
 import unicodedata
+import hashlib
 
 
 # ---------------------------------------------------------------------------
 # Helpers (DRY & SRE Type Safety)
 # ---------------------------------------------------------------------------
+
+def hash_pii(text: Any) -> str:
+    """Aplica Salting e SHA-256 unidirecional para anonimizar PII."""
+    if not text:
+        return ""
+    salt = "g3rc0N_@n0n!"
+    val = str(text).strip().lower() + salt
+    return hashlib.sha256(val.encode('utf-8')).hexdigest()
+
 
 def remove_accents(input_str: str) -> str:
     """Remove diacríticos para matching resiliente de labels legados."""
@@ -59,15 +69,6 @@ def extract_unidade(unidade_dict: dict, prefix: str, target_dict: dict) -> None:
     target_dict[f"{prefix}_municipio_uf"] = mun.get("uf", "")
 
 
-def _safe_telefones(raw: Any) -> str:
-    """Coerção segura de telefones (pode ser str, list ou None)."""
-    if raw is None:
-        return ""
-    if isinstance(raw, list):
-        return " / ".join([str(t) for t in raw])
-    return str(raw)
-
-
 def _parse_detalhes(det_raw: Any) -> dict:
     """Parsing defensivo do JSON 'detalhes' de uma evolução."""
     if isinstance(det_raw, dict):
@@ -95,7 +96,6 @@ COLUNAS = [
     "usuarioSUS_nomeCompleto", "usuarioSUS_dataNascimento",
     "usuarioSUS_sexo", "usuarioSUS_racaCor", "usuarioSUS_cpf",
     "usuarioSUS_nomeMae", "usuarioSUS_cartaoSus", "usuarioSUS_nacionalidade",
-    "usuarioSUS_telefones",
     "usuarioSUS_logradouro", "usuarioSUS_numero", "usuarioSUS_complemento",
     "usuarioSUS_bairro", "usuarioSUS_cep",
     "usuarioSUS_municipioResidencia_nome", "usuarioSUS_municipioResidencia_uf",
@@ -209,16 +209,15 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
 
     # ── 2. DEMOGRAFIA DO PACIENTE (usuarioSUS) ───────────────────────────
     u_sus = j_dict.get("usuarioSUS") or {}
-    data["usuarioSUS_nomeCompleto"] = u_sus.get("nomeCompleto", "")
+    data["usuarioSUS_nomeCompleto"] = hash_pii(u_sus.get("nomeCompleto", ""))
     dn_raw = timestamp_to_date(u_sus.get("dataNascimento"))
     data["usuarioSUS_dataNascimento"] = dn_raw.split(" ")[0] if dn_raw else ""
     data["usuarioSUS_sexo"] = u_sus.get("sexo", "")
     data["usuarioSUS_racaCor"] = u_sus.get("racaCor", "")
-    data["usuarioSUS_cpf"] = u_sus.get("cpf", "")
-    data["usuarioSUS_nomeMae"] = u_sus.get("nomeMae", "")
-    data["usuarioSUS_cartaoSus"] = u_sus.get("cartaoSus", "")
+    data["usuarioSUS_cpf"] = hash_pii(u_sus.get("cpf", ""))
+    data["usuarioSUS_nomeMae"] = hash_pii(u_sus.get("nomeMae", ""))
+    data["usuarioSUS_cartaoSus"] = hash_pii(u_sus.get("cartaoSus", ""))
     data["usuarioSUS_nacionalidade"] = u_sus.get("nacionalidade", "")
-    data["usuarioSUS_telefones"] = _safe_telefones(u_sus.get("telefones"))
     data["usuarioSUS_logradouro"] = u_sus.get("logradouro", "")
     data["usuarioSUS_numero"] = u_sus.get("numero", "")
     data["usuarioSUS_complemento"] = u_sus.get("complemento", "")
@@ -232,12 +231,12 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
     op = j_dict.get("operador") or {}
     op_prof = op.get("profissional") or {}
     data["operador_nome"] = op.get("nome") or op_prof.get("nome", "")
-    data["operador_cpf"] = op.get("cpf") or op_prof.get("cpf", "")
+    data["operador_cpf"] = hash_pii(op.get("cpf") or op_prof.get("cpf", ""))
 
     us = j_dict.get("usuarioSolicitante") or {}
     us_prof = us.get("profissional") or {}
     data["usuarioSolicitante_nome"] = us.get("nome") or us_prof.get("nome", "")
-    data["usuarioSolicitante_cpf"] = us.get("cpf") or us_prof.get("cpf", "")
+    data["usuarioSolicitante_cpf"] = hash_pii(us.get("cpf") or us_prof.get("cpf", ""))
 
     # ── 4. CICLO DE VIDA RAIZ ────────────────────────────────────────────
     data["dataPrimeiroAgendamento"] = timestamp_to_date(j_dict.get("dataPrimeiroAgendamento"))
