@@ -784,7 +784,9 @@ def main():
             limite_x = [-max_val * 0.08, max_val * 1.08]
 
             # --- RENDERIZAÇÃO: BOXPLOT ABANDONO (VERMELHO) ---
-            fig_esq = px.box(df_plot_esq, x="dias_esquecido", title="Abandono: Dias sem Evolução", 
+            # SRE Performance Fix: Amostragem para evitar MessageSizeError (OOM do FrontEnd via Websocket de >200MB)
+            df_render_esq = df_plot_esq.sample(n=min(10000, len(df_plot_esq)), random_state=42) if not df_plot_esq.empty else df_plot_esq
+            fig_esq = px.box(df_render_esq, x="dias_esquecido", title="Abandono: Dias sem Evolução", 
                              points="outliers", color_discrete_sequence=['#ef4444'], range_x=limite_x)
             
             # Aplica a anotação SOTA
@@ -797,7 +799,8 @@ def main():
             st.plotly_chart(fig_esq, use_container_width=True, config={'displayModeBar': False})
 
             # --- RENDERIZAÇÃO: BOXPLOT CADASTRO (AZUL) ---
-            fig_fila = px.box(df_plot_fila, x="dias_fila", title="Cadastro: Dias de Espera", 
+            df_render_fila = df_plot_fila.sample(n=min(10000, len(df_plot_fila)), random_state=42) if not df_plot_fila.empty else df_plot_fila
+            fig_fila = px.box(df_render_fila, x="dias_fila", title="Cadastro: Dias de Espera", 
                               points="outliers", color_discrete_sequence=['#3b82f6'], range_x=limite_x)
             
             # Aplica a anotação SOTA
@@ -1024,8 +1027,8 @@ def main():
                 st.plotly_chart(fig_demo, use_container_width=True, config={'displayModeBar': False})
 
         # Throughput vs Capacidade (Temporal)
-        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(\"Data Solicitação\" AS DATE) as Dia, \"Origem da Lista\", COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND \"Data Solicitação\" IS NOT NULL GROUP BY 1, 2 ORDER BY 1", filters=filters, current_user=st.session_state.user)
-        st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='origem_lista', title="Throughput Temporal: Volume de numeroCMCEs por Origem"), use_container_width=True, config={'displayModeBar': False})
+        df_fluxo = use_case.execute_custom_query(f"SELECT CAST(dataSolicitacao AS DATE) as Dia, origem_lista, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL GROUP BY 1, 2 ORDER BY 1", filters=filters, current_user=st.session_state.user)
+        st.plotly_chart(px.area(df_fluxo, x='Dia', y='Vol', color='origem_lista', title="Throughput Temporal: Volume de Pacientes por Origem"), use_container_width=True, config={'displayModeBar': False})
 
         st.markdown("---")
         st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
@@ -1202,9 +1205,9 @@ def main():
             limit = st.slider("Amostra para Auditoria Clínica", 10, 1000, 100)
             
         df_audit = use_case.execute_custom_query(f"""
-            SELECT numeroCMCE, CAST(\"Data Solicitação\" AS DATE) as Solicitação, CAST(dataCadastro AS TIMESTAMP) as Data_Evolução, 
-            situacao, \"Risco Cor\", historico_quadro_clinico 
-            FROM gercon WHERE {FINAL_WHERE} ORDER BY \"Data Solicitação\" DESC, dataCadastro DESC LIMIT {limit}
+            SELECT numeroCMCE, CAST(dataSolicitacao AS DATE) as Solicitação, CAST(dataCadastro AS TIMESTAMP) as Data_Evolução, 
+            situacao, entidade_classificacaoRisco_cor as "Risco Cor", historico_quadro_clinico 
+            FROM gercon WHERE {FINAL_WHERE} ORDER BY dataSolicitacao DESC, dataCadastro DESC LIMIT {limit}
         """, filters, st.session_state.user)
         
         with c_export:
