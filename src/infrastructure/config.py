@@ -1,5 +1,17 @@
-from pydantic import Field, HttpUrl, SecretStr, computed_field, field_validator
+from pydantic import Field, HttpUrl, SecretStr, computed_field, field_validator, BaseModel, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+class RDESettings(BaseModel):
+    """Configurações para o ambiente de desenvolvimento remoto."""
+    access_token: str = Field(default="00000000000000000000000000000000", alias="RDE_ACCESS_TOKEN")
+    vnc_password: str = Field(default="flyai_secret")
+    grpc_port: int = Field(default=50051)
+
+    @model_validator(mode="after")
+    def validate_token_security(self) -> 'RDESettings':
+        if len(self.access_token) < 32:
+            raise ValueError("RDE_ACCESS_TOKEN deve ter pelo menos 32 caracteres para segurança.")
+        return self
 
 class KeycloakSettings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -7,6 +19,8 @@ class KeycloakSettings(BaseSettings):
         env_file_encoding="utf-8", 
         extra="ignore"
     )
+
+    rde: RDESettings = Field(default_factory=RDESettings)
 
     # General Settings (migrated from app_analytics.py)
     OUTPUT_FILE: str = Field(default="gercon_consolidado.parquet")
@@ -41,4 +55,7 @@ class KeycloakSettings(BaseSettings):
         url_str = str(self.KEYCLOAK_SERVER_URL).rstrip("/")
         return f"{url_str}/realms/{self.KEYCLOAK_REALM}"
 
-settings = KeycloakSettings()
+class Settings(KeycloakSettings):
+    pass
+
+settings = Settings()

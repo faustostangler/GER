@@ -14,13 +14,15 @@ services:
     env_file:
       - env/creds.env
       - env/config.env
+    environment:
+      - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN}
+      - SERVICE_TYPE=analytics
     networks:
       - ger-infra-mesh
       - iap-mesh
-    volumes:
-      - .:/app
-      - /app/.venv  # SRE: Protege o .venv do builder contra o bind mount do host
-    command: ["/entrypoint.sh"]
+    ports:
+      - "6080:6080"   # noVNC Browser Access
+      - "50051:50051" # gRPC Service-to-Service
     restart: ${DOCKER_RESTART_POLICY}
     logging: *default-logging
     deploy:
@@ -30,7 +32,7 @@ services:
         reservations:
           memory: '${ANALYTICS_MEM_RESERVATION}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:${ANALYTICS_INTERNAL_PORT}/dashboard/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1.nip.io:${ANALYTICS_INTERNAL_PORT}/dashboard/_stcore/health"]
       interval: ${HEALTHCHECK_INTERVAL}
       timeout: ${HEALTHCHECK_TIMEOUT}
       retries: ${HEALTHCHECK_RETRIES}
@@ -113,8 +115,8 @@ services:
     networks:
       - ger-infra-mesh
     ports:
-      - "127.0.0.1:19092:19092"
-      - "127.0.0.1:19644:9644"
+      - "0.0.0.0:19092:19092"
+      - "0.0.0.0:19644:9644"
     command:
       - redpanda
       - start
@@ -123,7 +125,7 @@ services:
       - --reserve-memory 0M
       - --overprovisioned
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda-0:9092,external://localhost:19092
+      - --advertise-kafka-addr internal://redpanda-0:9092,external://127.0.0.1.nip.io:19092
     logging: *default-logging
     deploy:
       resources:
@@ -157,10 +159,12 @@ services:
   worker:
     build: .
     container_name: ${COMPOSE_PROJECT_NAME}_arq_worker
-    command: ["arq", "src.infrastructure.queue.worker_settings.WorkerConfig"]
     env_file:
       - env/creds.env
       - env/config.env
+    environment:
+      - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN}
+      - SERVICE_TYPE=worker
     networks:
       - ger-infra-mesh
     depends_on:
@@ -242,7 +246,7 @@ services:
         limits:
           memory: '${KEYCLOAK_MEM_LIMIT}'
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: http://localhost\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: 127.0.0.1.nip.io\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 2s
       timeout: 2s
       retries: 60

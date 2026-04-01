@@ -6,7 +6,7 @@
 ENV_FLAGS = --env-file env/creds.env --env-file env/config.env
 DOCKER_COMPOSE = docker compose $(ENV_FLAGS)
 
-.PHONY: bootstrap sync update help up down up-iam restart logs logs-proxy logs-worker logs-keycloak ps shell shell-worker db-cli cache-cli clean clean-volumes
+.PHONY: bootstrap sync update help up dev check-rde rde-url down up-iam restart logs logs-proxy logs-worker logs-keycloak ps shell shell-worker db-cli cache-cli clean clean-volumes
 
 help:
 	@echo "GER Orchestration Commands:"
@@ -15,11 +15,13 @@ help:
 	@echo "  make logs    - Stream analytics system logs"
 	@echo "  make restart - Restart containers without rebuilding"
 	@echo "  make clean   - Prune old images and Docker clutter"
-	@echo "  make up      - Bring the system up in detached mode (App Only, No IAM)"
+	@echo "  make up      - Bring RDE environment up (built freshly)"
+	@echo "  make dev     - Force-recreate RDE environment completely freshly"
 	@echo "  make up-iam  - Bring the ENTIRE system up including Keycloak/Proxy"
 	@echo "  make bootstrap - SOTA Bootstrap: Only Identity infrastructure for manual setup"
 	@echo "  make down    - Stop and remove all containers and networks"
 	@echo "  make clean-volumes - Hard Reset: Nuke all persistent volumes (Clean Start)"
+	@echo "  make rde-url - Show visual BFF access URL"
 	@echo ""
 	@echo "Interactive Shortcuts:"
 	@echo "  make ps           - List all running services status"
@@ -34,7 +36,7 @@ bootstrap:
 	$(DOCKER_COMPOSE) --profile iam up -d postgres-keycloak keycloak --wait
 	@echo "----------------------------------------------------------"
 	@echo "✅ Keycloak está ONLINE e pronto para configuração!"
-	@echo "🔗 URL Administrador: http://localhost:8080"
+	@echo "🔗 URL Administrador: http://127.0.0.1.nip.io:8080"
 	@echo "📖 Documentação de Setup: BOOTSTRAP_KEYCLOAK.md"
 	@echo "----------------------------------------------------------"
 	@echo "🚀 Após configurar e atualizar o Secret no creds.env, execute: make up-iam"
@@ -79,9 +81,24 @@ restart:
 	$(DOCKER_COMPOSE) restart
 	@echo "♻️ System restarted."
 
-up:
-	$(DOCKER_COMPOSE) up -d --wait
-	@echo "⬆️ App Core Analytics subiu e está saudável (Sem IAM)."
+# --- SRE: Verificação de Segurança RDE (Fail-Fast) ---
+check-rde:
+	$(eval RDE_ACCESS_TOKEN := $(shell grep -E "^RDE_ACCESS_TOKEN=" env/creds.env | cut -d '=' -f2 | tr -d '"' | tr -d "'"))
+	@if [ -z "$(RDE_ACCESS_TOKEN)" ]; then echo "ERRO: RDE_ACCESS_TOKEN não configurada. Configure no seu env/creds.env"; exit 1; fi
+	@if [ $$(echo -n "$(RDE_ACCESS_TOKEN)" | wc -c) -lt 32 ]; then echo "ERRO: RDE_ACCESS_TOKEN deve ter pelo menos 32 caracteres"; exit 1; fi
+
+up: check-rde
+	$(DOCKER_COMPOSE) up -d --build analytics worker
+	@make rde-url
+
+dev: check-rde
+	$(DOCKER_COMPOSE) up -d --build --force-recreate analytics worker
+	@make rde-url
+
+rde-url:
+	@echo "=========================================================="
+	@echo "🖥️  RDE Visual BFF: http://127.0.0.1.nip.io:6080/vnc.html"
+	@echo "=========================================================="
 
 up-iam:
 	$(DOCKER_COMPOSE) --profile iam up -d --wait
