@@ -60,8 +60,10 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def _query(self, sql: str) -> pd.DataFrame:
         return self.con.execute(sql).df()
 
-    def get_kpis(self, spec: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
+    def get_kpis(self, spec: Specification, spec_urgentes: Specification, spec_vencidos: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
         final_where = DuckDBSpecificationTranslator.translate(spec)
+        urgentes_where = DuckDBSpecificationTranslator.translate(spec_urgentes)
+        vencidos_where = DuckDBSpecificationTranslator.translate(spec_vencidos)
         cte = self._get_rls_cte(user)
         
         kpis_df = self._query(f"""
@@ -76,8 +78,8 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
                    ROUND(AVG(DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE)), 1) as lead_time,
                    MAX(DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE)) as max_lead_time,
                    DATEDIFF('day', MIN(CAST(dataSolicitacao AS DATE)), MAX(CAST(dataSolicitacao AS DATE))) as span_dias,
-                   COUNT(DISTINCT CASE WHEN entidade_classificacaoRisco_cor IN ('VERMELHO', 'LARANJA', 'AMARELO') THEN numeroCMCE END) as pac_urgentes,
-                   COUNT(DISTINCT CASE WHEN DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > 180 THEN numeroCMCE END) as pac_vencidos
+                   COUNT(DISTINCT CASE WHEN {urgentes_where} THEN numeroCMCE END) as pac_urgentes,
+                   COUNT(DISTINCT CASE WHEN {vencidos_where} THEN numeroCMCE END) as pac_vencidos
             FROM BaseRLS WHERE {final_where}
         """)
 

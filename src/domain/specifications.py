@@ -40,8 +40,8 @@ class NotSpecification(Specification):
         return not self.spec.is_satisfied_by(candidate)
 
 class PacienteUrgenteSpec(Specification):
-    def __init__(self):
-        self.cores_urgencia = ('VERMELHO', 'LARANJA', 'AMARELO')
+    def __init__(self, cores_alvo: list[str]):
+        self.cores_urgencia = cores_alvo
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         if isinstance(candidate, dict):
@@ -50,8 +50,8 @@ class PacienteUrgenteSpec(Specification):
         return False
 
 class PacienteVencidoSpec(Specification):
-    def __init__(self):
-        self.dias_vencimento = 180
+    def __init__(self, dias_tolerancia: int):
+        self.dias_vencimento = dias_tolerancia
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         if isinstance(candidate, dict):

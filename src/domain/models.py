@@ -16,6 +16,7 @@ class AnalyticKPIs(BaseModel):
     pac_vencidos: int
     p90_lead_time: float
     p90_esquecido: float
+    mes_comercial: float = Field(default=30.416, description="Dias do mês comercial inserido por Use Case")
 
     @property
     def evo_por_paciente(self) -> float:
@@ -35,7 +36,7 @@ class AnalyticKPIs(BaseModel):
 
     @property
     def cad_por_mes(self) -> float:
-        meses_janela = max(self.span_dias / 30.416, 1.0)
+        meses_janela = max(self.span_dias / self.mes_comercial, 1.0)
         return round(self.pacientes / meses_janela, 1) if self.pacientes > 0 else 0.0
 
     @property

@@ -1,7 +1,8 @@
 # Stage 1: Base com Ubuntu e Dependências de GUI/RDE
-FROM ubuntu:22.04 AS base
+FROM python:3.11-slim-bookworm AS base
 
 WORKDIR /app
+ENV PATH="/app/.venv/bin:$PATH"
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
 ENV DISPLAY=:1

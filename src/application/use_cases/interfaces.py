@@ -7,7 +7,7 @@ import pandas as pd
 
 class IAnalyticsRepository(ABC):
     @abstractmethod
-    def get_kpis(self, spec: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
+    def get_kpis(self, spec: Specification, spec_urgentes: Specification, spec_vencidos: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
         pass
 
     @abstractmethod

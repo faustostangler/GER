@@ -35,7 +35,7 @@ def test_not_specification_truth_table():
     assert (~MockFalseSpec()).is_satisfied_by(None) is True
 
 def test_paciente_urgente_spec():
-    spec = PacienteUrgenteSpec()
+    spec = PacienteUrgenteSpec(cores_alvo=["VERMELHO", "LARANJA", "AMARELO"])
     assert spec.is_satisfied_by({"entidade_classificacaoRisco_cor": "vermelho"}) is True
     assert spec.is_satisfied_by({"entidade_classificacaoRisco_cor": "Laranja"}) is True
     assert spec.is_satisfied_by({"entidade_classificacaoRisco_cor": "AMARELO"}) is True
@@ -43,7 +43,7 @@ def test_paciente_urgente_spec():
     assert spec.is_satisfied_by({}) is False
 
 def test_paciente_vencido_spec():
-    spec = PacienteVencidoSpec()
+    spec = PacienteVencidoSpec(dias_tolerancia=180)
     old_date = (datetime.datetime.now() - datetime.timedelta(days=181)).strftime("%Y-%m-%d %H:%M:%S")
     recent_date = (datetime.datetime.now() - datetime.timedelta(days=179)).strftime("%Y-%m-%d %H:%M:%S")
     assert spec.is_satisfied_by({"dataSolicitacao": old_date}) is True

@@ -1,5 +1,6 @@
 #!/bin/bash
 set -e
+export PATH="/app/.venv/bin:$PATH"
 
 # 1. Fail-fast: Validação de variáveis via Python/Pydantic
 python -c "from src.infrastructure.config import settings; print('Config Validada')"

@@ -58,6 +58,17 @@ class AppSettings(BaseSettings):
     # Business Rules
     AGE_MIN: int = Field(default=0)
     AGE_MAX: int = Field(default=120)
+    SLA_DIAS_VENCIMENTO: int = Field(default=180)
+    MES_COMERCIAL_DIAS: float = Field(default=30.416)
+    CORES_URGENCIA: list[str] = Field(default=["VERMELHO", "LARANJA", "AMARELO"])
+    GERCON_URL: HttpUrl = Field(default="https://gercon.procempa.com.br/gerconweb/")
+
+    @field_validator("CORES_URGENCIA", mode="before")
+    @classmethod
+    def parse_cores(cls, v):
+        if isinstance(v, str):
+            return [x.strip() for x in v.split(',')]
+        return v
 
     @field_validator("KEYCLOAK_SERVER_URL", mode="before")
     @classmethod
