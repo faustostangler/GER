@@ -4,9 +4,32 @@ import pandas as pd
 import re
 from typing import List, Tuple, Any
 from src.application.use_cases.interfaces import IAnalyticsRepository
-from src.domain.models import AnalyticKPIs, FilterCriteria
+from src.domain.models import AnalyticKPIs
+from src.domain.specifications import Specification, AndSpecification, OrSpecification, NotSpecification, PacienteUrgenteSpec, PacienteVencidoSpec, LeadTimeCriticoSpec
 from src.infrastructure.auth.token_acl import ValidatedUserToken
 from src.infrastructure.config import settings
+
+class DuckDBSpecificationTranslator:
+    @staticmethod
+    def translate(spec: Specification) -> str:
+        if spec is None:
+            return "1=1"
+        match spec:
+            case AndSpecification():
+                return f"({DuckDBSpecificationTranslator.translate(spec.left)} AND {DuckDBSpecificationTranslator.translate(spec.right)})"
+            case OrSpecification():
+                return f"({DuckDBSpecificationTranslator.translate(spec.left)} OR {DuckDBSpecificationTranslator.translate(spec.right)})"
+            case NotSpecification():
+                return f"NOT ({DuckDBSpecificationTranslator.translate(spec.spec)})"
+            case PacienteUrgenteSpec():
+                cores_str = ", ".join(f"'{c}'" for c in spec.cores_urgencia)
+                return f"entidade_classificacaoRisco_cor IN ({cores_str})"
+            case PacienteVencidoSpec():
+                return f"DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > {spec.dias_vencimento}"
+            case LeadTimeCriticoSpec():
+                return f"DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > {spec.max_dias}"
+            case _:
+                return "1=1"
 
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
@@ -37,8 +60,8 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def _query(self, sql: str) -> pd.DataFrame:
         return self.con.execute(sql).df()
 
-    def get_kpis(self, filters: FilterCriteria, user: ValidatedUserToken) -> AnalyticKPIs:
-        final_where = filters.get_where_clause()
+    def get_kpis(self, spec: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
+        final_where = DuckDBSpecificationTranslator.translate(spec)
         cte = self._get_rls_cte(user)
         
         kpis_df = self._query(f"""
@@ -91,8 +114,8 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             p90_esquecido=float(p90_metrics['p90_esquecido'].iloc[0]) if not p90_metrics.empty and pd.notna(p90_metrics['p90_esquecido'].iloc[0]) else 0.0
         )
 
-    def get_distribution_data(self, filters: FilterCriteria, user: ValidatedUserToken) -> pd.DataFrame:
-        final_where = filters.get_where_clause()
+    def get_distribution_data(self, spec: Specification, user: ValidatedUserToken) -> pd.DataFrame:
+        final_where = DuckDBSpecificationTranslator.translate(spec)
         cte = self._get_rls_cte(user)
         return self._query(f"""
             {cte}

@@ -46,8 +46,3 @@ class AnalyticKPIs(BaseModel):
     def taxa_vencidos(self) -> float:
         return round((self.pac_vencidos / self.pacientes) * 100, 1) if self.pacientes > 0 else 0.0
 
-class FilterCriteria(BaseModel):
-    clauses: List[str] = Field(default_factory=lambda: ["1=1"])
-
-    def get_where_clause(self) -> str:
-        return " AND ".join(self.clauses)

@@ -1,16 +1,17 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Tuple
-from src.domain.models import AnalyticKPIs, FilterCriteria
+from src.domain.models import AnalyticKPIs
+from src.domain.specifications import Specification
 from src.infrastructure.auth.token_acl import ValidatedUserToken
 import pandas as pd
 
 class IAnalyticsRepository(ABC):
     @abstractmethod
-    def get_kpis(self, filters: FilterCriteria, user: ValidatedUserToken) -> AnalyticKPIs:
+    def get_kpis(self, spec: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
         pass
 
     @abstractmethod
-    def get_distribution_data(self, filters: FilterCriteria, user: ValidatedUserToken) -> pd.DataFrame:
+    def get_distribution_data(self, spec: Specification, user: ValidatedUserToken) -> pd.DataFrame:
         pass
 
     @abstractmethod
