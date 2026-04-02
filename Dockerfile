@@ -40,11 +40,11 @@ COPY infra/ /app/infra/
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/pw-browsers /app/pw-browsers
 
-# Configuração de Segurança e Entrypoint
-COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Configuração de Segurança e Entrypoint (SRE FIX: Path amigável na raiz)
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8501 6080 50051 
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

@@ -18,5 +18,6 @@ x11vnc -display :1 -forever -nopw -listen 127.0.0.1.nip.io -rfbport 5901 &
 if [ "$SERVICE_TYPE" = "worker" ]; then
     exec arq src.infrastructure.queue.worker_settings.WorkerConfig
 else
-    exec streamlit run app_analytics.py --server.port=8501 --server.address=0.0.0.0
+    # SRE FIX: Servindo sob /dashboard para compatibilidade com Reverse Proxy e IAP
+    exec streamlit run app_analytics.py --server.port=8501 --server.address=0.0.0.0 --server.baseUrlPath=dashboard
 fi

@@ -224,7 +224,7 @@ def render_dual_slider(label: str, column: str, clauses: list, key: str, ui_trac
 def render_age_slider(label: str, clauses: list, key: str, ui_tracker: list, cat_keys: list):
     """Componente de Domínio para Idade: Converte Faixa Etária visível para DATEDIFF no SQL OLAP."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
-    vmin_val, vmax_val = 0, 120 # Limites razoáveis hardcoded para evitar subquerys desnecessárias
+    vmin_val, vmax_val = settings.AGE_MIN, settings.AGE_MAX
     
     if f"{key}_min" not in st.session_state: st.session_state[f"{key}_min"] = vmin_val
     if f"{key}_max" not in st.session_state: st.session_state[f"{key}_max"] = vmax_val

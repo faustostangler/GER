@@ -6,13 +6,14 @@ from typing import List, Tuple, Any
 from src.application.use_cases.interfaces import IAnalyticsRepository
 from src.domain.models import AnalyticKPIs, FilterCriteria
 from src.infrastructure.auth.token_acl import ValidatedUserToken
+from src.infrastructure.config import settings
 
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
         self.con = duckdb.connect(database=':memory:')
         
         # Limite explícito de RAM para proteção de OOMKilled no Cluster K8s (Reserva memória para Pandas)
-        self.con.execute("PRAGMA memory_limit='1.5GB';")
+        self.con.execute(f"PRAGMA memory_limit='{settings.db.memory_limit}';")
         
         if db_file.startswith("s3://"):
             region = os.getenv("AWS_REGION", "sa-east-1")
