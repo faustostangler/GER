@@ -8,7 +8,13 @@ import datetime
 
 
 class MockTrueSpec(Specification):
+    def __init__(self, expected_candidate=None):
+        self.expected = expected_candidate
+
     def is_satisfied_by(self, candidate) -> bool:
+        if self.expected is not None:
+            # Garante que o arg nao foi dropado/modificado por um mutante
+            assert candidate == self.expected, f"Mutant pass {candidate}"
         return True
 
 
@@ -18,22 +24,22 @@ class MockFalseSpec(Specification):
 
 
 def test_and_specification_truth_table():
-    assert (MockTrueSpec() & MockTrueSpec()).is_satisfied_by(None) is True
-    assert (MockTrueSpec() & MockFalseSpec()).is_satisfied_by(None) is False
-    assert (MockFalseSpec() & MockTrueSpec()).is_satisfied_by(None) is False
-    assert (MockFalseSpec() & MockFalseSpec()).is_satisfied_by(None) is False
+    assert (MockTrueSpec(1) & MockTrueSpec(1)).is_satisfied_by(1) is True
+    assert (MockTrueSpec(1) & MockFalseSpec()).is_satisfied_by(1) is False
+    assert (MockFalseSpec() & MockTrueSpec(1)).is_satisfied_by(1) is False
+    assert (MockFalseSpec() & MockFalseSpec()).is_satisfied_by(1) is False
 
 
 def test_or_specification_truth_table():
-    assert (MockTrueSpec() | MockTrueSpec()).is_satisfied_by(None) is True
-    assert (MockTrueSpec() | MockFalseSpec()).is_satisfied_by(None) is True
-    assert (MockFalseSpec() | MockTrueSpec()).is_satisfied_by(None) is True
-    assert (MockFalseSpec() | MockFalseSpec()).is_satisfied_by(None) is False
+    assert (MockTrueSpec(1) | MockTrueSpec(1)).is_satisfied_by(1) is True
+    assert (MockTrueSpec(1) | MockFalseSpec()).is_satisfied_by(1) is True
+    assert (MockFalseSpec() | MockTrueSpec(1)).is_satisfied_by(1) is True
+    assert (MockFalseSpec() | MockFalseSpec()).is_satisfied_by(1) is False
 
 
 def test_not_specification_truth_table():
-    assert (~MockTrueSpec()).is_satisfied_by(None) is False
-    assert (~MockFalseSpec()).is_satisfied_by(None) is True
+    assert (~MockTrueSpec(1)).is_satisfied_by(1) is False
+    assert (~MockFalseSpec()).is_satisfied_by(1) is True
 
 
 def test_paciente_urgente_spec():
@@ -42,7 +48,14 @@ def test_paciente_urgente_spec():
     assert spec.is_satisfied_by({"entidade_classificacaoRisco_cor": "Laranja"}) is True
     assert spec.is_satisfied_by({"entidade_classificacaoRisco_cor": "AMARELO"}) is True
     assert spec.is_satisfied_by({"entidade_classificacaoRisco_cor": "AZUL"}) is False
+    assert spec.is_satisfied_by(None) is False
+    assert spec.is_satisfied_by("not_a_dict") is False
     assert spec.is_satisfied_by({}) is False
+
+    # Testa o limite defensivo onde `.get` pode retornar fallback. 
+    # Isso mata o mutmut_10 (troca o fallback para 'XXXX')
+    spec_empty = PacienteUrgenteSpec(cores_alvo=[""])
+    assert spec_empty.is_satisfied_by({}) is True
 
 
 def test_paciente_vencido_spec():
@@ -90,3 +103,25 @@ def test_lead_time_critico_spec():
     assert spec.is_satisfied_by({"dataSolicitacao": old_date}) is True
     assert spec.is_satisfied_by({"dataSolicitacao": recent_date}) is False
     assert spec.is_satisfied_by({}) is False
+
+
+def test_lead_time_critico_spec_boundaries():
+    """Garante que a Specification de lead time respeita os limites exatos matemáticos."""
+    limite = 14
+    spec = LeadTimeCriticoSpec(max_dias=limite)
+    hoje = datetime.datetime.now()
+
+    def gerar_data_passada(dias_atras: int) -> str:
+        # Usamos 00:00:00 para garantir consistência no cálculo matematico do delta
+        return (hoje - datetime.timedelta(days=dias_atras)).strftime("%Y-%m-%d 00:00:00")
+
+    # 1. Seguro (13 dias) -> Dentro do prazo
+    assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite - 1)}) is False
+
+    # 2. O LIMITE EXATO (14 dias) -> O TÚMULO DO MUTANTE ☠️
+    # No código original (>), isso deve ser False (14 > 14 é Falso).
+    # Se o mutante mudar para (>=), isso vira True e mata o mutante.
+    assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite)}) is False
+
+    # 3. Vencido de fato (15 dias) -> Fora do prazo
+    assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite + 1)}) is True
