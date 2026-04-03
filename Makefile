@@ -131,7 +131,7 @@ test:
 	uv run pytest tests/domain tests/application --maxfail=1 --disable-warnings -v
 
 test-mutmut:
-	uv run mutmut run --paths-to-mutate src/domain/ --tests-dir tests/domain/ || true
+	uv run mutmut run
 	@SURVIVORS=$$(uv run mutmut results | grep "Survived" | wc -l); \
 	if [ "$$SURVIVORS" -gt "0" ]; then \
 		echo "❌ Falha SRE de Mutação: $$SURVIVORS mutantes sobreviveram! Seus testes não garantem a lógica."; \

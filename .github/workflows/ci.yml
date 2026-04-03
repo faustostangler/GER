@@ -38,7 +38,7 @@ jobs:
       # Fallback se não configurado no pyproject.toml: força o alvo no source code 
       - name: Mutation Testing Guard (mutmut)
         run: |
-          uv run mutmut run --paths-to-mutate src/domain/ --tests-dir tests/domain/ || true
+          uv run mutmut run
           # Hard-gate: Aborta a build se a taxa de sobrevivência não for perfeita (Exceção: 0)
           SURVIVORS=$(uv run mutmut results | grep "Survived" | wc -l)
           if [ "$SURVIVORS" -gt "0" ]; then
