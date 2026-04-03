@@ -1,6 +1,6 @@
 import pytest
 from pydantic import ValidationError
-from src.domain.schemas import GerconPayloadContract
+from domain.schemas import GerconPayloadContract
 
 
 def test_gercon_contract_should_accept_valid_payload():

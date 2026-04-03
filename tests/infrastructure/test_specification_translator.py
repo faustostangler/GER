@@ -1,9 +1,9 @@
-from src.domain.specifications import (
+from domain.specifications import (
     PacienteUrgenteSpec,
     PacienteVencidoSpec,
     LeadTimeCriticoSpec,
 )
-from src.infrastructure.repositories.duckdb_repository import (
+from infrastructure.repositories.duckdb_repository import (
     DuckDBSpecificationTranslator,
 )
 

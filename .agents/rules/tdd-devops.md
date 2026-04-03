@@ -75,6 +75,14 @@ Cold Boot Database Lag: Keycloak takes time to initialize its schema. Solution: 
 
 Vendor API Instability: Scraper payloads often break contracts. Solution: The ScraperUseCase uses an explicit validation loop that redirects "poison pills" to the DLQ instead of crashing the process.
 
+Mutmut Trampoline Errors: "Failed trampoline hit" occurs due to `src/` layout namespace leaks. 
+* Solution 1: Zero `src.` prefixes in imports (e.g., use `from domain...` not `from src.domain...`).
+* Solution 2: Explicit `pythonpath = ["src"]` in `pyproject.toml` and `PYTHONPATH=src` in Makefile.
+* Solution 3: Centralized `setup.cfg` for mutmut to ensure the runner uses `python -m pytest`.
+
+Linter/Artifact Pollution: Ruff may fail on mutmut generated files.
+* Solution: Explicitly exclude `mutants/` and `.mutmut-cache/` in `pyproject.toml` (`tool.ruff.exclude`).
+
 8. Pipelines & Execution
 CI/CD Pipeline (ci.yml):
 

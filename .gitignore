@@ -151,3 +151,6 @@ data/
 # dev data
 *dom.
 
+# Mutation testing artifacts
+mutants/
+.mutmut-cache

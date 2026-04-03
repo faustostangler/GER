@@ -4,7 +4,7 @@ Red-Green-Refactor: Validates snapshot extraction, SLA Engine V2
 (State Machine), Funnel Trackers, and schema integrity.
 """
 
-from src.domain.solicitacao_mapper import (
+from domain.solicitacao_mapper import (
     flatten_solicitacao,
     safe_bool,
     extract_unidade,
@@ -49,7 +49,7 @@ def test_flatten_solicitacao_extracts_root_demographics():
     assert flat["numeroCMCE"] == 123456789012
     assert flat["situacao"] == "AGENDADA"
     assert flat["origem_lista"] == "agendadas"
-    from src.domain.solicitacao_mapper import hash_pii
+    from domain.solicitacao_mapper import hash_pii
 
     assert flat["usuarioSUS_nomeCompleto"] == hash_pii("JOAO DA SILVA")
     assert flat["dataSolicitacao"].startswith("14/11/2023")

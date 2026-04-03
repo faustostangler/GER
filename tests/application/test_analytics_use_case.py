@@ -1,9 +1,9 @@
 import pandas as pd
-from src.application.use_cases.interfaces import IAnalyticsRepository
-from src.domain.models import AnalyticKPIs
-from src.domain.specifications import Specification
-from src.application.use_cases.analytics_use_case import AnalyticsUseCase
-from src.infrastructure.auth.token_acl import ValidatedUserToken
+from application.use_cases.interfaces import IAnalyticsRepository
+from domain.models import AnalyticKPIs
+from domain.specifications import Specification
+from application.use_cases.analytics_use_case import AnalyticsUseCase
+from infrastructure.auth.token_acl import ValidatedUserToken
 
 
 class MockAnalyticsRepository(IAnalyticsRepository):

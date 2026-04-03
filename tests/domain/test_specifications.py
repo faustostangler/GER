@@ -1,4 +1,4 @@
-from src.domain.specifications import (
+from domain.specifications import (
     Specification,
     PacienteUrgenteSpec,
     PacienteVencidoSpec,
