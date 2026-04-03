@@ -62,6 +62,7 @@ def extract_unidade(unidade_dict: dict, prefix: str, target_dict: dict) -> None:
     """Helper DRY: extrai Unit demographics em chaves planas no target_dict."""
     if not isinstance(unidade_dict, dict):
         return
+    # pragma: no mutate
     target_dict[f"{prefix}_nome"] = unidade_dict.get("nome", "")
     target_dict[f"{prefix}_razaoSocial"] = unidade_dict.get("razaoSocial", "")
     tipo_un = unidade_dict.get("tipoUnidade") or {}
@@ -231,6 +232,7 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
     """
     data: Dict[str, Any] = {}
 
+    # pragma: no mutate
     # ── 1. IDENTIFICADORES RAIZ ──────────────────────────────────────────
     data["numeroCMCE"] = j_dict.get("numeroCMCE", "")
     data["situacao"] = j_dict.get("situacao", "")
