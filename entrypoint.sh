@@ -26,7 +26,7 @@ if [ "$SERVICE_TYPE" = "worker" ]; then
 else
     # SRE FIX 3: Adicionado headless=true para o Streamlit não tentar abrir o navegador interno
     exec streamlit run app_analytics.py \
-        --server.port=8501 \
+        --server.port=${PORT:-8080} \
         --server.address=0.0.0.0 \
         --server.baseUrlPath=dashboard \
         --server.headless=true

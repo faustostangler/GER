@@ -63,3 +63,40 @@ jobs:
         run: |
           uv pip compile pyproject.toml -o requirements.txt
           uvx pip-audit -r requirements.txt
+
+  deploy-cloud-run:
+    name: Build & Deploy to Cloud Run
+    # HARD-GATE: O deploy só acontece se os testes e a auditoria passarem!
+    needs: [quality-gate, security-scan] 
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
+
+      - name: Configure Docker for GCP
+        run: gcloud auth configure-docker southamerica-east1-docker.pkg.dev --quiet
+
+      - name: Build and Push Docker Image
+        env:
+          # O caminho completo do nosso Registry criado no GCP
+          REGISTRY: southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo
+          IMAGE_NAME: gercon-analytics
+          # Usa o SHA do commit para garantir rastreabilidade SRE (saber exatamente qual código está em prod)
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $REGISTRY/$IMAGE_NAME:latest -t $REGISTRY/$IMAGE_NAME:$IMAGE_TAG .
+          docker push $REGISTRY/$IMAGE_NAME --all-tags
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v2
+        with:
+          service: gercon-analytics
+          image: southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo/gercon-analytics:${{ github.sha }}
+          region: southamerica-east1
+          flags: '--allow-unauthenticated' # Torna a URL pública

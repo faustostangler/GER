@@ -83,6 +83,9 @@ Mutmut Trampoline Errors: "Failed trampoline hit" occurs due to `src/` layout na
 Linter/Artifact Pollution: Ruff may fail on mutmut generated files.
 * Solution: Explicitly exclude `mutants/` and `.mutmut-cache/` in `pyproject.toml` (`tool.ruff.exclude`).
 
+Mutation Testing Noise in Mappers (ACL): Mutmut generates hundreds of meaningless survivors on pure dictionary extractions.
+* Solution: We do not chase 100% overall Mutation. Eradicate noise strictly using `# pragma: no mutate` above complex mapping dict layers. Conversely, aggressively use Parameterized Data-Driven Tests (`@pytest.mark.parametrize`) on Specifications, Boundaries, and Pure Utilities to ensure absolute 100% Core Domain mutant extermination.
+
 8. Pipelines & Execution
 CI/CD Pipeline (ci.yml):
 
@@ -90,9 +93,13 @@ Linting with Ruff.
 
 Unit Tests (Domain/Application).
 
-Mutation Testing Guard: Strict gate requiring 0 survivors.
+Security Audit: Runs shift-left dependency vulnerability scanning. Compiles to `requirements.txt` and executes `uvx pip-audit`. Action versions strictly target Node 24 architectures (`checkout@v5`, `setup-uv@v6`) to prevent deprecation warnings.
+
+Mutation Testing Guard: Strict gate validating 0 mutants survive in Core Domain logic.
 
 CDC (Consumer-Driven Contract) validation.
+
+Continuous Deployment (Google Cloud Run): GitOps/K3s (Pull-based) is deprecated in favor of a Lean Serverless Push-based model via GitHub Actions. Deployment to Cloud Run relies absolutely on the app dynamically rebinding to the overriding `$PORT` variable injected by the GCP container runtime.
 
 Scraper Sync: Uses a watermark system (via sqlite_raw_repository) and a scraper_state.json file to track pagination and avoid redundant fetches.
 
