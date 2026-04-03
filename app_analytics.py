@@ -7,7 +7,7 @@ from infrastructure.config import settings
 from infrastructure.telemetry.sentry import init_sentry
 
 
-def main():
+def setup_ui():
     # --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
     init_sentry(
         dsn=settings.SENTRY_DSN,
@@ -22,6 +22,7 @@ def main():
         layout="wide",
         initial_sidebar_state="expanded",
     )
+    inject_custom_css()
 
 
 def inject_custom_css():
@@ -665,6 +666,7 @@ def get_authenticated_user():
 
 # --- 5. MAIN APP ---
 def main():
+    setup_ui()
     # Cache Bust Temporário para instanciar as novas bibliotecas e códigos importados:
     st.cache_resource.clear()
     st.cache_data.clear()
