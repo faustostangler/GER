@@ -47,12 +47,15 @@ jobs:
       # === CONFIGURAÇÃO ESTRITA DE MUTMUT ===
       - name: Mutation Testing Guard (mutmut)
         run: |
-          uv run mutmut run
-          SURVIVORS=$(uv run mutmut results | grep "Survived" | wc -l)
+          PYTHONPATH=src uv run mutmut run
+          SURVIVORS=$(PYTHONPATH=src uv run mutmut results | grep "Survived" | wc -l)
           if [ "$SURVIVORS" -gt "0" ]; then
             echo "❌ Falha SRE de Mutação: $SURVIVORS mutantes sobreviveram! Seus testes não garantem a lógica."
             exit 1
           fi
+
+      - name: Spin up Integration Infrastructure
+        run: docker compose --profile iam up -d --wait
 
       - name: Consumer-Driven Contract Tests (CDC)
         run: uv run pytest tests/infrastructure/test_gercon_contract.py
