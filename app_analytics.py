@@ -1,27 +1,27 @@
-import os
-import streamlit as st
-from src.domain.models import FilterCriteria
+from domain.models import FilterCriteria
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import date, timedelta
-from src.infrastructure.config import settings
+from infrastructure.config import settings
+from infrastructure.telemetry.sentry import init_sentry
 
-# --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
-from src.infrastructure.telemetry.sentry import init_sentry
-init_sentry(
-    dsn=settings.SENTRY_DSN,
-    environment=settings.ENVIRONMENT,
-    release=settings.GIT_SHA,
-)
 
-# --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
-st.set_page_config(
-    page_title="Gercon Analytics | RCA",
-    page_icon="🎯",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
+def main():
+    # --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
+    init_sentry(
+        dsn=settings.SENTRY_DSN,
+        environment=settings.ENVIRONMENT,
+        release=settings.GIT_SHA,
+    )
+
+    # --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
+    st.set_page_config(
+        page_title="Gercon Analytics | RCA",
+        page_icon="🎯",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
 
 
 def inject_custom_css():
@@ -97,10 +97,10 @@ def inject_custom_css():
 # --- 2. INFRASTRUCTURE: USE CASE & DI ---
 @st.cache_resource
 def get_use_case():
-    from src.infrastructure.repositories.duckdb_repository import (
+    from infrastructure.repositories.duckdb_repository import (
         DuckDBAnalyticsRepository,
     )
-    from src.application.use_cases.analytics_use_case import AnalyticsUseCase
+    from application.use_cases.analytics_use_case import AnalyticsUseCase
     import src.infrastructure.telemetry as telemetry
     
     telemetry.init_telemetry(port=8001)
@@ -531,7 +531,7 @@ def render_advanced_text_search(
             st.session_state[f"{key}_not_val"] = not_terms
 
             # --- LEXICAL PARSER EXTRACTED TO ADAPTER ---
-            from src.presentation.adapters.parsers import parse_term
+            from presentation.adapters.parsers import parse_term
 
             # --- CONSTRUTOR DE SQL SOTA (Com strip_accents) ---
             if and_terms or or_terms or not_terms:
@@ -634,7 +634,7 @@ def get_authenticated_user():
     """
     # DX: Desenvolvimento Local sem IAP Proxy
     if os.getenv("ENVIRONMENT") == "dev":
-        from src.infrastructure.auth.token_acl import ValidatedUserToken
+        from infrastructure.auth.token_acl import ValidatedUserToken
         import time
 
         # Mock Session para Desenvolvimento Local (Bypass RLS se role for diretor_medico)
@@ -657,7 +657,7 @@ def get_authenticated_user():
         )
         st.stop()
 
-    from src.infrastructure.auth.jwt_validator import verify_token
+    from infrastructure.auth.jwt_validator import verify_token
 
     user = verify_token(auth_header)
     return user, auth_header
@@ -2072,7 +2072,7 @@ def main():
         st.subheader("Inteligência Clínica & Perfil Demográfico")
         
         import time
-        from src.infrastructure.telemetry import RENDER_LATENCY, SILENT_ERRORS
+        from infrastructure.telemetry import RENDER_LATENCY, SILENT_ERRORS
 
         c1, c2 = st.columns(2)
         with c1:

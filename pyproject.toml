@@ -3,7 +3,7 @@ name = "ger-analytics"
 version = "0.1.0"
 description = "Advanced Root Cause Analysis and Scraper for Gercon"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.11, <3.14"
 dependencies = [
     "duckdb>=1.0.0",
     "streamlit>=1.37.0",
