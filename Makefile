@@ -141,5 +141,9 @@ test-mutmut:
 test-contract:
 	uv run pytest tests/infrastructure/test_gercon_contract.py
 
-ci: lint test test-mutmut test-contract
+test-audit:
+	uv pip compile pyproject.toml -o requirements.txt
+	uvx pip-audit -r requirements.txt
+
+ci: lint test test-audit test-mutmut test-contract
 	@echo "✅ PIPELINE CI LOCAL PASSOU COM SUCESSO! Código pronto para git push."

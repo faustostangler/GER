@@ -56,5 +56,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install uv
         uses: astral-sh/setup-uv@v5
-      - name: Dependency Audit
-        run: uv pip compile pyproject.toml | uv pip audit
+      - name: Audit Dependencies
+        run: |
+          uv pip compile pyproject.toml -o requirements.txt
+          uvx pip-audit -r requirements.txt
