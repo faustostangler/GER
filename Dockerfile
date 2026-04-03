@@ -35,6 +35,13 @@ RUN .venv/bin/python -m playwright install chromium
 
 # Stage 3: Runtime Imutável (Sem Bind Mounts)
 FROM base AS runtime
+
+# WHY: Build-args injetados pelo CI para rastreabilidade commit-level (Sentry + Grafana)
+ARG GIT_SHA=local-dev
+ARG BUILD_TIMESTAMP=unknown
+ENV GIT_SHA=${GIT_SHA}
+ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
+
 # Copia o código para dentro da imagem (Imutabilidade)
 COPY src/ /app/src/
 COPY app_analytics.py /app/app_analytics.py

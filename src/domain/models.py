@@ -1,4 +1,29 @@
 from pydantic import BaseModel, Field
+from enum import Enum
+
+
+class IngestionStatus(str, Enum):
+    """Status possíveis de uma execução de ingestão."""
+    SUCCESS = "SUCCESS"
+    PARTIAL = "PARTIAL"
+    FAILURE = "FAILURE"
+    CIRCUIT_BREAKER = "CIRCUIT_BREAKER"
+
+
+class IngestionLogEntry(BaseModel):
+    """Value Object para auditoria de cada ciclo do Scraper/Worker."""
+    timestamp: float = Field(description="Epoch UTC do início da execução")
+    duration_seconds: float = Field(description="Duração total da sessão de ingestão")
+    status: IngestionStatus
+    items_ingested: int = Field(default=0, description="Registros novos/atualizados com sucesso")
+    items_failed: int = Field(default=0, description="Poison pills enviadas para DLQ")
+    bytes_processed: int = Field(default=0, description="Volume estimado de payload processado")
+    target_lists: list[str] = Field(default_factory=list, description="Listas-alvo processadas neste ciclo")
+    error_message: str = Field(default="", description="Mensagem de erro se status != SUCCESS")
+
+
+class FilterCriteria(BaseModel):
+    clauses: list[str] = Field(default_factory=list, description="Lista de cláusulas SQL injetadas de forma segura")
 
 
 class AnalyticKPIs(BaseModel):
@@ -16,6 +41,9 @@ class AnalyticKPIs(BaseModel):
     pac_vencidos: int
     p90_lead_time: float
     p90_esquecido: float
+    last_sync_at: float = Field(
+        default=0.0, description="Timestamp de modificação do Parquet para checagem de SLA de dados"
+    )
     mes_comercial: float = Field(
         default=30.416, description="Dias do mês comercial inserido por Use Case"
     )

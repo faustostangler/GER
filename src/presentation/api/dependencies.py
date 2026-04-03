@@ -1,7 +1,7 @@
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, SecurityScopes
-from src.infrastructure.auth.jwt_validator import verify_token
-from src.infrastructure.auth.token_acl import ValidatedUserToken
+from infrastructure.auth.jwt_validator import verify_token
+from infrastructure.auth.token_acl import ValidatedUserToken
 
 security = HTTPBearer()
 

@@ -1,8 +1,8 @@
 import jwt
 from jwt import PyJWKClient, PyJWKClientError
 from fastapi import HTTPException, status
-from src.infrastructure.config import settings
-from src.infrastructure.auth.token_acl import ValidatedUserToken
+from infrastructure.config import settings
+from infrastructure.auth.token_acl import ValidatedUserToken
 
 
 class InvalidTokenFormatError(Exception):

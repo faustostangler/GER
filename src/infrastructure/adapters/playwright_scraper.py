@@ -2,7 +2,7 @@ import logging
 from typing import Dict, Any
 from playwright.sync_api import sync_playwright
 
-from src.application.use_cases.scraper_interfaces import IScraperClient
+from application.use_cases.scraper_interfaces import IScraperClient
 
 logger = logging.getLogger(__name__)
 

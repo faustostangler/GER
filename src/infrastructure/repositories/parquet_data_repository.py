@@ -6,7 +6,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 import s3fs
 
-from src.application.use_cases.scraper_interfaces import IProcessedDataRepository
+from application.use_cases.scraper_interfaces import IProcessedDataRepository
 
 logger = logging.getLogger(__name__)
 

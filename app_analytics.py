@@ -7,6 +7,14 @@ import plotly.graph_objects as go
 from datetime import date, timedelta
 from src.infrastructure.config import settings
 
+# --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
+from src.infrastructure.telemetry.sentry import init_sentry
+init_sentry(
+    dsn=settings.SENTRY_DSN,
+    environment=settings.ENVIRONMENT,
+    release=settings.GIT_SHA,
+)
+
 # --- 1. CONFIGURAÇÃO DA PÁGINA E DX ---
 st.set_page_config(
     page_title="Gercon Analytics | RCA",
@@ -93,8 +101,16 @@ def get_use_case():
         DuckDBAnalyticsRepository,
     )
     from src.application.use_cases.analytics_use_case import AnalyticsUseCase
+    import src.infrastructure.telemetry as telemetry
+    
+    telemetry.init_telemetry(port=8001)
 
-    repo = DuckDBAnalyticsRepository(settings.OUTPUT_FILE)
+    try:
+        repo = DuckDBAnalyticsRepository(settings.OUTPUT_FILE)
+    except ValueError as e:
+        st.error(f"🔌 **Circuit Breaker Acionado:** {e}")
+        st.stop()
+        
     return AnalyticsUseCase(repo)
 
 
@@ -491,7 +507,7 @@ def render_advanced_text_search(
                 )
 
             st.caption(
-                "Separe por vírgula ( , ). Use **\*** como curinga (ex: *cardio\**). Acentos são ignorados."
+                r"Separe por vírgula ( , ). Use **\*** como curinga (ex: *cardio\**). Acentos são ignorados."
             )
 
             or_terms = st.text_input(
@@ -514,21 +530,8 @@ def render_advanced_text_search(
             st.session_state[f"{key}_and_val"] = and_terms
             st.session_state[f"{key}_not_val"] = not_terms
 
-            # --- LEXICAL PARSER (SRE Refined: Trata Injeção, Curingas e Acentos) ---
-            import re
-
-            def parse_term(term: str) -> str:
-                # SRE FIX: Sanitização contra caracteres de controle SQL perigosos
-                t = re.sub(r"[;]|--", "", term.strip())
-                t = t.replace("'", "''")  # Escapa aspas
-                t = t.replace("*", "%")  # Traduz UX Curinga para SQL
-
-                if not t.startswith("%"):
-                    t = f"%{t}"
-                if not t.endswith("%"):
-                    t = f"{t}%"
-
-                return t
+            # --- LEXICAL PARSER EXTRACTED TO ADAPTER ---
+            from src.presentation.adapters.parsers import parse_term
 
             # --- CONSTRUTOR DE SQL SOTA (Com strip_accents) ---
             if and_terms or or_terms or not_terms:
@@ -1445,6 +1448,13 @@ def main():
     ):
         kpi_data = use_case.get_executive_summary(filters, st.session_state.user)
 
+    # --- SRE FIX: DATA FRESHNESS SLA MONITOR ---
+    if kpi_data.last_sync_at > 0:
+        import time
+        age_hours = (time.time() - kpi_data.last_sync_at) / 3600
+        if age_hours > settings.DATA_SLA_THRESHOLD:
+            st.warning(f"⚠️ **Amber Alert:** Os dados exibidos estão com defasagem de {age_hours:.1f} horas. O Worker Scraper pode estar inativo ou ter falhado no último ciclo.")
+
     # --- Extração Segura das Variáveis Absolutas ---
     pacientes = kpi_data.pacientes
     eventos = kpi_data.eventos
@@ -1699,7 +1709,7 @@ def main():
             )
             fig_esq.update_xaxes(showgrid=True, gridwidth=1, gridcolor="#f1f5f9")
             st.plotly_chart(
-                fig_esq, use_container_width=True, config={"displayModeBar": False}
+                fig_esq, width="stretch", config={"displayModeBar": False}
             )
 
             # --- RENDERIZAÇÃO: BOXPLOT CADASTRO (AZUL) ---
@@ -1733,7 +1743,7 @@ def main():
             )
             fig_fila.update_xaxes(showgrid=True, gridwidth=1, gridcolor="#f1f5f9")
             st.plotly_chart(
-                fig_fila, use_container_width=True, config={"displayModeBar": False}
+                fig_fila, width="stretch", config={"displayModeBar": False}
             )
 
             if len(df_dist) > len(df_plot_fila) or len(df_dist) > len(df_plot_esq):
@@ -1790,7 +1800,7 @@ def main():
                 )
                 st.plotly_chart(
                     fig_gauge1,
-                    use_container_width=True,
+                    width="stretch",
                     config={"displayModeBar": False},
                 )
             with g2:
@@ -1819,7 +1829,7 @@ def main():
                 )
                 st.plotly_chart(
                     fig_gauge2,
-                    use_container_width=True,
+                    width="stretch",
                     config={"displayModeBar": False},
                 )
 
@@ -1978,7 +1988,7 @@ def main():
 
                 fig_sun.update_layout(height=700, margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(
-                    fig_sun, use_container_width=True, config={"displayModeBar": False}
+                    fig_sun, width="stretch", config={"displayModeBar": False}
                 )
             else:
                 st.warning(
@@ -2010,7 +2020,7 @@ def main():
                         color_discrete_map=MAPA_CORES_RISCO,
                         title="Matriz de Risco (Prioridade)",
                     ),
-                    use_container_width=True,
+                    width="stretch",
                     config={"displayModeBar": False},
                 )
 
@@ -2036,7 +2046,7 @@ def main():
                     y="Etapa",
                     title="Funil da Jornada: Gargalos e Abandono",
                 ),
-                use_container_width=True,
+                width="stretch",
                 config={"displayModeBar": False},
             )
 
@@ -2054,81 +2064,97 @@ def main():
                 color="situacao",
                 template="plotly_white",
             ),
-            use_container_width=True,
+            width="stretch",
             config={"displayModeBar": False},
         )
 
     with t_clin:
         st.subheader("Inteligência Clínica & Perfil Demográfico")
+        
+        import time
+        from src.infrastructure.telemetry import RENDER_LATENCY, SILENT_ERRORS
 
         c1, c2 = st.columns(2)
         with c1:
-            # Geometria da Demanda (Treemap)
-            df_mun = use_case.execute_custom_query(
-                f"SELECT usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND usuarioSUS_municipioResidencia_nome != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30",
-                filters=filters,
-                current_user=st.session_state.user,
-            )
+            try:
+                start_treemap = time.time()
+                # Geometria da Demanda (Treemap)
+                df_mun = use_case.execute_custom_query(
+                    f"SELECT usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND usuarioSUS_municipioResidencia_nome != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30",
+                    filters=filters,
+                    current_user=st.session_state.user,
+                )
+    
+                # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
+                if not df_mun.empty:
+                    df_mun["usuarioSUS_bairro"] = (
+                        df_mun["usuarioSUS_bairro"]
+                        .replace("", "Não Informado")
+                        .fillna("Não Informado")
+                    )
+                    st.plotly_chart(
+                        px.treemap(
+                            df_mun,
+                            path=[
+                                "usuarioSUS_municipioResidencia_nome",
+                                "usuarioSUS_bairro",
+                            ],
+                            values="Vol",
+                            title="Geometria: Município ➔ usuarioSUS_bairro",
+                            color="Vol",
+                            color_continuous_scale="Viridis",
+                        ),
+                        width="stretch",
+                        config={"displayModeBar": False},
+                    )
+                if RENDER_LATENCY: RENDER_LATENCY.labels(component="t_clin_treemap").observe(time.time() - start_treemap)
+            except Exception as e:
+                if SILENT_ERRORS: SILENT_ERRORS.labels(component="t_clin_treemap").inc()
+                st.warning("⚠️ Dados insuficientes ou mal formatados para o Treemap.")
 
-            # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
-            if not df_mun.empty:
-                df_mun["usuarioSUS_bairro"] = (
-                    df_mun["usuarioSUS_bairro"]
-                    .replace("", "Não Informado")
-                    .fillna("Não Informado")
-                )
-                st.plotly_chart(
-                    px.treemap(
-                        df_mun,
-                        path=[
-                            "usuarioSUS_municipioResidencia_nome",
-                            "usuarioSUS_bairro",
-                        ],
-                        values="Vol",
-                        title="Geometria: Município ➔ usuarioSUS_bairro",
-                        color="Vol",
-                        color_continuous_scale="Viridis",
-                    ),
-                    use_container_width=True,
-                    config={"displayModeBar": False},
-                )
         with c2:
-            # SRE FIX: Cálculo de Idade blindado (TRY_CAST para evitar Conversion Error)
-            df_demo = use_case.execute_custom_query(
-                f"""
-                SELECT Idade_Int, usuarioSUS_sexo, COUNT(DISTINCT numeroCMCE) as Vol
-                FROM (
-                    SELECT 
-                        date_diff('year', TRY_CAST(usuarioSUS_dataNascimento AS DATE), CURRENT_DATE) as Idade_Int, 
-                        usuarioSUS_sexo, 
-                        numeroCMCE
-                    FROM gercon 
-                    WHERE {FINAL_WHERE}
-                ) 
-                WHERE Idade_Int IS NOT NULL AND Idade_Int >= 0
-                GROUP BY 1, 2
-            """,
-                filters,
-                st.session_state.user,
-            )
-
-            if not df_demo.empty:
-                fig_demo = px.histogram(
-                    df_demo,
-                    x="Idade_Int",
-                    y="Vol",
-                    color="usuarioSUS_sexo",
-                    barmode="group",
-                    color_discrete_map={"Feminino": "#ec4899", "Masculino": "#3b82f6"},
-                    title="Perfil Demográfico (Idade vs usuarioSUS_sexo)",
-                    labels={
-                        "Idade_Int": "Idade Aproximada",
-                        "Vol": "Volume de Pacientes",
-                    },
+            try:
+                start_hist = time.time()
+                # SRE FIX: Cálculo de Idade blindado (TRY_CAST para evitar Conversion Error)
+                df_demo = use_case.execute_custom_query(
+                    f"""
+                    SELECT Idade_Int, usuarioSUS_sexo, COUNT(DISTINCT numeroCMCE) as Vol
+                    FROM (
+                        SELECT 
+                            date_diff('year', TRY_CAST(usuarioSUS_dataNascimento AS DATE), CURRENT_DATE) as Idade_Int, 
+                            usuarioSUS_sexo, 
+                            numeroCMCE
+                        FROM gercon 
+                        WHERE {FINAL_WHERE}
+                    ) 
+                    WHERE Idade_Int IS NOT NULL AND Idade_Int >= 0
+                    GROUP BY 1, 2
+                """,
+                    filters,
+                    st.session_state.user,
                 )
-                st.plotly_chart(
-                    fig_demo, use_container_width=True, config={"displayModeBar": False}
-                )
+    
+                if not df_demo.empty:
+                    fig_demo = px.histogram(
+                        df_demo,
+                        x="Idade_Int",
+                        y="Vol",
+                        color="usuarioSUS_sexo",
+                        barmode="group",
+                        color_discrete_map={"Feminino": "#ec4899", "Masculino": "#3b82f6"},
+                        title="Perfil Demográfico (Idade vs usuarioSUS_sexo)",
+                        labels={
+                            "Idade_Int": "Idade Aproximada",
+                            "Vol": "Volume de Pacientes",
+                        },
+                    )
+                    st.plotly_chart(
+                        fig_demo, width="stretch", config={"displayModeBar": False}
+                    )
+                if RENDER_LATENCY: RENDER_LATENCY.labels(component="t_clin_demographics").observe(time.time() - start_hist)
+            except Exception as e:
+                if SILENT_ERRORS: SILENT_ERRORS.labels(component="t_clin_demographics").inc()
+                st.warning("⚠️ Erro silencioso capturado na renderização demográfica.")
 
         # Throughput vs Capacidade (Temporal)
         df_fluxo = use_case.execute_custom_query(
@@ -2144,7 +2170,7 @@ def main():
                 color="origem_lista",
                 title="Throughput Temporal: Volume de Pacientes por Origem",
             ),
-            use_container_width=True,
+            width="stretch",
             config={"displayModeBar": False},
         )
 
@@ -2276,7 +2302,7 @@ def main():
                 xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120)
             )
             st.plotly_chart(
-                fig_heat, use_container_width=True, config={"displayModeBar": False}
+                fig_heat, width="stretch", config={"displayModeBar": False}
             )
 
         # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Médico ➔ CID) ---
@@ -2308,7 +2334,7 @@ def main():
             )
             fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
             st.plotly_chart(
-                fig_tree_med, use_container_width=True, config={"displayModeBar": False}
+                fig_tree_med, width="stretch", config={"displayModeBar": False}
             )
 
     with t_micro:
@@ -2361,7 +2387,7 @@ def main():
                 )
                 fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
                 st.plotly_chart(
-                    fig_out, use_container_width=True, config={"displayModeBar": False}
+                    fig_out, width="stretch", config={"displayModeBar": False}
                 )
 
         with c2:
@@ -2383,7 +2409,7 @@ def main():
                 yaxis={"categoryorder": "total ascending"}, height=450
             )
             st.plotly_chart(
-                fig_ofensor, use_container_width=True, config={"displayModeBar": False}
+                fig_ofensor, width="stretch", config={"displayModeBar": False}
             )
 
         # Log Clinical Audit
@@ -2412,10 +2438,10 @@ def main():
                 data=csv_data,
                 file_name=f"auditoria_gercon_{date.today()}.csv",
                 mime="text/csv",
-                use_container_width=True,
+                width="stretch",
             )
 
-        st.dataframe(df_audit, use_container_width=True, hide_index=True)
+        st.dataframe(df_audit, width="stretch", hide_index=True)
 
 
 if __name__ == "__main__":

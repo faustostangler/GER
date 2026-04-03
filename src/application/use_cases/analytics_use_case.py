@@ -1,12 +1,12 @@
-from src.application.use_cases.interfaces import IAnalyticsRepository
-from src.domain.models import AnalyticKPIs
-from src.domain.specifications import (
+from application.use_cases.interfaces import IAnalyticsRepository
+from domain.models import AnalyticKPIs
+from domain.specifications import (
     Specification,
     PacienteUrgenteSpec,
     PacienteVencidoSpec,
 )
-from src.infrastructure.config import settings
-from src.infrastructure.auth.token_acl import ValidatedUserToken
+from infrastructure.config import settings
+from infrastructure.auth.token_acl import ValidatedUserToken
 import pandas as pd
 from typing import List, Tuple, Any
 

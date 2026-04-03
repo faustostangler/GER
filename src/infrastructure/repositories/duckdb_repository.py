@@ -3,9 +3,9 @@ import duckdb
 import pandas as pd
 import re
 from typing import List, Tuple, Any
-from src.application.use_cases.interfaces import IAnalyticsRepository
-from src.domain.models import AnalyticKPIs
-from src.domain.specifications import (
+from application.use_cases.interfaces import IAnalyticsRepository
+from domain.models import AnalyticKPIs
+from domain.specifications import (
     Specification,
     AndSpecification,
     OrSpecification,
@@ -14,8 +14,8 @@ from src.domain.specifications import (
     PacienteVencidoSpec,
     LeadTimeCriticoSpec,
 )
-from src.infrastructure.auth.token_acl import ValidatedUserToken
-from src.infrastructure.config import settings
+from infrastructure.auth.token_acl import ValidatedUserToken
+from infrastructure.config import settings
 
 
 class DuckDBSpecificationTranslator:
@@ -43,7 +43,9 @@ class DuckDBSpecificationTranslator:
 
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
+        self.db_file = db_file
         self.con = duckdb.connect(database=":memory:")
+
 
         # Limite explícito de RAM para proteção de OOMKilled no Cluster K8s (Reserva memória para Pandas)
         self.con.execute(f"PRAGMA memory_limit='{settings.db.memory_limit}';")
@@ -60,6 +62,35 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         self.con.execute(
             f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')"
         )
+        
+        # ==========================================
+        # DATA CONTRACT (Shift-Right Healthcheck)
+        # ==========================================
+        try:
+            schema_df = self.con.execute("PRAGMA table_info('gercon')").df()
+            available_cols = set(schema_df['name'].tolist())
+            crit_cols = {"numeroCMCE", "entidade_classificacaoRisco_cor", "entidade_especialidade_descricao", "dataSolicitacao", "dataCadastro"}
+            missing = crit_cols - available_cols
+            if missing:
+                raise ValueError(f"Data Contract Quebrado! Colunas faltantes no Parquet: {missing}")
+        except duckdb.BinderException:
+            # If the view failed because file doesn't exist, ignore here (let it fail downstream or mock)
+            pass
+
+        # Redis Client for Distributed Caching (Graceful Degradation)
+        import redis
+        try:
+            self.redis_client = redis.Redis(
+                host=settings.redis.host, port=settings.redis.port, db=0,
+                socket_connect_timeout=2, socket_timeout=2,
+            )
+            self.redis_client.ping()
+        except Exception:
+            import logging
+            logging.getLogger(__name__).critical(
+                "Redis indisponível — fallback para query direta no Parquet (sem cache distribuído)."
+            )
+            self.redis_client = None
 
     def _get_rls_cte(self, user: ValidatedUserToken) -> str:
         """Sanitização estrita para Bounded Context RLS via CTE"""
@@ -70,7 +101,38 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         return "WITH BaseRLS AS (SELECT * FROM gercon)"
 
     def _query(self, sql: str) -> pd.DataFrame:
-        return self.con.execute(sql).df()
+        import hashlib
+        import pyarrow as pa
+        import io
+
+        cache_key = "duckdb_query:" + hashlib.md5(sql.encode()).hexdigest()
+
+        # WHY: PyArrow IPC (Feather) é ~40-60% mais rápido que pickle para DataFrames
+        # e é language-agnostic (Rust, Go, Java podem ler o mesmo buffer).
+        if self.redis_client:
+            try:
+                cached_data = self.redis_client.get(cache_key)
+                if cached_data:
+                    reader = pa.ipc.open_stream(cached_data)
+                    return reader.read_pandas()
+            except Exception:
+                pass
+
+        df = self.con.execute(sql).df()
+
+        if self.redis_client:
+            try:
+                table = pa.Table.from_pandas(df)
+                sink = io.BytesIO()
+                writer = pa.ipc.new_stream(sink, table.schema)
+                writer.write_table(table)
+                writer.close()
+                # Cache duration: 10 minutes
+                self.redis_client.setex(cache_key, 600, sink.getvalue())
+            except Exception:
+                pass
+
+        return df
 
     def get_kpis(
         self,
@@ -117,6 +179,11 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             )
         """)
 
+        try:
+            sync_time = os.path.getmtime(self.db_file)
+        except Exception:
+            sync_time = 0.0
+
         return AnalyticKPIs(
             pacientes=int(kpis_df["pacientes"].iloc[0]) if not kpis_df.empty else 0,
             eventos=int(kpis_df["eventos"].iloc[0]) if not kpis_df.empty else 0,
@@ -146,6 +213,7 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             p90_esquecido=float(p90_metrics["p90_esquecido"].iloc[0])
             if not p90_metrics.empty and pd.notna(p90_metrics["p90_esquecido"].iloc[0])
             else 0.0,
+            last_sync_at=sync_time,
         )
 
     def get_distribution_data(

@@ -75,3 +75,19 @@ class IScrapingUseCase(ABC):
     @abstractmethod
     def execute_sync(self):
         pass
+
+
+class IIngestionLogRepository(ABC):
+    """Porta Driven para registro de auditoria de cada ciclo de ingestão."""
+
+    @abstractmethod
+    def init_log_table(self):
+        pass
+
+    @abstractmethod
+    def log_execution(self, entry: "IngestionLogEntry"):
+        pass
+
+    @abstractmethod
+    def get_last_entries(self, limit: int = 10) -> list:
+        pass

@@ -31,3 +31,35 @@ groups:
     annotations:
       summary: "Data Lake Obsoleto (Dados Velhos)"
       description: "A última ingestão de Parquet/DuckDB finalizada com sucesso foi há mais de 27 horas. O Pipeline quebrou silenciosamente."
+
+  # 4. ALERTA DE DATA FRESHNESS SLA (Amber Alert Monitor)
+  - alert: DataFreshnessSLAViolation
+    expr: gercon_data_freshness_hours > 2
+    for: 10m
+    labels:
+      severity: warning
+      team: data-engineering
+    annotations:
+      summary: "⚠️ Amber Alert: Dados obsoletos para clínicos"
+      description: "O Parquet não é atualizado há {{ $value }} horas. O médico está vendo dados velhos."
+
+  # 5. ALERTA DE SCRAPER STALL (Worker morreu silenciosamente)
+  - alert: ScraperSessionStall
+    expr: rate(scraper_success_total[6h]) == 0 and scraper_success_total > 0
+    for: 30m
+    labels:
+      severity: critical
+      team: platform-engineering
+    annotations:
+      summary: "Scraper Worker parou de rodar"
+      description: "Nenhum ciclo de sucesso registrado nas últimas 6h. O Worker pode ter crashado sem alertar."
+
+  # 6. ALERTA DE PACIENTES DE ALTO RISCO CRESCENTE
+  - alert: HighRiskPatientSurge
+    expr: gercon_high_risk_patients_detected_total > 500
+    labels:
+      severity: warning
+      team: clinical-ops
+    annotations:
+      summary: "Volume anormal de pacientes de alto risco"
+      description: "{{ $value }} pacientes detectados em risco alto. Verificar se há degradação do sistema regulatório."

@@ -1,28 +1,34 @@
 import os
 import json
 import time
-from typing import Dict, Any, List
+import sys
+from typing import Dict, Any, List, Optional
 
 # -- Excecoes e DLQ Imports --
 from pydantic import ValidationError
-from src.domain.schemas import GerconPayloadContract
+from domain.schemas import GerconPayloadContract
+from domain.models import IngestionLogEntry, IngestionStatus
 
-from src.application.use_cases.scraper_interfaces import (
+from application.use_cases.scraper_interfaces import (
     IScrapingUseCase,
     IScraperClient,
     IRawDataRepository,
     IProcessedDataRepository,
+    IIngestionLogRepository,
 )
-from src.domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
+from domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
 
-from src.infrastructure.telemetry.logger import setup_structured_logger
-from src.infrastructure.telemetry.metrics import (
+from infrastructure.telemetry.logger import setup_structured_logger
+from infrastructure.telemetry.metrics import (
     SCRAPER_PAGES_FETCHED,
     SCRAPER_ITEMS_SAVED,
     SCRAPER_ERRORS_TOTAL,
     SCRAPER_DURATION_SECONDS,
+    SCRAPER_SUCCESS_TOTAL,
+    SCRAPER_FAILURE_TOTAL,
+    SCRAPER_SESSION_DURATION_SECONDS,
 )
-from src.infrastructure.telemetry.tracing import tracer
+from infrastructure.telemetry.tracing import tracer
 
 logger = setup_structured_logger("scraper_use_case")
 
@@ -39,12 +45,14 @@ class ScraperUseCase(IScrapingUseCase):
         csv_repo: IProcessedDataRepository,
         listas_alvo: List[Dict[str, str]],
         page_size: int = 50,
+        ingestion_log: Optional[IIngestionLogRepository] = None,
     ):
         self.scraper_client = scraper_client
         self.raw_repo = raw_repo
         self.csv_repo = csv_repo
         self.listas_alvo = listas_alvo
         self.page_size = page_size
+        self.ingestion_log = ingestion_log
         self.state_file = "scraper_state.json"
         self.dlq_poison_pills = []  # Em SRE escalável: Enviar para tabela sqlitezinha ou Bucket S3/Poison
 
@@ -83,141 +91,205 @@ class ScraperUseCase(IScrapingUseCase):
 
     @tracer.start_as_current_span("scraper_sync_execution")
     def execute_sync(self):
+        session_start = time.time()
+        total_ingested = 0
+        total_failed = 0
+        total_bytes = 0
+        processed_lists = []
+        final_status = IngestionStatus.SUCCESS
+        error_msg = ""
+
         logger.info(
             "Initializing Hexagonal Scraper Use Case (Circuit Breaker & DLQ Configured)..."
         )
+
+        # WHY: Inicializa log table junto com raw DB para garantir schema do audit
         self.raw_repo.init_db()
+        if self.ingestion_log:
+            self.ingestion_log.init_log_table()
 
-        with tracer.start_as_current_span("vendor_login"):
-            if not self.scraper_client.login():
-                logger.error("Failed to login via Scraper Client.")
-                SCRAPER_ERRORS_TOTAL.labels(error_type="LOGIN", target_list="ALL").inc()
-                return
-            self.scraper_client.select_unit()
+        try:
+            with tracer.start_as_current_span("vendor_login"):
+                if not self.scraper_client.login():
+                    logger.error("Failed to login via Scraper Client.")
+                    SCRAPER_ERRORS_TOTAL.labels(error_type="LOGIN", target_list="ALL").inc()
+                    SCRAPER_FAILURE_TOTAL.inc()
+                    final_status = IngestionStatus.FAILURE
+                    error_msg = "Login failed"
+                    return
+                self.scraper_client.select_unit()
 
-        for lista in self.listas_alvo:
-            nome = lista["nome"]
-            chave = lista["chave"]
+            for lista in self.listas_alvo:
+                nome = lista["nome"]
+                chave = lista["chave"]
+                processed_lists.append(chave)
 
-            global_state = self._load_global_state()
-            list_state = global_state.get(
-                chave, {"full_sync_completed": False, "last_page": 1}
-            )
-            watermark = self.raw_repo.get_watermark(chave)
+                global_state = self._load_global_state()
+                list_state = global_state.get(
+                    chave, {"full_sync_completed": False, "last_page": 1}
+                )
+                watermark = self.raw_repo.get_watermark(chave)
 
-            sort_order_js = "params.ordenacao = ['dataAlterouUltimaSituacao'];"
-            if list_state["full_sync_completed"]:
-                sort_order_js = "params.ordenacao = ['-dataAlterouUltimaSituacao'];"
+                sort_order_js = "params.ordenacao = ['dataAlterouUltimaSituacao'];"
+                if list_state["full_sync_completed"]:
+                    sort_order_js = "params.ordenacao = ['-dataAlterouUltimaSituacao'];"
 
-            self.csv_repo.init_storage(chave)
-            records = self.csv_repo.load_existing(chave)
+                self.csv_repo.init_storage(chave)
+                records = self.csv_repo.load_existing(chave)
 
-            page_num = list_state.get("last_page", 1)
-            stop_scraping = False
+                page_num = list_state.get("last_page", 1)
+                stop_scraping = False
 
-            with tracer.start_as_current_span(f"list_sync_{chave}"):
-                while not stop_scraping:
-                    logger.info(
-                        f"Buscando página {page_num}...",
-                        extra={"lista": chave, "pagina": page_num},
-                    )
-
-                    fetch_start = time.time()
-                    response_data = self.scraper_client.fetch_batch(
-                        chave, nome, page_num, self.page_size, sort_order_js
-                    )
-                    fetch_duration = time.time() - fetch_start
-
-                    SCRAPER_DURATION_SECONDS.labels(target_list=chave).observe(
-                        fetch_duration
-                    )
-
-                    if not response_data:
+                with tracer.start_as_current_span(f"list_sync_{chave}"):
+                    while not stop_scraping:
                         logger.info(
-                            "Fim da lista atingido pacificamente.",
-                            extra={"lista": chave},
-                        )
-                        if not list_state["full_sync_completed"]:
-                            list_state["full_sync_completed"] = True
-                            list_state["last_page"] = 1
-                            global_state[chave] = list_state
-                            self._save_global_state(global_state)
-                        break
-
-                    if "error" in response_data:
-                        logger.error(
-                            f"Erro assíncrono durante fetch: {response_data['error']}",
+                            f"Buscando página {page_num}...",
                             extra={"lista": chave, "pagina": page_num},
                         )
-                        SCRAPER_ERRORS_TOTAL.labels(
-                            error_type="JS_FETCH", target_list=chave
-                        ).inc()
-                        break
 
-                    jsons = response_data.get("jsons", [])
-                    SCRAPER_PAGES_FETCHED.labels(target_list=chave).inc()
-                    self.raw_repo.save_raw_batch(jsons, nome)
+                        fetch_start = time.time()
+                        response_data = self.scraper_client.fetch_batch(
+                            chave, nome, page_num, self.page_size, sort_order_js
+                        )
+                        fetch_duration = time.time() - fetch_start
 
-                    novos = 0
-                    with tracer.start_as_current_span("domain_mapper_loop"):
-                        for j in jsons:
-                            self.cb_total_processed += 1
-                            if j is None or "error" in j:
-                                self.cb_error_count += 1
-                                SCRAPER_ERRORS_TOTAL.labels(
-                                    error_type="PAYLOAD_CORRUPT", target_list=chave
-                                ).inc()
-                                self._evaluate_circuit_breaker()
-                                continue
+                        SCRAPER_DURATION_SECONDS.labels(target_list=chave).observe(
+                            fetch_duration
+                        )
 
-                            # --- VALIDAÇÃO CONSUMER-DRIVEN CONTRACT (ACL) ---
-                            try:
-                                GerconPayloadContract(**j)
-                            except ValidationError as e:
-                                self.cb_error_count += 1
-                                error_str = f"Pydantic Validation Error em registro {j.get('numeroCMCE', '???')}"
-                                logger.warning(
-                                    error_str,
-                                    extra={"lista": chave, "payload_poison": True},
-                                )
-                                # Faz Fail-Fast DLQ: Armazena o lixo para posterior Retentativa
-                                self.dlq_poison_pills.append(
-                                    {"raw": j, "error": str(e)}
-                                )
-                                SCRAPER_ERRORS_TOTAL.labels(
-                                    error_type="SCHEMA_VIOLATION", target_list=chave
-                                ).inc()
-                                self._evaluate_circuit_breaker()
-                                continue  # Ignora pílula envenenada
+                        if not response_data:
+                            logger.info(
+                                "Fim da lista atingido pacificamente.",
+                                extra={"lista": chave},
+                            )
+                            if not list_state["full_sync_completed"]:
+                                list_state["full_sync_completed"] = True
+                                list_state["last_page"] = 1
+                                global_state[chave] = list_state
+                                self._save_global_state(global_state)
+                            break
 
-                            if list_state["full_sync_completed"] and watermark > 0:
-                                data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
-                                if 0 < data_alt <= watermark:
-                                    stop_scraping = True
-                                    break
+                        if "error" in response_data:
+                            logger.error(
+                                f"Erro assíncrono durante fetch: {response_data['error']}",
+                                extra={"lista": chave, "pagina": page_num},
+                            )
+                            SCRAPER_ERRORS_TOTAL.labels(
+                                error_type="JS_FETCH", target_list=chave
+                            ).inc()
+                            break
 
-                            data = flatten_solicitacao(j, nome)
+                        jsons = response_data.get("jsons", [])
+                        # WHY: Estimativa de bytes para auditoria de throughput
+                        total_bytes += sys.getsizeof(json.dumps(jsons))
 
-                            if data and data.get("numeroCMCE"):
-                                records[data["numeroCMCE"]] = clean_data_row(data)
-                                novos += 1
+                        SCRAPER_PAGES_FETCHED.labels(target_list=chave).inc()
+                        self.raw_repo.save_raw_batch(jsons, nome)
 
-                    SCRAPER_ITEMS_SAVED.labels(target_list=chave).inc(novos)
-                    self.csv_repo.save_all(records, chave)
-                    logger.info(
-                        f"Batch consumido com {novos} atualizações.",
-                        extra={
-                            "lista": chave,
-                            "pagina": page_num,
-                            "novos_itens": novos,
-                        },
-                    )
-                    page_num += 1
+                        novos = 0
+                        with tracer.start_as_current_span("domain_mapper_loop"):
+                            for j in jsons:
+                                self.cb_total_processed += 1
+                                if j is None or "error" in j:
+                                    self.cb_error_count += 1
+                                    total_failed += 1
+                                    SCRAPER_ERRORS_TOTAL.labels(
+                                        error_type="PAYLOAD_CORRUPT", target_list=chave
+                                    ).inc()
+                                    self._evaluate_circuit_breaker()
+                                    continue
 
-                    if not list_state["full_sync_completed"]:
-                        list_state["last_page"] = page_num
-                        global_state[chave] = list_state
-                        self._save_global_state(global_state)
+                                # --- VALIDAÇÃO CONSUMER-DRIVEN CONTRACT (ACL) ---
+                                try:
+                                    GerconPayloadContract(**j)
+                                except ValidationError as e:
+                                    self.cb_error_count += 1
+                                    total_failed += 1
+                                    error_str = f"Pydantic Validation Error em registro {j.get('numeroCMCE', '???')}"
+                                    logger.warning(
+                                        error_str,
+                                        extra={"lista": chave, "payload_poison": True},
+                                    )
+                                    # Faz Fail-Fast DLQ: Armazena o lixo para posterior Retentativa
+                                    self.dlq_poison_pills.append(
+                                        {"raw": j, "error": str(e)}
+                                    )
+                                    SCRAPER_ERRORS_TOTAL.labels(
+                                        error_type="SCHEMA_VIOLATION", target_list=chave
+                                    ).inc()
+                                    self._evaluate_circuit_breaker()
+                                    continue  # Ignora pílula envenenada
 
-        self.scraper_client.close()
-        logger.info("Processo principal concluído.", extra={"status": "DONE"})
+                                if list_state["full_sync_completed"] and watermark > 0:
+                                    data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
+                                    if 0 < data_alt <= watermark:
+                                        stop_scraping = True
+                                        break
+
+                                data = flatten_solicitacao(j, nome)
+
+                                if data and data.get("numeroCMCE"):
+                                    records[data["numeroCMCE"]] = clean_data_row(data)
+                                    novos += 1
+
+                        total_ingested += novos
+                        SCRAPER_ITEMS_SAVED.labels(target_list=chave).inc(novos)
+                        self.csv_repo.save_all(records, chave)
+                        logger.info(
+                            f"Batch consumido com {novos} atualizações.",
+                            extra={
+                                "lista": chave,
+                                "pagina": page_num,
+                                "novos_itens": novos,
+                            },
+                        )
+                        page_num += 1
+
+                        if not list_state["full_sync_completed"]:
+                            list_state["last_page"] = page_num
+                            global_state[chave] = list_state
+                            self._save_global_state(global_state)
+
+            # Se chegou aqui sem exceção mas teve falhas parciais, marca PARTIAL
+            if total_failed > 0:
+                final_status = IngestionStatus.PARTIAL
+
+            SCRAPER_SUCCESS_TOTAL.inc()
+
+        except DomainContractViolationException as e:
+            final_status = IngestionStatus.CIRCUIT_BREAKER
+            error_msg = str(e)
+            SCRAPER_FAILURE_TOTAL.inc()
+            raise
+
+        except Exception as e:
+            final_status = IngestionStatus.FAILURE
+            error_msg = str(e)
+            SCRAPER_FAILURE_TOTAL.inc()
+            logger.error(f"Erro fatal no ciclo de ingestão: {e}")
+
+        finally:
+            session_duration = time.time() - session_start
+            SCRAPER_SESSION_DURATION_SECONDS.observe(session_duration)
+
+            self.scraper_client.close()
+
+            # --- AUDIT LOG: Persiste registro para Post-Mortem ---
+            if self.ingestion_log:
+                log_entry = IngestionLogEntry(
+                    timestamp=session_start,
+                    duration_seconds=round(session_duration, 2),
+                    status=final_status,
+                    items_ingested=total_ingested,
+                    items_failed=total_failed,
+                    bytes_processed=total_bytes,
+                    target_lists=processed_lists,
+                    error_message=error_msg,
+                )
+                try:
+                    self.ingestion_log.log_execution(log_entry)
+                except Exception as log_err:
+                    logger.warning(f"Falha ao persistir audit log: {log_err}")
+
+            logger.info("Processo principal concluído.", extra={"status": "DONE"})
+

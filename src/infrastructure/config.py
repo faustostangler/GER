@@ -65,6 +65,10 @@ class AppSettings(BaseSettings):
     KAFKA_URL: str = Field(default="redpanda-0:9092")
     EXTERNAL_DOMAIN: str = Field(default="127.0.0.1.nip.io")
 
+    # Observability & Error Tracking
+    SENTRY_DSN: Optional[str] = Field(default=None, description="Sentry DSN for production error tracking")
+    GIT_SHA: str = Field(default="local-dev", description="Git commit SHA injected at build time for release tracking")
+
     # Keycloak OIDC Settings
     # SOTA: Fallback para as variáveis do oauth2-proxy se não estiverem explicitamente definidas
     KEYCLOAK_SERVER_URL: Optional[HttpUrl] = Field(default=None)
@@ -76,6 +80,7 @@ class AppSettings(BaseSettings):
     AGE_MIN: int = Field(default=0)
     AGE_MAX: int = Field(default=120)
     SLA_DIAS_VENCIMENTO: int = Field(default=180)
+    DATA_SLA_THRESHOLD: float = Field(default=2.0, description="Freshness threshold in hours")
     MES_COMERCIAL_DIAS: float = Field(default=30.416)
     CORES_URGENCIA: list[str] = Field(default=["VERMELHO", "LARANJA", "AMARELO"])
     GERCON_URL: HttpUrl = Field(default="https://gercon.procempa.com.br/gerconweb/")

@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import List, Any, Tuple
-from src.domain.models import AnalyticKPIs
-from src.domain.specifications import Specification
-from src.infrastructure.auth.token_acl import ValidatedUserToken
+from domain.models import AnalyticKPIs
+from domain.specifications import Specification
+from infrastructure.auth.token_acl import ValidatedUserToken
 import pandas as pd
 
 

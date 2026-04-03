@@ -26,6 +26,7 @@ dependencies = [
     "python-json-logger>=4.1.0",
     "prometheus-client>=0.24.1",
     "rq>=2.7.0",
+    "sentry-sdk[streamlit]>=2.0.0",
 ]
 
 [dependency-groups]
@@ -34,6 +35,9 @@ dev = [
     "ruff>=0.3.0",
     "mypy>=1.9.0",
     "mutmut>=2.4.4",
+    "pytest-playwright>=0.7.2",
+    "tenacity>=9.1.4",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
@@ -45,6 +49,7 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+addopts = "--cov=src --cov=app_analytics.py --cov-report=term-missing --cov-fail-under=85"
 
 [tool.ruff]
 exclude = [

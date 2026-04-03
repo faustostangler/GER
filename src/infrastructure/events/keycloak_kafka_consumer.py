@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
-from src.infrastructure.config import settings
+from infrastructure.config import settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("keycloak_events_consumer")
