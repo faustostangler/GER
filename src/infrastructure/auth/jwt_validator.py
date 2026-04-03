@@ -4,14 +4,17 @@ from fastapi import HTTPException, status
 from src.infrastructure.config import settings
 from src.infrastructure.auth.token_acl import ValidatedUserToken
 
+
 class InvalidTokenFormatError(Exception):
     pass
+
 
 # SRE FIX: 24h caching memory layer for JWKS
 jwks_client = PyJWKClient(settings.jwks_url, cache_keys=True, lifespan=86400)
 
+
 def verify_token(token: str) -> ValidatedUserToken:
-    global jwks_client # SRE FIX: Declarado no topo do escopo para evitar SyntaxError de reatribuição tardia
+    global jwks_client  # SRE FIX: Declarado no topo do escopo para evitar SyntaxError de reatribuição tardia
     try:
         # Extract kid from unverified header
         header = jwt.get_unverified_header(token)
@@ -24,12 +27,14 @@ def verify_token(token: str) -> ValidatedUserToken:
         except PyJWKClientError:
             # Fallback for Keycloak Key Rotation
             # TODO(TechDebt/SRE): Thundering Herd Problem.
-            # Em ambientes altamente concorrentes (FastAPI com Uvicorn multithreading), 
+            # Em ambientes altamente concorrentes (FastAPI com Uvicorn multithreading),
             # múltiplas threads podem acionar esta exceção simultaneamente.
-            # A forma correta futura é usar um asyncio.Lock() ou estender PyJWKClient 
+            # A forma correta futura é usar um asyncio.Lock() ou estender PyJWKClient
             # antes de atualizar o cache global, evitando dezenas de conexões concorrentes ao Keycloak.
             # Force a cache bypass/refresh
-            jwks_client = PyJWKClient(settings.jwks_url, cache_keys=True, lifespan=86400)
+            jwks_client = PyJWKClient(
+                settings.jwks_url, cache_keys=True, lifespan=86400
+            )
             try:
                 signing_key = jwks_client.get_signing_key_from_jwt(token)
             except PyJWKClientError as e:
@@ -40,8 +45,8 @@ def verify_token(token: str) -> ValidatedUserToken:
             token,
             key=signing_key.key,
             algorithms=["RS256"],
-            audience=settings.KEYCLOAK_CLIENT_ID, # Confused Deputy prevention
-            issuer=settings.keycloak_issuer
+            audience=settings.KEYCLOAK_CLIENT_ID,  # Confused Deputy prevention
+            issuer=settings.keycloak_issuer,
         )
 
         # Map realm_roles to extract roles if present
@@ -56,7 +61,7 @@ def verify_token(token: str) -> ValidatedUserToken:
             roles=roles,
             crm_numero=payload.get("crm_numero"),
             crm_uf=payload.get("crm_uf"),
-            exp=payload.get("exp")
+            exp=payload.get("exp"),
         )
     except jwt.ExpiredSignatureError:
         raise HTTPException(

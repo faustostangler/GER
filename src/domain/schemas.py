@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
-from typing import Optional, List, Any
+from typing import Optional, List
+
 
 # ==========================================
 # TESTES DE CONTRATO / ACL (Pydantic V2)
@@ -10,6 +11,7 @@ class UsuarioSUS(BaseModel):
     dataNascimento: Optional[int] = None
     cpf: Optional[str] = None
 
+
 class ClassificacaoRisco(BaseModel):
     model_config = ConfigDict(extra="ignore")
     cor: Optional[str] = None
@@ -17,10 +19,12 @@ class ClassificacaoRisco(BaseModel):
     pontosTempo: Optional[float] = None
     totalPontos: Optional[float] = None
 
+
 class Evolucao(BaseModel):
     model_config = ConfigDict(extra="ignore")
     data: Optional[int] = None
     detalhes: Optional[str] = None
+
 
 class GerconPayloadContract(BaseModel):
     """
@@ -28,8 +32,9 @@ class GerconPayloadContract(BaseModel):
     esperada pelo nosso Domínio e Data Lake. Funciona como
     a nossa Anti-Corruption Layer (ACL).
     """
+
     model_config = ConfigDict(extra="ignore")
-    
+
     numeroCMCE: int
     situacao: str
     dataSolicitacao: Optional[int] = None

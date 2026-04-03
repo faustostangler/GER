@@ -22,6 +22,10 @@ help:
 	@echo "  make down    - Stop and remove all containers and networks"
 	@echo "  make clean-volumes - Hard Reset: Nuke all persistent volumes (Clean Start)"
 	@echo "  make rde-url - Show visual BFF access URL"
+	@echo "  make ci      - Run the entire CI/CD pipeline locally (Lint, Test, Mutmut, CDC)"
+	@echo "  make lint    - Run Ruff linter"
+	@echo "  make lint-fix- Auto-fix Ruff linter issues"
+	@echo "  make test    - Run unit tests"
 	@echo ""
 	@echo "Interactive Shortcuts:"
 	@echo "  make ps           - List all running services status"
@@ -115,3 +119,27 @@ clean:
 clean-volumes:
 	$(DOCKER_COMPOSE) --profile iam down -v --remove-orphans
 	@echo "⚠️  Volumes de dados removidos. O próximo boot será 100% limpo."
+
+# --- CI/CD PIPELINE LOCAL ---
+lint:
+	uv run ruff check .
+
+lint-fix:
+	uv run ruff check --fix .
+
+test:
+	uv run pytest tests/domain tests/application --maxfail=1 --disable-warnings -v
+
+test-mutmut:
+	uv run mutmut run --paths-to-mutate src/domain/ --tests-dir tests/domain/ || true
+	@SURVIVORS=$$(uv run mutmut results | grep "Survived" | wc -l); \
+	if [ "$$SURVIVORS" -gt "0" ]; then \
+		echo "❌ Falha SRE de Mutação: $$SURVIVORS mutantes sobreviveram! Seus testes não garantem a lógica."; \
+		exit 1; \
+	fi
+
+test-contract:
+	uv run pytest tests/infrastructure/test_gercon_contract.py
+
+ci: lint test test-mutmut test-contract
+	@echo "✅ PIPELINE CI LOCAL PASSOU COM SUCESSO! Código pronto para git push."

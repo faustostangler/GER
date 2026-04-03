@@ -3,8 +3,12 @@ Tests for the Event Sourcing Mapper (solicitacao_mapper.py).
 Red-Green-Refactor: Validates snapshot extraction, SLA Engine V2
 (State Machine), Funnel Trackers, and schema integrity.
 """
-import pytest
-from src.domain.solicitacao_mapper import flatten_solicitacao, safe_bool, extract_unidade
+
+from src.domain.solicitacao_mapper import (
+    flatten_solicitacao,
+    safe_bool,
+    extract_unidade,
+)
 
 
 def test_safe_bool_handles_all_types():
@@ -46,6 +50,7 @@ def test_flatten_solicitacao_extracts_root_demographics():
     assert flat["situacao"] == "AGENDADA"
     assert flat["origem_lista"] == "agendadas"
     from src.domain.solicitacao_mapper import hash_pii
+
     assert flat["usuarioSUS_nomeCompleto"] == hash_pii("JOAO DA SILVA")
     assert flat["dataSolicitacao"].startswith("14/11/2023")
 

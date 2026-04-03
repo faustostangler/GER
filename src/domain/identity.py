@@ -1,6 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 import re
 
+
 class MedicalCouncilRegistration(BaseModel):
     model_config = ConfigDict(frozen=True)
     crm_numero: str = Field(..., description="O número do CRM contendo apenas dígitos")

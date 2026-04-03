@@ -8,6 +8,7 @@ para persistência em Parquet. A verdade imutável é extraída do snapshot
 O Motor SLA (Ping-Pong) rastreia a posse temporal entre Solicitante e
 Regulador para cálculo preciso de Lead Times em dias.
 """
+
 from typing import Dict, Any
 from datetime import datetime
 import json
@@ -19,18 +20,19 @@ import hashlib
 # Helpers (DRY & SRE Type Safety)
 # ---------------------------------------------------------------------------
 
+
 def hash_pii(text: Any) -> str:
     """Aplica Salting e SHA-256 unidirecional para anonimizar PII."""
     if not text:
         return ""
     salt = "g3rc0N_@n0n!"
     val = str(text).strip().lower() + salt
-    return hashlib.sha256(val.encode('utf-8')).hexdigest()
+    return hashlib.sha256(val.encode("utf-8")).hexdigest()
 
 
 def remove_accents(input_str: str) -> str:
     """Remove diacríticos para matching resiliente de labels legados."""
-    nfkd_form = unicodedata.normalize('NFKD', input_str)
+    nfkd_form = unicodedata.normalize("NFKD", input_str)
     return "".join([c for c in nfkd_form if not unicodedata.combining(c)])
 
 
@@ -89,32 +91,52 @@ def _parse_detalhes(det_raw: Any) -> dict:
 
 COLUNAS = [
     # 1. Identificadores Raiz
-    "numeroCMCE", "situacao", "origem_lista", "corRegulador",
-    "dataSolicitacao", "liminarOrdemJudicial",
-
+    "numeroCMCE",
+    "situacao",
+    "origem_lista",
+    "corRegulador",
+    "dataSolicitacao",
+    "liminarOrdemJudicial",
     # 2. Demografia do Paciente (usuarioSUS)
-    "usuarioSUS_nomeCompleto", "usuarioSUS_dataNascimento",
-    "usuarioSUS_sexo", "usuarioSUS_racaCor", "usuarioSUS_cpf",
-    "usuarioSUS_nomeMae", "usuarioSUS_cartaoSus", "usuarioSUS_nacionalidade",
-    "usuarioSUS_logradouro", "usuarioSUS_numero", "usuarioSUS_complemento",
-    "usuarioSUS_bairro", "usuarioSUS_cep",
-    "usuarioSUS_municipioResidencia_nome", "usuarioSUS_municipioResidencia_uf",
-
+    "usuarioSUS_nomeCompleto",
+    "usuarioSUS_dataNascimento",
+    "usuarioSUS_sexo",
+    "usuarioSUS_racaCor",
+    "usuarioSUS_cpf",
+    "usuarioSUS_nomeMae",
+    "usuarioSUS_cartaoSus",
+    "usuarioSUS_nacionalidade",
+    "usuarioSUS_logradouro",
+    "usuarioSUS_numero",
+    "usuarioSUS_complemento",
+    "usuarioSUS_bairro",
+    "usuarioSUS_cep",
+    "usuarioSUS_municipioResidencia_nome",
+    "usuarioSUS_municipioResidencia_uf",
     # 3. Atores Raiz (Governança)
-    "operador_nome", "operador_cpf",
-    "usuarioSolicitante_nome", "usuarioSolicitante_cpf",
-
+    "operador_nome",
+    "operador_cpf",
+    "usuarioSolicitante_nome",
+    "usuarioSolicitante_cpf",
     # 4. Ciclo de Vida Raiz
-    "dataPrimeiroAgendamento", "dataPrimeiraAutorizacao",
-    "regularizacaoAcesso", "statusProvisorio",
-    "justificativaRetorno", "justificativaDuplicacao", "motivoPendencia",
-    "motivoCancelamento", "motivoEncerramento", "descricaoEncerramento",
-
+    "dataPrimeiroAgendamento",
+    "dataPrimeiraAutorizacao",
+    "regularizacaoAcesso",
+    "statusProvisorio",
+    "justificativaRetorno",
+    "justificativaDuplicacao",
+    "motivoPendencia",
+    "motivoCancelamento",
+    "motivoEncerramento",
+    "descricaoEncerramento",
     # 5. Snapshot Imutável (entidade — extraído da 1ª evolução CRIACAO)
-    "entidade_sistemaOrigem", "entidade_complexidade",
+    "entidade_sistemaOrigem",
+    "entidade_complexidade",
     "entidade_semClassificacao",
-    "entidade_cidPrincipal_codigo", "entidade_cidPrincipal_descricao",
-    "entidade_especialidade_descricao", "entidade_especialidade_descricaoAuxiliar",
+    "entidade_cidPrincipal_codigo",
+    "entidade_cidPrincipal_descricao",
+    "entidade_especialidade_descricao",
+    "entidade_especialidade_descricaoAuxiliar",
     "entidade_especialidade_cbo_descricao",
     "entidade_especialidade_especialidadeMae_descricao",
     "entidade_especialidade_especialidadeMae_cbo_descricao",
@@ -128,46 +150,53 @@ COLUNAS = [
     "entidade_classificacaoRisco_pontosTempo",
     "entidade_classificacaoRisco_cor",
     "entidade_classificacaoRisco_reclassificadaSolicitante",
-    "entidade_foraDaRegionalizacao", "entidade_possuiDita",
-
+    "entidade_foraDaRegionalizacao",
+    "entidade_possuiDita",
     # 6. Geografias do Snapshot (via extract_unidade)
-    "entidade_municipioUsuarioSUS_nome", "entidade_municipioUsuarioSUS_uf",
-
-    "entidade_unidadeOperador_nome", "entidade_unidadeOperador_razaoSocial",
+    "entidade_municipioUsuarioSUS_nome",
+    "entidade_municipioUsuarioSUS_uf",
+    "entidade_unidadeOperador_nome",
+    "entidade_unidadeOperador_razaoSocial",
     "entidade_unidadeOperador_tipoUnidade_descricao",
-    "entidade_unidadeOperador_municipio_nome", "entidade_unidadeOperador_municipio_uf",
+    "entidade_unidadeOperador_municipio_nome",
+    "entidade_unidadeOperador_municipio_uf",
     "entidade_unidadeOperador_centralRegulacao_nome",
     "entidade_unidadeOperador_centralRegulacao_razaoSocial",
     "entidade_unidadeOperador_centralRegulacao_tipoUnidade_descricao",
     "entidade_unidadeOperador_centralRegulacao_municipio_nome",
     "entidade_unidadeOperador_centralRegulacao_municipio_uf",
-
-    "entidade_unidadeReferencia_nome", "entidade_unidadeReferencia_razaoSocial",
+    "entidade_unidadeReferencia_nome",
+    "entidade_unidadeReferencia_razaoSocial",
     "entidade_unidadeReferencia_tipoUnidade_descricao",
-    "entidade_unidadeReferencia_municipio_nome", "entidade_unidadeReferencia_municipio_uf",
+    "entidade_unidadeReferencia_municipio_nome",
+    "entidade_unidadeReferencia_municipio_uf",
     "entidade_unidadeReferencia_centralRegulacao_nome",
     "entidade_unidadeReferencia_centralRegulacao_razaoSocial",
     "entidade_unidadeReferencia_centralRegulacao_tipoUnidade_descricao",
     "entidade_unidadeReferencia_centralRegulacao_municipio_nome",
     "entidade_unidadeReferencia_centralRegulacao_municipio_uf",
-
-    "entidade_centralRegulacao_nome", "entidade_centralRegulacao_razaoSocial",
+    "entidade_centralRegulacao_nome",
+    "entidade_centralRegulacao_razaoSocial",
     "entidade_centralRegulacao_tipoUnidade_descricao",
     "entidade_centralRegulacao_municipio_nome",
     "entidade_centralRegulacao_municipio_uf",
-
     # 7. SLA Metrics (Ping-Pong Engine V2 — State Machine)
-    "SLA_Tempo_Solicitante_Dias", "SLA_Tempo_Regulador_Dias",
-    "SLA_Lead_Time_Total_Dias", "SLA_Interacoes_Regulacao",
-    "SLA_Atores_Envolvidos", "SLA_Desfecho_Atingido",
+    "SLA_Tempo_Solicitante_Dias",
+    "SLA_Tempo_Regulador_Dias",
+    "SLA_Lead_Time_Total_Dias",
+    "SLA_Interacoes_Regulacao",
+    "SLA_Atores_Envolvidos",
+    "SLA_Desfecho_Atingido",
     "SLA_Tipo_Desfecho",
-    "SLA_Marco_Autorizada", "SLA_Marco_Agendada", "SLA_Marco_Realizada",
-
+    "SLA_Marco_Autorizada",
+    "SLA_Marco_Agendada",
+    "SLA_Marco_Realizada",
     # 8. Campos Computados (derivados das evoluções)
-    "dataCadastro", "medicoSolicitante",
-
+    "dataCadastro",
+    "medicoSolicitante",
     # 9. Dual-Write das Evoluções (UI Text + Data Lake JSON)
-    "historico_quadro_clinico", "historico_evolucoes_completo",
+    "historico_quadro_clinico",
+    "historico_evolucoes_completo",
     "evolucoes_json",
 ]
 
@@ -178,7 +207,9 @@ def clean_data_row(data: Dict[str, Any]) -> Dict[str, Any]:
     for col in COLUNAS:
         v = data.get(col, "")
         if isinstance(v, str):
-            cleaned_row[col] = v.replace("\r\n", " ").replace("\r", " ").replace("\n", "  ")
+            cleaned_row[col] = (
+                v.replace("\r\n", " ").replace("\r", " ").replace("\n", "  ")
+            )
         else:
             cleaned_row[col] = v
     return cleaned_row
@@ -187,6 +218,7 @@ def clean_data_row(data: Dict[str, Any]) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Core Domain Logic: Event Sourcing Flattener
 # ---------------------------------------------------------------------------
+
 
 def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     """
@@ -239,8 +271,12 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
     data["usuarioSolicitante_cpf"] = hash_pii(us.get("cpf") or us_prof.get("cpf", ""))
 
     # ── 4. CICLO DE VIDA RAIZ ────────────────────────────────────────────
-    data["dataPrimeiroAgendamento"] = timestamp_to_date(j_dict.get("dataPrimeiroAgendamento"))
-    data["dataPrimeiraAutorizacao"] = timestamp_to_date(j_dict.get("dataPrimeiraAutorizacao"))
+    data["dataPrimeiroAgendamento"] = timestamp_to_date(
+        j_dict.get("dataPrimeiroAgendamento")
+    )
+    data["dataPrimeiraAutorizacao"] = timestamp_to_date(
+        j_dict.get("dataPrimeiraAutorizacao")
+    )
     data["regularizacaoAcesso"] = j_dict.get("regularizacaoAcesso", "")
     data["statusProvisorio"] = j_dict.get("statusProvisorio", "")
     data["justificativaRetorno"] = j_dict.get("justificativaRetorno", "")
@@ -304,7 +340,9 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
             if entidade:
                 data["entidade_sistemaOrigem"] = entidade.get("sistemaOrigem", "")
                 data["entidade_complexidade"] = entidade.get("complexidade", "")
-                data["entidade_semClassificacao"] = safe_bool(entidade.get("semClassificacao"))
+                data["entidade_semClassificacao"] = safe_bool(
+                    entidade.get("semClassificacao")
+                )
 
                 cid = entidade.get("cidPrincipal") or {}
                 data["entidade_cidPrincipal_codigo"] = cid.get("codigo", "")
@@ -312,27 +350,51 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
 
                 esp = entidade.get("especialidade") or {}
                 data["entidade_especialidade_descricao"] = esp.get("descricao", "")
-                data["entidade_especialidade_descricaoAuxiliar"] = esp.get("descricaoAuxiliar", "")
-                data["entidade_especialidade_cbo_descricao"] = (esp.get("cbo") or {}).get("descricao", "")
+                data["entidade_especialidade_descricaoAuxiliar"] = esp.get(
+                    "descricaoAuxiliar", ""
+                )
+                data["entidade_especialidade_cbo_descricao"] = (
+                    esp.get("cbo") or {}
+                ).get("descricao", "")
 
                 esp_mae = esp.get("especialidadeMae") or {}
-                data["entidade_especialidade_especialidadeMae_descricao"] = esp_mae.get("descricao", "")
-                data["entidade_especialidade_especialidadeMae_cbo_descricao"] = (esp_mae.get("cbo") or {}).get("descricao", "")
+                data["entidade_especialidade_especialidadeMae_descricao"] = esp_mae.get(
+                    "descricao", ""
+                )
+                data["entidade_especialidade_especialidadeMae_cbo_descricao"] = (
+                    esp_mae.get("cbo") or {}
+                ).get("descricao", "")
 
-                data["entidade_especialidade_tipoRegulacao"] = esp.get("tipoRegulacao", "")
-                data["entidade_especialidade_teleconsulta"] = safe_bool(esp.get("teleconsulta"))
+                data["entidade_especialidade_tipoRegulacao"] = esp.get(
+                    "tipoRegulacao", ""
+                )
+                data["entidade_especialidade_teleconsulta"] = safe_bool(
+                    esp.get("teleconsulta")
+                )
                 data["entidade_especialidade_ativa"] = safe_bool(esp.get("ativa"))
-                data["entidade_especialidade_matriciamento"] = safe_bool(esp.get("matriciamento"))
+                data["entidade_especialidade_matriciamento"] = safe_bool(
+                    esp.get("matriciamento")
+                )
                 data["entidade_especialidade_tipoOCI"] = safe_bool(esp.get("tipoOCI"))
 
                 risco = entidade.get("classificacaoRisco") or {}
-                data["entidade_classificacaoRisco_totalPontos"] = risco.get("totalPontos", 0)
-                data["entidade_classificacaoRisco_pontosGravidade"] = risco.get("pontosGravidade", 0)
-                data["entidade_classificacaoRisco_pontosTempo"] = risco.get("pontosTempo", 0)
+                data["entidade_classificacaoRisco_totalPontos"] = risco.get(
+                    "totalPontos", 0
+                )
+                data["entidade_classificacaoRisco_pontosGravidade"] = risco.get(
+                    "pontosGravidade", 0
+                )
+                data["entidade_classificacaoRisco_pontosTempo"] = risco.get(
+                    "pontosTempo", 0
+                )
                 data["entidade_classificacaoRisco_cor"] = risco.get("cor", "")
-                data["entidade_classificacaoRisco_reclassificadaSolicitante"] = safe_bool(risco.get("reclassificadaSolicitante"))
+                data["entidade_classificacaoRisco_reclassificadaSolicitante"] = (
+                    safe_bool(risco.get("reclassificadaSolicitante"))
+                )
 
-                data["entidade_foraDaRegionalizacao"] = safe_bool(entidade.get("foraDaRegionalizacao"))
+                data["entidade_foraDaRegionalizacao"] = safe_bool(
+                    entidade.get("foraDaRegionalizacao")
+                )
                 data["entidade_possuiDita"] = safe_bool(entidade.get("possuiDita"))
 
                 # Geografias do Snapshot
@@ -340,17 +402,46 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
                 data["entidade_municipioUsuarioSUS_nome"] = mun_sus_ent.get("nome", "")
                 data["entidade_municipioUsuarioSUS_uf"] = mun_sus_ent.get("uf", "")
 
-                extract_unidade(entidade.get("unidadeOperador"), "entidade_unidadeOperador", data)
-                extract_unidade((entidade.get("unidadeOperador") or {}).get("centralRegulacao"), "entidade_unidadeOperador_centralRegulacao", data)
-                extract_unidade(entidade.get("unidadeReferencia"), "entidade_unidadeReferencia", data)
-                extract_unidade((entidade.get("unidadeReferencia") or {}).get("centralRegulacao"), "entidade_unidadeReferencia_centralRegulacao", data)
-                extract_unidade(entidade.get("centralRegulacao"), "entidade_centralRegulacao", data)
+                extract_unidade(
+                    entidade.get("unidadeOperador"), "entidade_unidadeOperador", data
+                )
+                extract_unidade(
+                    (entidade.get("unidadeOperador") or {}).get("centralRegulacao"),
+                    "entidade_unidadeOperador_centralRegulacao",
+                    data,
+                )
+                extract_unidade(
+                    entidade.get("unidadeReferencia"),
+                    "entidade_unidadeReferencia",
+                    data,
+                )
+                extract_unidade(
+                    (entidade.get("unidadeReferencia") or {}).get("centralRegulacao"),
+                    "entidade_unidadeReferencia_centralRegulacao",
+                    data,
+                )
+                extract_unidade(
+                    entidade.get("centralRegulacao"), "entidade_centralRegulacao", data
+                )
 
         # ── B. THE PING-PONG ENGINE (STATE MACHINE V2) ────────────────────
 
         # Definição dos Estados de Posse de Bola (Sets O(1) lookup)
-        ESTADOS_PING_REGULADOR = {"AGUARDA_REGULACAO", "AGUARDA_REAVALIACAO", "AGUARDA_REVERSAO", "ENCAMINHADA_AO_NIR"}
-        ESTADOS_PONG_SOLICITANTE = {"AUTORIZADA", "AGENDADA", "PENDENTE", "AGUARDA_MATRICIAMENTO", "AUTORIZACAO_AUTOMATICA", "CONFIRMACAO_EXPIRADA", "AGENDA_CONFIRMADA"}
+        ESTADOS_PING_REGULADOR = {
+            "AGUARDA_REGULACAO",
+            "AGUARDA_REAVALIACAO",
+            "AGUARDA_REVERSAO",
+            "ENCAMINHADA_AO_NIR",
+        }
+        ESTADOS_PONG_SOLICITANTE = {
+            "AUTORIZADA",
+            "AGENDADA",
+            "PENDENTE",
+            "AGUARDA_MATRICIAMENTO",
+            "AUTORIZACAO_AUTOMATICA",
+            "CONFIRMACAO_EXPIRADA",
+            "AGENDA_CONFIRMADA",
+        }
 
         # Definição dos Estados de Desfecho
         ESTADOS_FIM_POSITIVO = {"REALIZADA"}
@@ -386,10 +477,11 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
             data["SLA_Marco_Agendada"] = True
 
         # 5. Fim de Jogo (Desfecho)
-        if (sit_atual in ESTADOS_FIM_POSITIVO or
-            sit_atual in ESTADOS_FIM_NEGATIVO or
-            sit_atual in ESTADOS_FIM_ABANDONO):
-
+        if (
+            sit_atual in ESTADOS_FIM_POSITIVO
+            or sit_atual in ESTADOS_FIM_NEGATIVO
+            or sit_atual in ESTADOS_FIM_ABANDONO
+        ):
             if data_desfecho is None:
                 data_desfecho = ts_atual
                 posse_atual = "FIM"  # Congela o cronômetro
@@ -417,7 +509,9 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
             "detalhes_limpos": [],
         }
 
-        bloco_txt_completo = f"[{dt_evo} | {usuario_nome}] -> {oper} ({sit_ant} ➔ {sit_atual})"
+        bloco_txt_completo = (
+            f"[{dt_evo} | {usuario_nome}] -> {oper} ({sit_ant} ➔ {sit_atual})"
+        )
         tem_detalhe_clinico = False
 
         for item in itens:
@@ -428,9 +522,14 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
                 bloco_txt_completo += f" | {label}: {texto}"
 
                 label_norm = remove_accents(label.lower())
-                if label_norm in ["evolucao", "parecer", "comentarios",
-                                  "descricao do quadro clinico", "anamnese",
-                                  "justificativa"]:
+                if label_norm in [
+                    "evolucao",
+                    "parecer",
+                    "comentarios",
+                    "descricao do quadro clinico",
+                    "anamnese",
+                    "justificativa",
+                ]:
                     textos_clinicos.append(f"[{dt_evo} | {usuario_nome}]: {texto}")
                     tem_detalhe_clinico = True
 

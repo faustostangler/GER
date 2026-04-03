@@ -5,9 +5,18 @@ import re
 from typing import List, Tuple, Any
 from src.application.use_cases.interfaces import IAnalyticsRepository
 from src.domain.models import AnalyticKPIs
-from src.domain.specifications import Specification, AndSpecification, OrSpecification, NotSpecification, PacienteUrgenteSpec, PacienteVencidoSpec, LeadTimeCriticoSpec
+from src.domain.specifications import (
+    Specification,
+    AndSpecification,
+    OrSpecification,
+    NotSpecification,
+    PacienteUrgenteSpec,
+    PacienteVencidoSpec,
+    LeadTimeCriticoSpec,
+)
 from src.infrastructure.auth.token_acl import ValidatedUserToken
 from src.infrastructure.config import settings
+
 
 class DuckDBSpecificationTranslator:
     @staticmethod
@@ -31,13 +40,14 @@ class DuckDBSpecificationTranslator:
             case _:
                 return "1=1"
 
+
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
-        self.con = duckdb.connect(database=':memory:')
-        
+        self.con = duckdb.connect(database=":memory:")
+
         # Limite explícito de RAM para proteção de OOMKilled no Cluster K8s (Reserva memória para Pandas)
         self.con.execute(f"PRAGMA memory_limit='{settings.db.memory_limit}';")
-        
+
         if db_file.startswith("s3://"):
             region = os.getenv("AWS_REGION", "sa-east-1")
             self.con.execute("INSTALL httpfs;")
@@ -46,26 +56,34 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             self.con.execute("LOAD aws;")
             self.con.execute(f"SET s3_region='{region}';")
             self.con.execute("CALL load_aws_credentials();")
-            
-        self.con.execute(f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')")
+
+        self.con.execute(
+            f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')"
+        )
 
     def _get_rls_cte(self, user: ValidatedUserToken) -> str:
         """Sanitização estrita para Bounded Context RLS via CTE"""
         if not user:
             return "WITH BaseRLS AS (SELECT * FROM gercon WHERE 1=0)"
-            
+
         # SRE FIX: Segurança garantida na Borda (IAP). Acesso global aos dados validado pelo domínio IAM.
         return "WITH BaseRLS AS (SELECT * FROM gercon)"
 
     def _query(self, sql: str) -> pd.DataFrame:
         return self.con.execute(sql).df()
 
-    def get_kpis(self, spec: Specification, spec_urgentes: Specification, spec_vencidos: Specification, user: ValidatedUserToken) -> AnalyticKPIs:
+    def get_kpis(
+        self,
+        spec: Specification,
+        spec_urgentes: Specification,
+        spec_vencidos: Specification,
+        user: ValidatedUserToken,
+    ) -> AnalyticKPIs:
         final_where = DuckDBSpecificationTranslator.translate(spec)
         urgentes_where = DuckDBSpecificationTranslator.translate(spec_urgentes)
         vencidos_where = DuckDBSpecificationTranslator.translate(spec_vencidos)
         cte = self._get_rls_cte(user)
-        
+
         kpis_df = self._query(f"""
             {cte}
             SELECT COUNT(DISTINCT numeroCMCE) as pacientes, 
@@ -100,23 +118,39 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         """)
 
         return AnalyticKPIs(
-            pacientes=int(kpis_df['pacientes'].iloc[0]) if not kpis_df.empty else 0,
-            eventos=int(kpis_df['eventos'].iloc[0]) if not kpis_df.empty else 0,
-            esp_mae=int(kpis_df['esp_mae'].iloc[0]) if not kpis_df.empty else 0,
-            sub_esp=int(kpis_df['sub_esp'].iloc[0]) if not kpis_df.empty else 0,
-            medicos=int(kpis_df['medicos'].iloc[0]) if not kpis_df.empty else 0,
-            cids=int(kpis_df['cids'].iloc[0]) if not kpis_df.empty else 0,
-            origens=int(kpis_df['origens'].iloc[0]) if not kpis_df.empty else 0,
-            lead_time=float(kpis_df['lead_time'].iloc[0]) if not kpis_df.empty and pd.notna(kpis_df['lead_time'].iloc[0]) else 0.0,
-            max_lead_time=int(kpis_df['max_lead_time'].iloc[0]) if not kpis_df.empty and pd.notna(kpis_df['max_lead_time'].iloc[0]) else 0,
-            span_dias=int(kpis_df['span_dias'].iloc[0]) if not kpis_df.empty and pd.notna(kpis_df['span_dias'].iloc[0]) else 0,
-            pac_urgentes=int(kpis_df['pac_urgentes'].iloc[0]) if not kpis_df.empty else 0,
-            pac_vencidos=int(kpis_df['pac_vencidos'].iloc[0]) if not kpis_df.empty else 0,
-            p90_lead_time=float(p90_metrics['p90_lead_time'].iloc[0]) if not p90_metrics.empty and pd.notna(p90_metrics['p90_lead_time'].iloc[0]) else 0.0,
-            p90_esquecido=float(p90_metrics['p90_esquecido'].iloc[0]) if not p90_metrics.empty and pd.notna(p90_metrics['p90_esquecido'].iloc[0]) else 0.0
+            pacientes=int(kpis_df["pacientes"].iloc[0]) if not kpis_df.empty else 0,
+            eventos=int(kpis_df["eventos"].iloc[0]) if not kpis_df.empty else 0,
+            esp_mae=int(kpis_df["esp_mae"].iloc[0]) if not kpis_df.empty else 0,
+            sub_esp=int(kpis_df["sub_esp"].iloc[0]) if not kpis_df.empty else 0,
+            medicos=int(kpis_df["medicos"].iloc[0]) if not kpis_df.empty else 0,
+            cids=int(kpis_df["cids"].iloc[0]) if not kpis_df.empty else 0,
+            origens=int(kpis_df["origens"].iloc[0]) if not kpis_df.empty else 0,
+            lead_time=float(kpis_df["lead_time"].iloc[0])
+            if not kpis_df.empty and pd.notna(kpis_df["lead_time"].iloc[0])
+            else 0.0,
+            max_lead_time=int(kpis_df["max_lead_time"].iloc[0])
+            if not kpis_df.empty and pd.notna(kpis_df["max_lead_time"].iloc[0])
+            else 0,
+            span_dias=int(kpis_df["span_dias"].iloc[0])
+            if not kpis_df.empty and pd.notna(kpis_df["span_dias"].iloc[0])
+            else 0,
+            pac_urgentes=int(kpis_df["pac_urgentes"].iloc[0])
+            if not kpis_df.empty
+            else 0,
+            pac_vencidos=int(kpis_df["pac_vencidos"].iloc[0])
+            if not kpis_df.empty
+            else 0,
+            p90_lead_time=float(p90_metrics["p90_lead_time"].iloc[0])
+            if not p90_metrics.empty and pd.notna(p90_metrics["p90_lead_time"].iloc[0])
+            else 0.0,
+            p90_esquecido=float(p90_metrics["p90_esquecido"].iloc[0])
+            if not p90_metrics.empty and pd.notna(p90_metrics["p90_esquecido"].iloc[0])
+            else 0.0,
         )
 
-    def get_distribution_data(self, spec: Specification, user: ValidatedUserToken) -> pd.DataFrame:
+    def get_distribution_data(
+        self, spec: Specification, user: ValidatedUserToken
+    ) -> pd.DataFrame:
         final_where = DuckDBSpecificationTranslator.translate(spec)
         cte = self._get_rls_cte(user)
         return self._query(f"""
@@ -129,34 +163,42 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             GROUP BY numeroCMCE
         """)
 
-    def get_dynamic_options(self, column: str, current_where: str, user: ValidatedUserToken) -> List[Any]:
+    def get_dynamic_options(
+        self, column: str, current_where: str, user: ValidatedUserToken
+    ) -> List[Any]:
         cte = self._get_rls_cte(user)
         try:
-            q = f"{cte} SELECT DISTINCT \"{column}\" FROM BaseRLS WHERE {current_where} AND \"{column}\" IS NOT NULL AND \"{column}\" != '' ORDER BY 1"
+            q = f'{cte} SELECT DISTINCT "{column}" FROM BaseRLS WHERE {current_where} AND "{column}" IS NOT NULL AND "{column}" != \'\' ORDER BY 1'
             return self._query(q)[column].tolist()
         except Exception:
             return []
 
-    def get_global_bounds(self, column: str, is_date: bool = False, user: ValidatedUserToken = None) -> Tuple[Any, Any]:
+    def get_global_bounds(
+        self, column: str, is_date: bool = False, user: ValidatedUserToken = None
+    ) -> Tuple[Any, Any]:
         cast = "DATE" if is_date else "INTEGER"
         cte = self._get_rls_cte(user)
         try:
-            df = self._query(f"{cte} SELECT MIN(TRY_CAST(\"{column}\" AS {cast})) as vmin, MAX(TRY_CAST(\"{column}\" AS {cast})) as vmax FROM BaseRLS")
-            return df['vmin'].iloc[0], df['vmax'].iloc[0]
-        except:
+            df = self._query(
+                f'{cte} SELECT MIN(TRY_CAST("{column}" AS {cast})) as vmin, MAX(TRY_CAST("{column}" AS {cast})) as vmax FROM BaseRLS'
+            )
+            return df["vmin"].iloc[0], df["vmax"].iloc[0]
+        except Exception:
             return None, None
 
     def execute_custom_query(self, sql: str, user: ValidatedUserToken) -> pd.DataFrame:
         cte = self._get_rls_cte(user)
-        
+
         # 1. Substituição Robusta de RLS (Ignora maiúsculas/minúsculas, aspas e múltiplos espaços)
         # Ex: converte 'from  "gercon"' ou 'FROM gercon' para 'FROM BaseRLS'
-        sql_seguro = re.sub(r'(?i)\bfrom\s+("?)gercon("?)\b', r'FROM \1BaseRLS\2', sql)
-        
+        sql_seguro = re.sub(r'(?i)\bfrom\s+("?)gercon("?)\b', r"FROM \1BaseRLS\2", sql)
+
         # 2. Validação Fail-Close (Proteção contra Joins maliciosos ou bypass)
         # Se a palavra gercon ainda existir na query (ex: em um JOIN gercon), abortamos.
-        if re.search(r'(?i)\bgercon\b', sql_seguro):
-            raise ValueError("Violação de Segurança: Tentativa de acesso direto à view base ou sintaxe SQL não suportada pelo RLS.")
+        if re.search(r"(?i)\bgercon\b", sql_seguro):
+            raise ValueError(
+                "Violação de Segurança: Tentativa de acesso direto à view base ou sintaxe SQL não suportada pelo RLS."
+            )
 
         # 3. Tratamento de Colisão de CTEs (Se a query original já usa WITH)
         sql_upper = sql_seguro.strip().upper()
@@ -164,7 +206,9 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             # Removemos o "WITH " da nossa CTE base para encadear na CTE do usuário
             cte_limpa = cte.replace("WITH BaseRLS AS", "BaseRLS AS", 1)
             # Injeta a nossa BaseRLS como a primeira CTE da cadeia
-            sql_final = re.sub(r'(?i)^WITH\s+', f"WITH {cte_limpa}, ", sql_seguro.strip())
+            sql_final = re.sub(
+                r"(?i)^WITH\s+", f"WITH {cte_limpa}, ", sql_seguro.strip()
+            )
         else:
             sql_final = f"{cte}\n{sql_seguro}"
 

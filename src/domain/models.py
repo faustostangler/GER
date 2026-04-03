@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+
 
 class AnalyticKPIs(BaseModel):
     pacientes: int
@@ -16,7 +16,9 @@ class AnalyticKPIs(BaseModel):
     pac_vencidos: int
     p90_lead_time: float
     p90_esquecido: float
-    mes_comercial: float = Field(default=30.416, description="Dias do mês comercial inserido por Use Case")
+    mes_comercial: float = Field(
+        default=30.416, description="Dias do mês comercial inserido por Use Case"
+    )
 
     @property
     def evo_por_paciente(self) -> float:
@@ -41,9 +43,16 @@ class AnalyticKPIs(BaseModel):
 
     @property
     def taxa_urgencia(self) -> float:
-        return round((self.pac_urgentes / self.pacientes) * 100, 1) if self.pacientes > 0 else 0.0
+        return (
+            round((self.pac_urgentes / self.pacientes) * 100, 1)
+            if self.pacientes > 0
+            else 0.0
+        )
 
     @property
     def taxa_vencidos(self) -> float:
-        return round((self.pac_vencidos / self.pacientes) * 100, 1) if self.pacientes > 0 else 0.0
-
+        return (
+            round((self.pac_vencidos / self.pacientes) * 100, 1)
+            if self.pacientes > 0
+            else 0.0
+        )

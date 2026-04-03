@@ -1,18 +1,33 @@
-from pydantic import Field, HttpUrl, SecretStr, computed_field, field_validator, BaseModel, model_validator
+from pydantic import (
+    Field,
+    HttpUrl,
+    SecretStr,
+    computed_field,
+    field_validator,
+    BaseModel,
+    model_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
+
 class RDESettings(BaseModel):
     """Configurações para o ambiente de desenvolvimento remoto."""
-    access_token: str = Field(default="00000000000000000000000000000000", alias="RDE_ACCESS_TOKEN")
+
+    access_token: str = Field(
+        default="00000000000000000000000000000000", alias="RDE_ACCESS_TOKEN"
+    )
     vnc_password: str = Field(default="flyai_secret", alias="VNC_PASSWORD")
     grpc_port: int = Field(default=50051, alias="GRPC_PORT")
 
     @model_validator(mode="after")
-    def validate_token_security(self) -> 'RDESettings':
+    def validate_token_security(self) -> "RDESettings":
         if len(self.access_token) < 32:
-            raise ValueError("RDE_ACCESS_TOKEN deve ter pelo menos 32 caracteres para segurança.")
+            raise ValueError(
+                "RDE_ACCESS_TOKEN deve ter pelo menos 32 caracteres para segurança."
+            )
         return self
+
 
 class DatabaseSettings(BaseModel):
     user: str = Field(default="postgres", alias="DB__USER")
@@ -22,22 +37,24 @@ class DatabaseSettings(BaseModel):
     internal_port: int = Field(default=5432, alias="DB_INTERNAL_PORT")
     memory_limit: str = Field(default="1.5GB", alias="DUCKDB_MEMORY_LIMIT")
 
+
 class RedisSettings(BaseModel):
     host: str = Field(default="cache", alias="REDIS__HOST")
     port: int = Field(default=6379, alias="REDIS__PORT")
 
+
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=("env/creds.env", "env/config.env"), 
-        env_file_encoding="utf-8", 
-        extra="ignore"
+        env_file=("env/creds.env", "env/config.env"),
+        env_file_encoding="utf-8",
+        extra="ignore",
     )
 
     # Core App Config
     ENVIRONMENT: str = Field(default="local", alias="APP__ENVIRONMENT")
     DEBUG: bool = Field(default=True, alias="APP__DEBUG")
     LOG_LEVEL: str = Field(default="INFO", alias="LOG_LEVEL")
-    
+
     # Nested Settings
     db: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
@@ -67,7 +84,7 @@ class AppSettings(BaseSettings):
     @classmethod
     def parse_cores(cls, v):
         if isinstance(v, str):
-            return [x.strip() for x in v.split(',')]
+            return [x.strip() for x in v.split(",")]
         return v
 
     @field_validator("KEYCLOAK_SERVER_URL", mode="before")
@@ -91,7 +108,9 @@ class AppSettings(BaseSettings):
     def jwks_url(self) -> str:
         return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
 
+
 class Settings(AppSettings):
     pass
+
 
 settings = Settings()

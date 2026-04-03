@@ -2,19 +2,21 @@ from abc import ABC, abstractmethod
 from typing import Any
 import datetime
 
+
 class Specification(ABC):
     @abstractmethod
     def is_satisfied_by(self, candidate: Any) -> bool:
         pass
 
-    def __and__(self, other: 'Specification') -> 'Specification':
+    def __and__(self, other: "Specification") -> "Specification":
         return AndSpecification(self, other)
 
-    def __or__(self, other: 'Specification') -> 'Specification':
+    def __or__(self, other: "Specification") -> "Specification":
         return OrSpecification(self, other)
 
-    def __invert__(self) -> 'Specification':
+    def __invert__(self) -> "Specification":
         return NotSpecification(self)
+
 
 class AndSpecification(Specification):
     def __init__(self, left: Specification, right: Specification):
@@ -22,7 +24,10 @@ class AndSpecification(Specification):
         self.right = right
 
     def is_satisfied_by(self, candidate: Any) -> bool:
-        return self.left.is_satisfied_by(candidate) and self.right.is_satisfied_by(candidate)
+        return self.left.is_satisfied_by(candidate) and self.right.is_satisfied_by(
+            candidate
+        )
+
 
 class OrSpecification(Specification):
     def __init__(self, left: Specification, right: Specification):
@@ -30,7 +35,10 @@ class OrSpecification(Specification):
         self.right = right
 
     def is_satisfied_by(self, candidate: Any) -> bool:
-        return self.left.is_satisfied_by(candidate) or self.right.is_satisfied_by(candidate)
+        return self.left.is_satisfied_by(candidate) or self.right.is_satisfied_by(
+            candidate
+        )
+
 
 class NotSpecification(Specification):
     def __init__(self, spec: Specification):
@@ -39,15 +47,17 @@ class NotSpecification(Specification):
     def is_satisfied_by(self, candidate: Any) -> bool:
         return not self.spec.is_satisfied_by(candidate)
 
+
 class PacienteUrgenteSpec(Specification):
     def __init__(self, cores_alvo: list[str]):
         self.cores_urgencia = cores_alvo
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         if isinstance(candidate, dict):
-            risk = candidate.get('entidade_classificacaoRisco_cor', '').upper()
+            risk = candidate.get("entidade_classificacaoRisco_cor", "").upper()
             return risk in self.cores_urgencia
         return False
+
 
 class PacienteVencidoSpec(Specification):
     def __init__(self, dias_tolerancia: int):
@@ -55,13 +65,16 @@ class PacienteVencidoSpec(Specification):
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         if isinstance(candidate, dict):
-            data_solicitacao = candidate.get('dataSolicitacao')
+            data_solicitacao = candidate.get("dataSolicitacao")
             if data_solicitacao:
                 if isinstance(data_solicitacao, str):
-                    data_solicitacao = datetime.datetime.strptime(data_solicitacao.split()[0], "%Y-%m-%d")
+                    data_solicitacao = datetime.datetime.strptime(
+                        data_solicitacao.split()[0], "%Y-%m-%d"
+                    )
                 dias = (datetime.datetime.now() - data_solicitacao).days
                 return dias > self.dias_vencimento
         return False
+
 
 class LeadTimeCriticoSpec(Specification):
     def __init__(self, max_dias: int):
@@ -69,10 +82,12 @@ class LeadTimeCriticoSpec(Specification):
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         if isinstance(candidate, dict):
-            data_solicitacao = candidate.get('dataSolicitacao')
+            data_solicitacao = candidate.get("dataSolicitacao")
             if data_solicitacao:
                 if isinstance(data_solicitacao, str):
-                    data_solicitacao = datetime.datetime.strptime(data_solicitacao.split()[0], "%Y-%m-%d")
+                    data_solicitacao = datetime.datetime.strptime(
+                        data_solicitacao.split()[0], "%Y-%m-%d"
+                    )
                 dias = (datetime.datetime.now() - data_solicitacao).days
                 return dias > self.max_dias
         return False

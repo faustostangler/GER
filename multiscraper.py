@@ -5,20 +5,20 @@ import time
 import logging
 import math
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any
 from dotenv import load_dotenv
 from playwright.sync_api import sync_playwright
 
 # --- CONFIGURAÇÃO DE LOGGING ---
-file_handler = logging.FileHandler("multiscraper.log", encoding='utf-8')
+file_handler = logging.FileHandler("multiscraper.log", encoding="utf-8")
 file_handler.setLevel(logging.DEBUG)
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
 
 logging.basicConfig(
     level=logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(message)s',
-    handlers=[file_handler, console_handler]
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[file_handler, console_handler],
 )
 logger = logging.getLogger(__name__)
 
@@ -36,34 +36,51 @@ TIMEOUT = int(os.getenv("TIMEOUT", "30000"))
 
 # --- ESTRUTURA DE DADOS (DOMÍNIO) ---
 COLUNAS = [
-    "Protocolo", "Situação", "Origem da Lista", "Data Solicitação", "Data Nascimento", "Paciente", "CPF", "CNS",
-    "Especialidade", "Complexidade", "Risco Cor", "Pontuação",
-    "CID Código", "CID Descrição", "Unidade Solicitante",
-    "Histórico Quadro Clínico"  # Campo consolidado cronológico
+    "Protocolo",
+    "Situação",
+    "Origem da Lista",
+    "Data Solicitação",
+    "Data Nascimento",
+    "Paciente",
+    "CPF",
+    "CNS",
+    "Especialidade",
+    "Complexidade",
+    "Risco Cor",
+    "Pontuação",
+    "CID Código",
+    "CID Descrição",
+    "Unidade Solicitante",
+    "Histórico Quadro Clínico",  # Campo consolidado cronológico
 ]
 
 LISTAS_ALVO = [
-    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},    
-    {"nome": "Pendentes", "chave": "pendente"},     
-    {"nome": "Expiradas", "chave": "cancelada"}, 
-    {"nome": "Fila de Espera", "chave": "filaDeEspera"},   
-    {"nome": "Outras", "chave": "outras"}
+    {"nome": "Agendadas e Confirmadas", "chave": "agendadas"},
+    {"nome": "Pendentes", "chave": "pendente"},
+    {"nome": "Expiradas", "chave": "cancelada"},
+    {"nome": "Fila de Espera", "chave": "filaDeEspera"},
+    {"nome": "Outras", "chave": "outras"},
 ]
 
+
 def format_protocolo(num):
-    if not num: return ""
+    if not num:
+        return ""
     num = str(num)
     if len(num) == 12:
         return f"{num[0:2]}-{num[2:4]}-{num[4:11]}-{num[11]}"
     return num
 
+
 def timestamp_to_date(ts):
-    if not ts: return ""
+    if not ts:
+        return ""
     try:
         dt = datetime.fromtimestamp(ts / 1000.0)
         return dt.strftime("%d/%m/%Y %H:%M")
-    except:
+    except Exception:
         return ""
+
 
 # --- LÓGICA DE EXTRAÇÃO E ACHATAMENTO (ACL/MAPPER) ---
 def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
@@ -76,39 +93,43 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
     data["Situação"] = j.get("situacao", "")
     data["Origem da Lista"] = origem_lista
     data["Data Solicitação"] = timestamp_to_date(j.get("dataSolicitacao"))
-    
+
     u = j.get("usuarioSUS") or {}
     data["Paciente"] = u.get("nomeCompleto", "")
     data["CPF"] = u.get("cpf", "")
     data["CNS"] = u.get("cartaoSus", "")
-    data["Data Nascimento"] = timestamp_to_date(u.get("dataNascimento")).split(" ")[0] if u.get("dataNascimento") else ""
-    
+    data["Data Nascimento"] = (
+        timestamp_to_date(u.get("dataNascimento")).split(" ")[0]
+        if u.get("dataNascimento")
+        else ""
+    )
+
     data["Especialidade"] = (j.get("especialidade") or {}).get("descricao", "")
     data["Complexidade"] = j.get("complexidade", "")
     data["Risco Cor"] = (j.get("classificacaoRisco") or {}).get("cor", "")
     data["Pontuação"] = (j.get("classificacaoRisco") or {}).get("totalPontos", "")
-    
+
     data["CID Código"] = (j.get("cidPrincipal") or {}).get("codigo", "")
     data["CID Descrição"] = (j.get("cidPrincipal") or {}).get("descricao", "")
     data["Unidade Solicitante"] = (j.get("unidadeSolicitante") or {}).get("nome", "")
 
     # --- DESAFIO: QUADRO CLÍNICO CRONOLÓGICO ---
     evolucoes = j.get("evolucoes", [])
-    evolucoes.sort(key=lambda x: x.get("data", 0)) # Ordem Cronológica (Antiga -> Nova)
-    
+    evolucoes.sort(key=lambda x: x.get("data", 0))  # Ordem Cronológica (Antiga -> Nova)
+
     # Captura Situação Atual para o histórico
-    situacao_final = j.get("situacao", "N/A")
-    
+    j.get("situacao", "N/A")
+
     historico_textos = []
     for evo in evolucoes:
         dt_evo = timestamp_to_date(evo.get("data"))
         usuario = (evo.get("usuario") or {}).get("nome", "Sistema")
-        perfil = evo.get("perfil", "")
-        
+        evo.get("perfil", "")
+
         try:
             detalhes_str = evo.get("detalhes", "{}")
             detalhes_json = json.loads(detalhes_str)
-            
+
             # Captura todos os campos de texto relevantes dentro desta evolução
             itens = detalhes_json.get("itensEvolucao", [])
             for item in itens:
@@ -117,18 +138,19 @@ def flatten_solicitacao(j: Dict[Any, Any], origem_lista: str) -> Dict[str, Any]:
                 if texto:
                     linha_evo = f"[{dt_evo} - {label} - {usuario}]: {texto}"
                     historico_textos.append(linha_evo)
-        except:
+        except Exception:
             continue
-            
+
     data["Histórico Quadro Clínico"] = " | ".join(historico_textos)
-    
+
     return data
+
 
 # --- PERSISTÊNCIA ---
 def save_to_csv(data_dict: Dict[str, Any]):
     temp_file = CSV_FILE + ".tmp"
     try:
-        with open(temp_file, mode='w', newline='', encoding='utf-8') as f:
+        with open(temp_file, mode="w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=COLUNAS, quoting=csv.QUOTE_ALL)
             writer.writeheader()
             for row in data_dict.values():
@@ -137,40 +159,43 @@ def save_to_csv(data_dict: Dict[str, Any]):
     except Exception as e:
         logger.error(f"Erro ao salvar CSV: {e}")
 
+
 def load_existing():
     existing = {}
     if os.path.exists(CSV_FILE):
-        with open(CSV_FILE, mode='r', encoding='utf-8') as f:
+        with open(CSV_FILE, mode="r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
                 if row.get("Protocolo"):
                     existing[row["Protocolo"]] = row
     return existing
 
+
 # --- MOTOR DE SCRAPING ---
 def run_scraper():
     logger.info("Iniciando Multiscraper Gercon...")
     records = load_existing()
-    
+
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=HEADLESS, args=['--no-sandbox'])
+        browser = p.chromium.launch(headless=HEADLESS, args=["--no-sandbox"])
         context = browser.new_context()
         page = context.new_page()
-        
+
         # Login
         page.goto(GERCON_URL, wait_until="networkidle")
-        page.fill('#username', USER)
-        page.fill('#password', PASS)
-        page.click('#kc-login')
+        page.fill("#username", USER)
+        page.fill("#password", PASS)
+        page.click("#kc-login")
         page.wait_for_load_state("networkidle")
-        
+
         # Seleção de Unidade
         try:
             xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
             page.wait_for_selector(f"xpath={xpath_btn}", timeout=10000)
             page.locator(f"xpath={xpath_btn}").click()
             page.wait_for_load_state("networkidle")
-        except: pass
+        except Exception:
+            pass
 
         # Carregar o contexto do Angular
         xpath_item = "/html/body/div[6]/div/ul/li[1]"
@@ -183,18 +208,22 @@ def run_scraper():
             nome = lista["nome"]
             chave = lista["chave"]
             logger.info(f">>> Processando Lista: {nome}")
-            
+
             # --- CLIQUE NA ABA (Bypass de Lazy Loading do Angular) ---
             try:
                 # Tenta localizar a aba pela chave ou pelo nome
-                selectors = [f"a[ng-click*=\"'{chave}'\"]", f"xpath=//a[contains(., '{nome}')]", f"xpath=//li[contains(., '{nome}')]"]
+                selectors = [
+                    f"a[ng-click*=\"'{chave}'\"]",
+                    f"xpath=//a[contains(., '{nome}')]",
+                    f"xpath=//li[contains(., '{nome}')]",
+                ]
                 tab_found = False
                 for sel in selectors:
                     if page.locator(sel).first.is_visible():
                         page.locator(sel).first.click()
                         tab_found = True
                         break
-                
+
                 if tab_found:
                     # Espera a lista (tabela) carregar de fato na tela.
                     # Isso é muito mais robusto que esperar a variável interna.
@@ -202,16 +231,18 @@ def run_scraper():
                     # Um pequeno fôlego para o Angular terminar de sincronizar o scope
                     page.wait_for_timeout(500)
                 else:
-                    logger.warning(f"  Aba '{nome}' não encontrada ou não visível no momento.")
+                    logger.warning(
+                        f"  Aba '{nome}' não encontrada ou não visível no momento."
+                    )
             except Exception as e:
                 logger.warning(f"  Aviso ao interagir com a aba '{nome}': {e}")
-            
+
             curr_page = 1
             total_pages = 1
-            
+
             while curr_page <= total_pages:
                 logger.info(f"  Pagina {curr_page}/{total_pages} de {nome}...")
-                
+
                 js_script = f"""async () => {{
                     try {{
                         let scope = angular.element(document.querySelector('table.ng-table')).scope();
@@ -255,41 +286,52 @@ def run_scraper():
                         return {{ error: "JS_EXCEPTION: " + e.message }};
                     }}
                 }}"""
-                
+
                 try:
                     res = page.evaluate(js_script)
                 except Exception as e:
-                    logger.warning(f"Conexão perdida ou erro de context na pág {curr_page}: {e}. Tentando refresh...")
+                    logger.warning(
+                        f"Conexão perdida ou erro de context na pág {curr_page}: {e}. Tentando refresh..."
+                    )
                     try:
                         page.goto(GERCON_URL, wait_until="load", timeout=TIMEOUT)
                         # Re-login se necessário
-                        if page.locator('#username').count() > 0:
-                            page.fill('#username', USER)
-                            page.fill('#password', PASS)
-                            page.click('#kc-login')
+                        if page.locator("#username").count() > 0:
+                            page.fill("#username", USER)
+                            page.fill("#password", PASS)
+                            page.click("#kc-login")
                             page.wait_for_load_state("networkidle")
-                        
+
                         # Re-seleciona Unidade
                         try:
-                            xpath_btn = "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
+                            xpath_btn = (
+                                "/html/body/div[5]/div/div[1]/form/div[2]/span/button"
+                            )
                             page.wait_for_selector(f"xpath={xpath_btn}", timeout=10000)
                             page.locator(f"xpath={xpath_btn}").click()
-                        except: pass
+                        except Exception:
+                            pass
 
                         # Volta para a aba correta
                         xpath_init = "/html/body/div[6]/div/ul/li[1]"
                         page.wait_for_selector(f"xpath={xpath_init}")
                         page.locator(f"xpath={xpath_init}").click()
-                        
+
                         # Repete clique na aba
-                        selectors = [f"a[ng-click*=\"'{chave}'\"]", f"xpath=//a[contains(., '{nome}')]", f"xpath=//li[contains(., '{nome}')]"]
+                        selectors = [
+                            f"a[ng-click*=\"'{chave}'\"]",
+                            f"xpath=//a[contains(., '{nome}')]",
+                            f"xpath=//li[contains(., '{nome}')]",
+                        ]
                         for sel in selectors:
                             if page.locator(sel).first.is_visible():
                                 page.locator(sel).first.click()
                                 break
-                        page.wait_for_selector("table.ng-table tbody tr", timeout=TIMEOUT)
+                        page.wait_for_selector(
+                            "table.ng-table tbody tr", timeout=TIMEOUT
+                        )
                         logger.info("Sessão recuperada. Retomando coleta...")
-                        continue # tenta de novo a mesma página
+                        continue  # tenta de novo a mesma página
                     except Exception as ex:
                         logger.error(f"Falha ao recuperar sessão: {ex}")
                         break
@@ -297,34 +339,38 @@ def run_scraper():
                 if not res:
                     logger.warning(f"Resposta nula da API Angular na pág {curr_page}")
                     break
-                
+
                 if "error" in res:
                     logger.error(f"Erro mapeado dentro da página: {res['error']}")
                     break
-                    
+
                 if "jsons" not in res:
-                    logger.warning(f"Resposta incorreta ou sem 'jsons' na pág {curr_page}")
+                    logger.warning(
+                        f"Resposta incorreta ou sem 'jsons' na pág {curr_page}"
+                    )
                     break
-                
+
                 total_docs = res["total"]
                 itens_recebidos = res["ids_count"]
-                
-                logger.info(f"  [Auditoria] Total Itens: {total_docs} | Recebidos: {itens_recebidos}")
+
+                logger.info(
+                    f"  [Auditoria] Total Itens: {total_docs} | Recebidos: {itens_recebidos}"
+                )
                 total_pages = math.ceil(total_docs / PAGE_SIZE) if total_docs > 0 else 1
-                
+
                 if not res["jsons"]:
                     logger.info("  Fim da lista atingido.")
                     break
-                
+
                 for item_json in res["jsons"]:
                     flat = flatten_solicitacao(item_json, nome)
                     records[flat["Protocolo"]] = flat
-                
+
                 if curr_page % 2 == 0:
                     save_to_csv(records)
-                    
+
                 # Ping preventivo para manter SSO ativo (estratégia dom_scraper)
-                if time.time() - last_ping_time > 300: # 5 minutos
+                if time.time() - last_ping_time > 300:  # 5 minutos
                     try:
                         ping_js = """async () => {
                             let $http = angular.element(document.body).injector().get('$http');
@@ -333,17 +379,19 @@ def run_scraper():
                         }"""
                         page.evaluate(ping_js)
                         last_ping_time = time.time()
-                    except: pass
+                    except Exception:
+                        pass
 
                 curr_page += 1
-            
-            save_to_csv(records) # Salva ao fim de cada lista
+
+            save_to_csv(records)  # Salva ao fim de cada lista
             logger.info(f"--- Concluído: {nome} ---")
 
         browser.close()
         logger.info("Multiscraping finalizado com sucesso.")
 
+
 if __name__ == "__main__":
     run_scraper()
 
-print('done!')
+print("done!")
