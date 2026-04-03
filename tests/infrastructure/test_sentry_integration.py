@@ -6,7 +6,6 @@ Validates that the Sentry initialization module:
 2. Filters LGPD-sensitive data from breadcrumbs.
 3. Doesn't crash the application on initialization failure.
 """
-import pytest
 from unittest.mock import patch, MagicMock
 
 from infrastructure.telemetry.sentry import init_sentry, _filter_health_data_breadcrumb

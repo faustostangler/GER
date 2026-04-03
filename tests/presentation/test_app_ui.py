@@ -1,5 +1,4 @@
 import pytest
-import time
 import os
 from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
@@ -39,9 +38,10 @@ def mock_analytics_use_case():
             p90_lead_time=45.2,
             p90_esquecido=60.1
         )
+
         def mock_execute_custom_query(query, filters, current_user, **kwargs):
             import pandas as pd
-            q = query.lower()
+            # SRE: query is available if needed for complex mocks
             
             # Base fat dataframe
             df_base = {

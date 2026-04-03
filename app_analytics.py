@@ -2107,9 +2107,11 @@ def main():
                         width="stretch",
                         config={"displayModeBar": False},
                     )
-                if RENDER_LATENCY: RENDER_LATENCY.labels(component="t_clin_treemap").observe(time.time() - start_treemap)
-            except Exception as e:
-                if SILENT_ERRORS: SILENT_ERRORS.labels(component="t_clin_treemap").inc()
+                if RENDER_LATENCY:
+                    RENDER_LATENCY.labels(component="t_clin_treemap").observe(time.time() - start_treemap)
+            except Exception:
+                if SILENT_ERRORS:
+                    SILENT_ERRORS.labels(component="t_clin_treemap").inc()
                 st.warning("⚠️ Dados insuficientes ou mal formatados para o Treemap.")
 
         with c2:
@@ -2151,9 +2153,11 @@ def main():
                     st.plotly_chart(
                         fig_demo, width="stretch", config={"displayModeBar": False}
                     )
-                if RENDER_LATENCY: RENDER_LATENCY.labels(component="t_clin_demographics").observe(time.time() - start_hist)
-            except Exception as e:
-                if SILENT_ERRORS: SILENT_ERRORS.labels(component="t_clin_demographics").inc()
+                if RENDER_LATENCY:
+                    RENDER_LATENCY.labels(component="t_clin_demographics").observe(time.time() - start_hist)
+            except Exception:
+                if SILENT_ERRORS:
+                    SILENT_ERRORS.labels(component="t_clin_demographics").inc()
                 st.warning("⚠️ Erro silencioso capturado na renderização demográfica.")
 
         # Throughput vs Capacidade (Temporal)

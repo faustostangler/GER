@@ -1,6 +1,5 @@
 import os
 import subprocess
-import time
 import pytest
 import requests
 from tenacity import retry, wait_fixed, stop_after_attempt

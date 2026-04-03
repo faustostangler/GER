@@ -1,5 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from domain.models import IngestionLogEntry
 
 
 class IScraperClient(ABC):

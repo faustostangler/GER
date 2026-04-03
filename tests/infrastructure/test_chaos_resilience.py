@@ -9,11 +9,9 @@ Simula falhas de infraestrutura para provar que o sistema sobrevive ao caos:
 import os
 import time
 import pytest
-import duckdb
 import pandas as pd
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
-from domain.models import AnalyticKPIs
 
 
 class TestRedisChaos:

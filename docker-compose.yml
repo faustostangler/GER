@@ -32,7 +32,7 @@ services:
         reservations:
           memory: '${ANALYTICS_MEM_RESERVATION}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1.nip.io:${ANALYTICS_INTERNAL_PORT}/dashboard/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
       interval: ${HEALTHCHECK_INTERVAL}
       timeout: ${HEALTHCHECK_TIMEOUT}
       retries: ${HEALTHCHECK_RETRIES}
@@ -78,6 +78,7 @@ services:
       - "${DOCKER_BIND_IP}:${OAUTH2_PROXY_EXTERNAL_PORT}:${OAUTH2_PROXY_INTERNAL_PORT}"  
     env_file:
       - env/creds.env
+      - env/config.env
     environment:
       OAUTH2_PROXY_PROVIDER: "keycloak-oidc"
       OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:${OAUTH2_PROXY_INTERNAL_PORT}"
