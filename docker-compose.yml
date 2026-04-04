@@ -194,7 +194,8 @@ services:
     profiles: ["iam"]
     env_file:
       - env/creds.env
-    # POSTGRES_DB, POSTGRES_USER e POSTGRES_PASSWORD já injetados via env/creds.env
+      - env/config.env
+    # POSTGRES_DB, POSTGRES_USER e POSTGRES_PASSWORD já injetados via env/creds.env e env/config.env
     volumes:
       - keycloak_data:/var/lib/postgresql/data
     networks:
@@ -219,6 +220,7 @@ services:
     command: start-dev --import-realm
     env_file:
       - env/creds.env
+      - env/config.env
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://${COMPOSE_PROJECT_NAME:-ger}_keycloak_db:5432/${POSTGRES_DB:-keycloak}
