@@ -1,26 +1,25 @@
-from opentelemetry import trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.sampling import TraceIdRatioBased, ParentBased
+import logging
 
+logger = logging.getLogger(__name__)
 
-def init_tracer() -> trace.Tracer:
-    """Configura o OpenTelemetry provider global para a aplicação."""
+# --- SRE FIX: DEGRADAÇÃO GRACIOSA PARA TELEMETRIA ---
+class DummySpan:
+    """Span falso para evitar quebra de código se o OpenTelemetry falhar."""
+    def __enter__(self): return self
+    def __exit__(self, exc_type, exc_val, exc_tb): pass
+    def set_attribute(self, *args, **kwargs): pass
+    def record_exception(self, *args, **kwargs): pass
+    def set_status(self, *args, **kwargs): pass
 
-    # === ESTRATÉGIA DE SAMPLING SRE ===
-    # Arquiteturalmente, transferimos o Tail-Based Sampling (Buffer em memória)
-    # pro OpenTelemetry Collector Sidecar (Go).
-    # Aqui fazemos Head-Based Sampling:
-    # Capturamos 100% dos spans localmente no Worker p/ enviar. O backend Collector lida com a retenção fina
-    # baseada na % de Sucesso/Falha sem arriscar OOMKills no Python.
-    sampler = ParentBased(root=TraceIdRatioBased(1.0))
-    provider = TracerProvider(sampler=sampler)
+class DummyTracer:
+    """Tracer falso para devolver Spans nulos e manter o sistema rodando."""
+    def start_as_current_span(self, name, *args, **kwargs):
+        return DummySpan()
 
-    # Exemplo: Enviar para OTEL_EXPORTER_OTLP_ENDPOINT nativo
-    # processor = SimpleSpanProcessor(ConsoleSpanExporter())
-    # provider.add_span_processor(processor)
-
-    trace.set_tracer_provider(provider)
-    return trace.get_tracer("gercon.pipeline")
-
-
-tracer = init_tracer()
+try:
+    from opentelemetry import trace
+    # Inicializa o Tracer real
+    tracer = trace.get_tracer(__name__)
+except ImportError:
+    logger.warning("⚠️ OpenTelemetry não detectado. Usando DummyTracer (Degradação Graciosa).")
+    tracer = DummyTracer()
