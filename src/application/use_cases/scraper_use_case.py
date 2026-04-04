@@ -180,6 +180,14 @@ class ScraperUseCase(IScrapingUseCase):
                             break
 
                         jsons = response_data.get("jsons", [])
+                        
+                        # --- SRE FIX: PREVENÇÃO DE LOOP INFINITO (POISON PILLS) ---
+                        if not jsons:
+                            logger.info(
+                                f"Página {page_num} retornou vazia. Encerrando paginação com segurança.",
+                                extra={"lista": chave}
+                            )
+                            break
                         # WHY: Estimativa de bytes para auditoria de throughput
                         total_bytes += sys.getsizeof(json.dumps(jsons))
 
