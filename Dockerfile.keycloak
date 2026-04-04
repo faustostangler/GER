@@ -1,0 +1,24 @@
+# Stage 1: Build (Otimização para o Cloud Run)
+FROM quay.io/keycloak/keycloak:24.0.2 AS builder
+
+# Ativa as extensões necessárias para o Google Cloud (PostgreSQL)
+ENV KC_DB=postgres
+ENV KC_HEALTH_ENABLED=true
+ENV KC_METRICS_ENABLED=true
+
+WORKDIR /opt/keycloak
+# Otimiza o Keycloak para os adaptadores de DB e HTTP
+RUN /opt/keycloak/bin/kc.sh build
+
+# Stage 2: Runtime (Imagem Final e Enxuta)
+FROM quay.io/keycloak/keycloak:24.0.2
+COPY --from=builder /opt/keycloak/ /opt/keycloak/
+
+WORKDIR /opt/keycloak
+
+# SRE FIX: Injeta o Realm Export local no diretório de importação automática
+COPY infra/identity/gercon-realm-export.json /opt/keycloak/data/import/realm.json
+
+# O motor Quarkus do Keycloak vai detectar o arquivo em /data/import/ e aplicá-lo
+# O comando 'start' exige que o DB esteja acessível (Cloud SQL em produção)
+ENTRYPOINT ["/opt/keycloak/bin/kc.sh", "start", "--optimized", "--import-realm"]
