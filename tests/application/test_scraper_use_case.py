@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 from application.use_cases.scraper_use_case import ScraperUseCase
 from application.use_cases.scraper_interfaces import (
@@ -6,7 +5,6 @@ from application.use_cases.scraper_interfaces import (
     IRawDataRepository,
     IParquetRepository
 )
-from domain.models import IngestionLogEntry
 
 def test_scraper_use_case_successful_execution():
     # 1. Setup dos Mocks das Portas (Hexagonal)

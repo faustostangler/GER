@@ -1,4 +1,3 @@
-import pytest
 from presentation.adapters.parsers import parse_term
 
 def test_parse_term_replaces_asterisk_with_sql_wildcard():
