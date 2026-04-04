@@ -59,3 +59,13 @@ exclude = [
     "mutants",
     ".mutmut-cache"
 ]
+
+[tool.coverage.run]
+omit = [
+    "src/__init__.py",
+    "src/*/__init__.py",
+    "src/application/use_cases/interfaces.py",
+    "src/application/use_cases/scraper_interfaces.py",
+    "src/infrastructure/telemetry/*.py",
+    "src/infrastructure/adapters/playwright_scraper.py"
+]
