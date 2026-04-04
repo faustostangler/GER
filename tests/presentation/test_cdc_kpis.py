@@ -1,5 +1,5 @@
 import pytest
-from src.domain.models import AnalyticKPIs
+from domain.models import AnalyticKPIs
 from pydantic import ValidationError
 
 def test_cdc_streamlit_requires_specific_kpis_fields():

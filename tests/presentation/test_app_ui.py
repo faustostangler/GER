@@ -2,8 +2,8 @@ import pytest
 import os
 from unittest.mock import patch, MagicMock
 from streamlit.testing.v1 import AppTest
-from src.domain.models import AnalyticKPIs
-from src.infrastructure.config import settings
+from domain.models import AnalyticKPIs
+from infrastructure.config import settings
 
 # Salvar referência para não quebrar módulos internos do python
 original_exists = os.path.exists

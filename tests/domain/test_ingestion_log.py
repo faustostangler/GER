@@ -7,7 +7,7 @@ Pydantic serialization for the audit trail domain model.
 import time
 import pytest
 from pydantic import ValidationError
-from src.domain.models import IngestionLogEntry, IngestionStatus
+from domain.models import IngestionLogEntry, IngestionStatus
 
 
 class TestIngestionStatus:

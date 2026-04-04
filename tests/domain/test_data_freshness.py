@@ -6,7 +6,7 @@ the last_sync_at timestamp for the Amber Alert system.
 """
 import time
 import pytest
-from src.domain.models import AnalyticKPIs
+from domain.models import AnalyticKPIs
 
 
 @pytest.fixture

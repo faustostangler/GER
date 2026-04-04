@@ -6,8 +6,8 @@ usando SQLite em modo :memory: para isolamento total do teste.
 """
 import time
 import pytest
-from src.infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository
-from src.domain.models import IngestionLogEntry, IngestionStatus
+from infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository
+from domain.models import IngestionLogEntry, IngestionStatus
 
 
 @pytest.fixture

@@ -51,7 +51,24 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
-addopts = "--cov=src --cov-report=term-missing --cov-fail-under=85"
+# WHY: --cov removed from addopts because mutmut 3.x calls pytest.main()
+# directly and coverage plugins corrupt its stats collection.
+# Use explicit: uv run pytest --cov=src --cov-report=term-missing --cov-fail-under=85
+
+[tool.mutmut]
+paths_to_mutate = ["src/"]
+# WHY: tests_dir is intentionally EMPTY. Mutmut 3.x appends tests_dir to
+# pytest_add_cli_args_test_selection internally. Setting tests_dir=["tests/"]
+# would add the broad "tests/" path alongside our surgical subdirectory list,
+# causing E2E tests (tests/e2e/) to leak into mutation runs.
+# These args are appended to every pytest invocation inside the mutmut sandbox.
+pytest_add_cli_args = ["-p", "no:cacheprovider", "-p", "no:cov", "--no-header", "-q", "--tb=no"]
+pytest_add_cli_args_test_selection = [
+    "tests/domain/",
+    "tests/application/",
+    "tests/infrastructure/",
+    "tests/presentation/"
+]
 
 [tool.ruff]
 exclude = [

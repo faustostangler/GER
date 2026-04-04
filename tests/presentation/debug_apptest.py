@@ -1,10 +1,10 @@
 from streamlit.testing.v1 import AppTest
 from unittest.mock import patch, MagicMock
-from src.domain.models import AnalyticKPIs
+from domain.models import AnalyticKPIs
 import os
 
 if __name__ == "__main__":
-    with patch("src.application.use_cases.analytics_use_case.AnalyticsUseCase") as mock_uc:
+    with patch("application.use_cases.analytics_use_case.AnalyticsUseCase") as mock_uc:
         instance = MagicMock()
         instance.get_global_bounds.return_value = (1, 100)
         instance.get_dynamic_options.return_value = ["A", "B"]
