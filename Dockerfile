@@ -44,6 +44,9 @@ ARG BUILD_TIMESTAMP=unknown
 ENV GIT_SHA=${GIT_SHA}
 ENV BUILD_TIMESTAMP=${BUILD_TIMESTAMP}
 
+# --- SRE FIX: Ensinar o Python onde ficam os módulos ---
+ENV PYTHONPATH="/app/src"
+
 # Copia o código para dentro da imagem (Imutabilidade)
 COPY src/ /app/src/
 COPY app_analytics.py /app/app_analytics.py
