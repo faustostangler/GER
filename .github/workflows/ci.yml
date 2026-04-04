@@ -73,7 +73,6 @@ jobs:
           echo "ANALYTICS_MEM_RESERVATION=512M" >> .env
           echo "RDE_ACCESS_TOKEN=mock-token-ci" >> .env
           echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> .env
-          echo "ENVIRONMENT=dev" >> .env
 
           # 2. SRE FIX: Criação das pastas e arquivos de ambiente (env_file)
           mkdir -p env
@@ -87,6 +86,10 @@ jobs:
           echo "KEYCLOAK_ADMIN_PASSWORD=admin" >> env/creds.env
           echo "OAUTH2_PROXY_CLIENT_SECRET=mock-secret" >> env/creds.env
           echo "OAUTH2_PROXY_COOKIE_SECRET=Abcdefghijklmnopqrstuvwxyz0123456789==" >> env/creds.env
+          
+          # SRE FIX: Injeta a configuração vital de Dev e alinha as portas
+          echo "ENVIRONMENT=dev" >> env/creds.env
+          echo "PORT=8501" >> env/creds.env
 
           # MOCK: env/config.env (Configurações não sensíveis)
           touch env/config.env
@@ -102,6 +105,10 @@ jobs:
           echo "MES_COMERCIAL_DIAS=30" >> env/config.env
           echo "DATA_SLA_THRESHOLD=2.0" >> env/config.env
 
+      # SRE FIX: Garante que o entrypoint seja executável pelo Linux (remove CRLF)
+      - name: 🧹 Fix Linux Line Endings
+        run: sed -i 's/\r$//' entrypoint.sh
+
       - name: Spin up Integration Infrastructure
         run: docker compose --profile iam up -d --wait
 
@@ -110,8 +117,9 @@ jobs:
         if: failure()
         run: |
           echo "=== 🔴 LOGS DO ANALYTICS (CRASH) ==="
-          docker compose --profile iam logs analytics-ci || docker compose --profile iam logs analytics
-          
+          docker logs ger-ci_analytics-ci
+          echo "=== 🔴 LOGS DO WORKER (CRASH) ==="
+          docker logs ger-ci_arq_worker
           echo "=== 🟡 ESTADO DOS CONTAINERS ==="
           docker ps -a
 
