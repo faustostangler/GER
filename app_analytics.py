@@ -2011,7 +2011,7 @@ def main():
             # Matriz de Risco (Donut)
             df_risco = use_case.execute_custom_query(
                 f"SELECT entidade_classificacaoRisco_cor, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != '' GROUP BY 1",
-                filters=filters,
+                spec=filters,
                 current_user=st.session_state.user,
             )
             if not df_risco.empty:
@@ -2058,7 +2058,7 @@ def main():
 
         df_sit = use_case.execute_custom_query(
             f"SELECT situacao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC",
-            filters=filters,
+            spec=filters,
             current_user=st.session_state.user,
         )
         st.plotly_chart(
@@ -2087,7 +2087,7 @@ def main():
                 # Geometria da Demanda (Treemap)
                 df_mun = use_case.execute_custom_query(
                     f"SELECT usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND usuarioSUS_municipioResidencia_nome != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30",
-                    filters=filters,
+                    spec=filters,
                     current_user=st.session_state.user,
                 )
     
@@ -2169,7 +2169,7 @@ def main():
         # Throughput vs Capacidade (Temporal)
         df_fluxo = use_case.execute_custom_query(
             f"SELECT CAST(dataSolicitacao AS DATE) as Dia, origem_lista, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL GROUP BY 1, 2 ORDER BY 1",
-            filters=filters,
+            spec=filters,
             current_user=st.session_state.user,
         )
         st.plotly_chart(
@@ -2405,7 +2405,7 @@ def main():
             st.markdown("### ⚖️ Top Ofensores")
             df_medico = use_case.execute_custom_query(
                 f"SELECT medicoSolicitante, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND medicoSolicitante != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10",
-                filters=filters,
+                spec=filters,
                 current_user=st.session_state.user,
             )
             fig_ofensor = px.bar(

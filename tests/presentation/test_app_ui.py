@@ -39,7 +39,7 @@ def mock_analytics_use_case():
             p90_esquecido=60.1
         )
 
-        def mock_execute_custom_query(query, filters, current_user, **kwargs):
+        def mock_execute_custom_query(query, spec, current_user, **kwargs):
             import pandas as pd
             # SRE: query is available if needed for complex mocks
             
