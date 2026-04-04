@@ -2,8 +2,8 @@ import pytest
 
 # SRE FIX: Força o carregamento de C-Extensions no Main Interpreter 
 # antes que o Streamlit AppTest ou pytest-cov alterem os import hooks.
-import numpy 
-import pandas 
+import numpy  # noqa: F401
+import pandas  # noqa: F401
 
 @pytest.fixture(autouse=True)
 def prevent_streamlit_module_purge(monkeypatch):
