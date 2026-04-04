@@ -1,5 +1,6 @@
 # Stage 1: Base com Ubuntu e Dependências de GUI/RDE
-FROM python:3.11-slim-bookworm AS base
+# --- SRE FIX: Atualizado para 3.12 para bater com o pyproject.toml ---
+FROM python:3.12-slim-bookworm AS base
 
 WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
@@ -26,7 +27,8 @@ RUN mkdir -p /etc/apt/keyrings \
     && apt-get update && apt-get install -y antigravity
 
 # Stage 2: Builder (Gestão de Dependências com uv)
-FROM ghcr.io/astral-sh/uv:python3.11-bookworm-slim AS builder
+# --- SRE FIX: Atualizado para 3.12 para que o .venv gerado seja portável ---
+FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
 COPY pyproject.toml uv.lock ./
