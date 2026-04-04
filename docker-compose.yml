@@ -16,7 +16,7 @@ services:
       - env/config.env
     environment:
       - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN:-}
-      - SERVICE_TYPE=analytics
+      - ROLE=analytics
     networks:
       - ger-infra-mesh
       - iap-mesh
@@ -32,7 +32,7 @@ services:
         reservations:
           memory: '${ANALYTICS_MEM_RESERVATION:-512M}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
       retries: ${HEALTHCHECK_RETRIES:-3}
@@ -165,7 +165,7 @@ services:
       - env/config.env
     environment:
       - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN:-}
-      - SERVICE_TYPE=worker
+      - ROLE=worker
     networks:
       - ger-infra-mesh
     depends_on:

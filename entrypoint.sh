@@ -5,7 +5,7 @@ set -e
 export PATH="/app/.venv/bin:$PATH"
 
 # 1. Fail-fast: Validação de variáveis via Python/Pydantic
-python -c "from src.infrastructure.config import settings; print('Config Validada')"
+python -c "from infrastructure.config import settings; print('Config Validada')"
 
 # --- SRE FIX 1: Self-Healing do Framebuffer ---
 # Remove arquivos de lock órfãos de crashs anteriores antes de iniciar o Xvfb
@@ -22,14 +22,16 @@ websockify --web /usr/share/novnc/ 6080 127.0.0.1:5901 &
 # 4. Inicia o Servidor VNC (usando IP padrão para evitar problemas de DNS interno com nip.io)
 x11vnc -display :1 -forever -nopw -listen 127.0.0.1 -rfbport 5901 &
 
-# 5. Executa o Processo Principal (API ou Worker)
-if [ "$SERVICE_TYPE" = "worker" ]; then
+# 5. Executa o Processo Principal (Analytics ou Worker)
+if [ "$ROLE" = "analytics" ]; then
+    echo "Starting Analytics App..."
+    # SRE FIX: Execução nativa direto do .venv (sem uv run)
+    exec streamlit run app_analytics.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+elif [ "$ROLE" = "worker" ]; then
+    echo "Starting ARQ Worker..."
+    # SRE FIX: Execução nativa direto do .venv (sem uv run)
     exec arq src.infrastructure.queue.worker_settings.WorkerConfig
 else
-    # SRE FIX 3: Adicionado headless=true para o Streamlit não tentar abrir o navegador interno
-    exec streamlit run app_analytics.py \
-        --server.port=${PORT:-8080} \
-        --server.address=0.0.0.0 \
-        --server.baseUrlPath=dashboard \
-        --server.headless=true
+    echo "Error: Unknown ROLE $ROLE"
+    exit 1
 fi

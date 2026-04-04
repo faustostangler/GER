@@ -31,6 +31,7 @@ RUN mkdir -p /etc/apt/keyrings \
 FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
 WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
+ENV UV_HTTP_TIMEOUT=120
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project --no-dev
 RUN .venv/bin/python -m playwright install chromium
