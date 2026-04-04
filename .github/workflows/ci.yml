@@ -73,6 +73,7 @@ jobs:
           echo "ANALYTICS_MEM_RESERVATION=512M" >> .env
           echo "RDE_ACCESS_TOKEN=mock-token-ci" >> .env
           echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> .env
+          echo "ENVIRONMENT=dev" >> .env
 
           # 2. SRE FIX: Criação das pastas e arquivos de ambiente (env_file)
           mkdir -p env
@@ -103,6 +104,16 @@ jobs:
 
       - name: Spin up Integration Infrastructure
         run: docker compose --profile iam up -d --wait
+
+      # --- SRE FIX: REVELAR O MOTIVO DO CRASH ---
+      - name: 🚨 SRE Debug - Dump Container Logs
+        if: failure()
+        run: |
+          echo "=== 🔴 LOGS DO ANALYTICS (CRASH) ==="
+          docker compose --profile iam logs analytics-ci || docker compose --profile iam logs analytics
+          
+          echo "=== 🟡 ESTADO DOS CONTAINERS ==="
+          docker ps -a
 
       - name: Consumer-Driven Contract Tests (CDC)
         run: uv run pytest tests/infrastructure/test_gercon_contract.py
