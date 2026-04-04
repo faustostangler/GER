@@ -1,9 +1,14 @@
 import pytest
 import os
 from unittest.mock import patch, MagicMock
+from pathlib import Path
 from streamlit.testing.v1 import AppTest
 from domain.models import AnalyticKPIs
 from infrastructure.config import settings
+
+# SRE FIX: Localiza a raiz do projeto absoltamente (2 níveis acima de tests/presentation/)
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+APP_PATH = str(BASE_DIR / "app_analytics.py")
 
 # Salvar referência para não quebrar módulos internos do python
 original_exists = os.path.exists
@@ -16,8 +21,8 @@ def mock_exists_side_effect(path):
 
 @pytest.fixture
 def mock_analytics_use_case():
-    # Patchamos a classe da arquitetura limpa antes do ScriptRunner inicializar
-    with patch("src.application.use_cases.analytics_use_case.AnalyticsUseCase") as mock_use_case_class:
+    # Patchamos a classe da arquitetura limpa SEM src. prefix
+    with patch("application.use_cases.analytics_use_case.AnalyticsUseCase") as mock_use_case_class:
         instance = MagicMock()
         instance.get_global_bounds.return_value = (1, 100)
         instance.get_dynamic_options.return_value = ["Opção A", "Opção B"]
@@ -93,7 +98,7 @@ def mock_analytics_use_case():
 
 @pytest.fixture
 def mock_duckdb_repo():
-    with patch("src.infrastructure.repositories.duckdb_repository.DuckDBAnalyticsRepository") as mock_db:
+    with patch("infrastructure.repositories.duckdb_repository.DuckDBAnalyticsRepository") as mock_db:
         yield mock_db
 
 @patch("os.path.exists", side_effect=mock_exists_side_effect)
@@ -101,7 +106,8 @@ def test_app_ui_loads_and_updates_state(mock_exists, mock_duckdb_repo, mock_anal
     # 1. Instanciando a Simulação Streamlit (Humble Object)
     # Bypass do IAP Proxy pelo fluxo de "dev"
     with patch.dict("os.environ", {"ENVIRONMENT": "dev"}):
-        at = AppTest.from_file("app_analytics.py").run(timeout=10)
+        # SRE FIX: Use path absoluto para evitar quebra no sandbox do mutmut
+        at = AppTest.from_file(APP_PATH).run(timeout=10)
     
         if at.exception:
             pytest.fail(f"Streamlit AppTest Exception: {at.exception}")

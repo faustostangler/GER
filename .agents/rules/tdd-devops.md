@@ -129,8 +129,8 @@ Module Identity Mismatch (CRITICAL): Python `match/case` and `isinstance` checks
 
 Mutmut Trampoline Errors: "Failed trampoline hit" occurs due to `src/` layout namespace leaks. 
 * Solution 1: Zero `src.` prefixes in imports (see above — this is the same root cause).
-* Solution 2: Explicit `pythonpath = ["src"]` in `pyproject.toml` and `PYTHONPATH=src` in Makefile.
-* Solution 3: Centralized `setup.cfg` for mutmut to ensure the runner uses `python -m pytest`.
+* Solution 2: Explicit dynamic `sys.path.insert(0, src_path)` in `tests/conftest.py` directly, ensuring `pytest` permanently acknowledges the `src/` boundary.
+* Solution 3: Architect a pristine `setup.cfg` void of `{pwd}` interpolations using `runner=uv run pytest tests/ -x -q -p no:cacheprovider -p no:cov` (enabling extremely fast fail-fast exits). For absolute resets, destroy `.mutmut-cache/` completely.
 
 Linter/Artifact Pollution: Ruff may fail on mutmut generated files.
 * Solution: Explicitly exclude `mutants/` and `.mutmut-cache/` in `pyproject.toml` (`tool.ruff.exclude`).

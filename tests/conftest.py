@@ -1,9 +1,17 @@
-import pytest
+import sys
+from pathlib import Path
+
+# Força o Pytest a enxergar a pasta src
+src_path = str(Path(__file__).resolve().parent.parent / "src")
+if src_path not in sys.path:
+    sys.path.insert(0, src_path)
+
+import pytest  # noqa: E402
 
 # SRE FIX: Força o carregamento de C-Extensions no Main Interpreter 
 # antes que o Streamlit AppTest ou pytest-cov alterem os import hooks.
-import numpy  # noqa: F401
-import pandas  # noqa: F401
+import numpy  # noqa: E402, F401
+import pandas  # noqa: E402, F401
 
 @pytest.fixture(autouse=True)
 def prevent_streamlit_module_purge(monkeypatch):
