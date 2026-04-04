@@ -1,17 +1,13 @@
-import re
-
+# src/presentation/adapters/parsers.py
 def parse_term(term: str) -> str:
-    """
-    SRE FIX: Sanitização contra caracteres de controle SQL perigosos.
-    Traduz a entrada do usuário para um formato seguro no banco de dados.
-    """
-    t = re.sub(r"[;]|--", "", term.strip())
-    t = t.replace("'", "''")
-    t = t.replace("*", "%")
-
-    if not t.startswith("%"):
-        t = f"%{t}"
-    if not t.endswith("%"):
-        t = f"{t}%"
-
-    return t
+    if not term or not str(term).strip():
+        return ""
+    
+    term = str(term).strip()
+    
+    # Se o usuário injetou o wildcard explicitamente (*), nós respeitamos a intenção dele
+    if "*" in term:
+        return term.replace("*", "%")
+    
+    # Comportamento SRE padrão: Se não há wildcard, busca por Contenção (Contains)
+    return f"%{term}%"
