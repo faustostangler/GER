@@ -95,6 +95,10 @@ services:
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
       OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME:-ger}_redis_session:6379"
+    command:
+      - --cookie-domain=.${PROJECT_DOMAIN} # O ponto no início permite todos os subdomínios
+      - --oidc-issuer-url=http://keycloak:8080/realms/${KEYCLOAK_REALM:-gercon-realm}
+      - --whitelist-domain=.${PROJECT_DOMAIN}
     logging: *default-logging
     depends_on:
       redis-session:
@@ -222,14 +226,12 @@ services:
       - env/creds.env
       - env/config.env
     environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://${COMPOSE_PROJECT_NAME:-ger}_keycloak_db:5432/${POSTGRES_DB:-keycloak}
-      KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
+      KC_HOSTNAME_PORT: 8080        # Importante para manter a porta no redirecionamento
       # --- SRE FIX: Edge Identity & Split-Horizon DNS ---
-      KC_HOSTNAME_URL: "http://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}:${KEYCLOAK_EXTERNAL_PORT:-8080}"
-      KC_HOSTNAME_ADMIN_URL: "http://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}:${KEYCLOAK_EXTERNAL_PORT:-8080}"
+      KC_HOSTNAME_URL: "${PROTOCOL}://${IAM_SUBDOMAIN}:8080"
+      KC_HOSTNAME_ADMIN_URL: "${PROTOCOL}://${IAM_SUBDOMAIN}:8080"
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false" # Permite que chamadas de backend continuem usando 'http://keycloak'
     volumes:
       - ./infra/identity/gercon-realm-export.json:/opt/keycloak/data/import/realm.json:ro
