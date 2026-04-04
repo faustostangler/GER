@@ -54,7 +54,7 @@ def mock_analytics_use_case():
                 "Vol": [10, 20], 
                 "entidade_classificacaoRisco_cor": ["VERMELHO", "VERDE"],
                 "Etapa": ["1. Solicitado", "2. Triado"],
-                "situacao": ["AGENDADA", "ATENDIDO"],
+                "entidade_situacao_descricao": ["AGENDADA", "ATENDIDO"],
                 "origem_descricao": ["Origem A", "Origem B"],
                 "entidade_especialidade_descricao": ["Cardio", "Orto"],
                 "motivo_descricao": ["Motivo A", "Motivo B"],
