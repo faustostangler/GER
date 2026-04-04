@@ -59,7 +59,9 @@ jobs:
 
       - name: ⚙️ Setup Mock Environment (.env)
         run: |
+          # 1. Fallbacks base do sistema (Interpolação do Docker Compose)
           touch .env
+          echo "COMPOSE_PROJECT_NAME=ger-ci" >> .env
           echo "HEALTHCHECK_RETRIES=3" >> .env
           echo "HEALTHCHECK_INTERVAL=30s" >> .env
           echo "HEALTHCHECK_TIMEOUT=10s" >> .env
@@ -70,6 +72,34 @@ jobs:
           echo "ANALYTICS_MEM_LIMIT=2G" >> .env
           echo "ANALYTICS_MEM_RESERVATION=512M" >> .env
           echo "RDE_ACCESS_TOKEN=mock-token-ci" >> .env
+          echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> .env
+
+          # 2. SRE FIX: Criação das pastas e arquivos de ambiente (env_file)
+          mkdir -p env
+          
+          # MOCK: env/creds.env (Segredos)
+          touch env/creds.env
+          echo "POSTGRES_USER=postgres" >> env/creds.env
+          echo "POSTGRES_PASSWORD=postgres" >> env/creds.env
+          echo "POSTGRES_DB=keycloak" >> env/creds.env
+          echo "KEYCLOAK_ADMIN=admin" >> env/creds.env
+          echo "KEYCLOAK_ADMIN_PASSWORD=admin" >> env/creds.env
+          echo "OAUTH2_PROXY_CLIENT_SECRET=mock-secret" >> env/creds.env
+          echo "OAUTH2_PROXY_COOKIE_SECRET=Abcdefghijklmnopqrstuvwxyz0123456789==" >> env/creds.env
+
+          # MOCK: env/config.env (Configurações não sensíveis)
+          touch env/config.env
+          echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> env/config.env
+          echo "KEYCLOAK_EXTERNAL_PORT=8080" >> env/config.env
+          echo "KEYCLOAK_INTERNAL_PORT=8080" >> env/config.env
+          echo "OAUTH2_PROXY_INTERNAL_PORT=4180" >> env/config.env
+          echo "OAUTH2_PROXY_EXTERNAL_PORT=4180" >> env/config.env
+          echo "IAP_NETWORK_NAME=iap-mesh" >> env/config.env
+          echo "INFRA_NETWORK_NAME=infra-mesh" >> env/config.env
+          echo "DOCKER_BIND_IP=127.0.0.1" >> env/config.env
+          echo "SERVICE_TYPE=analytics" >> env/config.env
+          echo "MES_COMERCIAL_DIAS=30" >> env/config.env
+          echo "DATA_SLA_THRESHOLD=2.0" >> env/config.env
 
       - name: Spin up Integration Infrastructure
         run: docker compose --profile iam up -d --wait
