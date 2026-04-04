@@ -104,9 +104,11 @@ def get_use_case():
         DuckDBAnalyticsRepository,
     )
     from application.use_cases.analytics_use_case import AnalyticsUseCase
-    import src.infrastructure.telemetry as telemetry
-    
-    telemetry.init_telemetry(port=8001)
+    try:
+        from infrastructure.telemetry.metrics import init_telemetry
+        init_telemetry(port=8001)
+    except (ImportError, AttributeError):
+        pass
 
     try:
         repo = DuckDBAnalyticsRepository(settings.OUTPUT_FILE)

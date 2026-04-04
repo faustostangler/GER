@@ -18,6 +18,14 @@ def seed_test_database():
         "entidade_especialidade_descricao": ["Cardiologia", "Ortopedia"],
         "dataSolicitacao": ["2026-04-01T10:00:00Z", "2026-04-02T10:00:00Z"],
         "dataCadastro": ["2026-04-01T09:00:00Z", "2026-04-02T09:00:00Z"],
+        # --- COLUNAS ANTECIPADAS PARA O DUCKDB / UI ---
+        "situacao": ["PENDENTE", "AGENDADO"],
+        "idade": [45, 60],
+        "municipio_residencia": ["Porto Alegre", "Canoas"],
+        "origem": ["UBS A", "UBS B"],
+        "sexo": ["M", "F"],
+        "lead_time": [10, 25],
+        "entidade_especialidade_especialidadeMae_descricao": ["Clínica Médica", "Cirurgia"]
     })
     
     # Salva no disco de forma determinística
