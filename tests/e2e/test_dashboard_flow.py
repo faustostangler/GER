@@ -25,7 +25,13 @@ def seed_test_database():
         "origem": ["UBS A", "UBS B"],
         "sexo": ["M", "F"],
         "lead_time": [10, 25],
-        "entidade_especialidade_especialidadeMae_descricao": ["Clínica Médica", "Cirurgia"]
+        "entidade_especialidade_especialidadeMae_descricao": ["Clínica Médica", "Cirurgia"],
+        "medicoSolicitante": ["Dr. João SRE", "Dra. Maria DevOps"],
+        "paciente_nome": ["John Doe", "Jane Doe"],
+        "cpf": ["111.111.111-11", "222.222.222-22"],
+        "unidade_solicitante": ["UBS Centro", "UBS Norte"],
+        "entidade_cidPrincipal_descricao": ["Hipertensão", "Fratura"],
+        "origem_lista": ["Fila A", "Fila B"]
     })
     
     # Salva no disco de forma determinística
