@@ -2,47 +2,8 @@ import os
 import subprocess
 import pytest
 import requests
-import pandas as pd
 from tenacity import retry, wait_fixed, stop_after_attempt
 from playwright.sync_api import Page, expect
-
-@pytest.fixture(scope="module", autouse=True)
-def seed_test_database():
-    """Gera um arquivo Parquet válido para o Streamlit consumir no E2E."""
-    test_file = "gercon_consolidado.parquet"
-    
-    # Criação do DataFrame mínimo que satisfaz o Data Contract do DuckDB
-    df = pd.DataFrame({
-        "numeroCMCE": ["E2E-001", "E2E-002"],
-        "entidade_classificacaoRisco_cor": ["VERMELHO", "AMARELO"],
-        "entidade_especialidade_descricao": ["Cardiologia", "Ortopedia"],
-        "dataSolicitacao": ["2026-04-01T10:00:00Z", "2026-04-02T10:00:00Z"],
-        "dataCadastro": ["2026-04-01T09:00:00Z", "2026-04-02T09:00:00Z"],
-        # --- COLUNAS ANTECIPADAS PARA O DUCKDB / UI ---
-        "situacao": ["PENDENTE", "AGENDADO"],
-        "idade": [45, 60],
-        "municipio_residencia": ["Porto Alegre", "Canoas"],
-        "origem": ["UBS A", "UBS B"],
-        "sexo": ["M", "F"],
-        "lead_time": [10, 25],
-        "entidade_especialidade_especialidadeMae_descricao": ["Clínica Médica", "Cirurgia"],
-        "medicoSolicitante": ["Dr. João SRE", "Dra. Maria DevOps"],
-        "paciente_nome": ["John Doe", "Jane Doe"],
-        "cpf": ["111.111.111-11", "222.222.222-22"],
-        "unidade_solicitante": ["UBS Centro", "UBS Norte"],
-        "entidade_cidPrincipal_descricao": ["Hipertensão", "Fratura"],
-        "origem_lista": ["Fila A", "Fila B"]
-    })
-    
-    # Salva no disco de forma determinística
-    df.to_parquet(test_file)
-    
-    yield # O teste E2E roda aqui e consome o arquivo real
-    
-    # Cleanup: remove o arquivo efêmero após os testes
-    if os.path.exists(test_file):
-        os.remove(test_file)
-
 @retry(wait=wait_fixed(1), stop=stop_after_attempt(15))
 def wait_for_streamlit(url="http://localhost:8509/_stcore/health"):
     try:
