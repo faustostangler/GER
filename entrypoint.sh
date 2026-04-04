@@ -1,5 +1,7 @@
 #!/bin/bash
 set -e
+
+# --- SRE FIX: Força o Linux a usar o Virtual Environment do uv ---
 export PATH="/app/.venv/bin:$PATH"
 
 # 1. Fail-fast: Validação de variáveis via Python/Pydantic
