@@ -129,12 +129,35 @@ jobs:
           echo "OAUTH2_PROXY_JWKS_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/certs" >> env/config.env
           echo "OAUTH2_PROXY_VALIDATE_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/userinfo" >> env/config.env
 
-      # --- SRE FIX 2: Hot-Patching para matar o DNS Hardcoded do código ---
-      - name: 🩹 Patch Hardcoded Redis DNS in Worker
-        run: |
-          if [ -f "src/infrastructure/queue/worker_settings.py" ]; then
-            sed -i 's/ger-redis-queue/redis-queue/g' src/infrastructure/queue/worker_settings.py
-          fi
+          # --- SRE FIX 4: O Arquivo Fantasma do Realm (Prevenção de Bind-Mount) ---
+          mkdir -p infra/identity
+          # Garante que não é um diretório criado acidentalmente por tentativas anteriores
+          rm -rf infra/identity/gercon-realm-export.json
+          
+          # Cria um Realm Mock Mínimo para o Proxy e para os Testes E2E (Playwright)
+          cat <<EOF > infra/identity/gercon-realm-export.json
+          {
+            "realm": "gercon-realm",
+            "enabled": true,
+            "clients": [
+              {
+                "clientId": "gercon-analytics",
+                "secret": "change-me",
+                "enabled": true,
+                "publicClient": false,
+                "redirectUris": ["*"],
+                "directAccessGrantsEnabled": true
+              }
+            ],
+            "users": [
+              {
+                "username": "admin",
+                "enabled": true,
+                "credentials": [{"type": "password", "value": "admin"}]
+              }
+            ]
+          }
+          EOF
 
       # SRE FIX: Garante que o entrypoint seja executável pelo Linux (remove CRLF)
       - name: 🧹 Fix Linux Line Endings

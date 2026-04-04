@@ -1,7 +1,7 @@
-# src/infrastructure/queue/worker_settings.py
+import os
+import asyncio
 from arq import cron
 from arq.connections import RedisSettings
-import asyncio
 
 # SRE FIX: Importe o Job pesado (Scraper Main Pipeline)
 # from src.application.scripts.worker import principal_sync_pipeline -> Ou adapte a injeção do seu worker.py
@@ -39,7 +39,9 @@ class WorkerConfig:
         cron(run_daily_sync, hour=3, minute=0)
     ]
 
-    redis_settings = RedisSettings(host="ger-redis-queue", port=6379)
+    # Lê a variável injetada, se não existir, usa o alias padrão do docker-compose
+    redis_host = os.getenv("REDIS_QUEUE_HOST", "redis-queue")
+    redis_settings = RedisSettings(host=redis_host, port=6379)
     functions = [run_daily_sync]
 
     # Propriedades de resiliência e fail-safe DLQ:

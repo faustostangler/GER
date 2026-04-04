@@ -67,7 +67,7 @@ def mock_analytics_use_case():
                 "Metrica_Cor": [1, 2],
                 "usuarioSUS_bairro": ["Centro", "Bairro"],
                 "usuarioSUS_municipioResidencia_nome": ["SPOA", "Canoas"],
-                "idade_anos_numeric": [45, 60],
+                "entidade_idade_idadeInteiro": [45, 60],
                 "usuarioSUS_sexo_descricao": ["M", "F"],
                 "solicitante_profissional_nome_medico": ["Dr. A", "Dra. B"],
                 "numero_dias_desde_criacao": [10, 20],
