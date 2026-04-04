@@ -38,6 +38,9 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
+      - name: Install Playwright Browsers (Chromium) & OS Dependencies
+        run: uv run playwright install --with-deps chromium
+
       - name: Linter & Formatter (Ruff)
         run: uv run ruff check .
 
