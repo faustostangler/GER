@@ -92,6 +92,10 @@ jobs:
           echo "OAUTH2_PROXY_CLIENT_SECRET=mock-secret" >> env/creds.env
           echo "OAUTH2_PROXY_COOKIE_SECRET=Abcdefghijklmnopqrstuvwxyz0123456789==" >> env/creds.env
           
+          # --- SRE FIX 1: Variáveis Ocultas do Keycloak Quarkus ---
+          echo "KC_DB_USERNAME=postgres" >> env/creds.env
+          echo "KC_DB_PASSWORD=postgres" >> env/creds.env
+
           # 3. SRE FIX: Forçando Identidade Dev e DNS Correto do Redis
           echo "ENVIRONMENT=dev" >> env/creds.env
           echo "PORT=8501" >> env/creds.env
@@ -112,6 +116,13 @@ jobs:
           echo "SERVICE_TYPE=analytics" >> env/config.env
           echo "MES_COMERCIAL_DIAS=30" >> env/config.env
           echo "DATA_SLA_THRESHOLD=2.0" >> env/config.env
+
+      # --- SRE FIX 2: Hot-Patching para matar o DNS Hardcoded do código ---
+      - name: 🩹 Patch Hardcoded Redis DNS in Worker
+        run: |
+          if [ -f "src/infrastructure/queue/worker_settings.py" ]; then
+            sed -i 's/ger-redis-queue/redis-queue/g' src/infrastructure/queue/worker_settings.py
+          fi
 
       # SRE FIX: Garante que o entrypoint seja executável pelo Linux (remove CRLF)
       - name: 🧹 Fix Linux Line Endings
