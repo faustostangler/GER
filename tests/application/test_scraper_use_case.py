@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import MagicMock
 from application.use_cases.scraper_use_case import ScraperUseCase
 from application.use_cases.scraper_interfaces import (
