@@ -89,13 +89,17 @@ jobs:
           echo "POSTGRES_DB=keycloak" >> env/creds.env
           echo "KEYCLOAK_ADMIN=admin" >> env/creds.env
           echo "KEYCLOAK_ADMIN_PASSWORD=admin" >> env/creds.env
-          echo "OAUTH2_PROXY_CLIENT_SECRET=mock-secret" >> env/creds.env
-          echo "OAUTH2_PROXY_COOKIE_SECRET=Abcdefghijklmnopqrstuvwxyz0123456789==" >> env/creds.env
           
           # --- SRE FIX 1: Variáveis Ocultas do Keycloak Quarkus ---
           echo "KC_DB_USERNAME=postgres" >> env/creds.env
           echo "KC_DB_PASSWORD=postgres" >> env/creds.env
 
+          # --- SRE FIX 3: Variáveis Vitais do OAUTH2-PROXY (Segredos) ---
+          # O Cookie Secret precisa ser um base64 de 32 bytes
+          echo "OAUTH2_PROXY_COOKIE_SECRET=MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=" >> env/creds.env
+          echo "OAUTH2_PROXY_CLIENT_ID=gercon-analytics" >> env/creds.env
+          echo "OAUTH2_PROXY_CLIENT_SECRET=change-me" >> env/creds.env
+          
           # 3. SRE FIX: Forçando Identidade Dev e DNS Correto do Redis
           echo "ENVIRONMENT=dev" >> env/creds.env
           echo "PORT=8501" >> env/creds.env
@@ -117,6 +121,14 @@ jobs:
           echo "MES_COMERCIAL_DIAS=30" >> env/config.env
           echo "DATA_SLA_THRESHOLD=2.0" >> env/config.env
 
+          # Variáveis de Split-Horizon DNS (Comunicação do Proxy com o Keycloak no CI)
+          echo "OAUTH2_PROXY_OIDC_ISSUER_URL=http://127.0.0.1.nip.io:8080/realms/gercon-realm" >> env/config.env
+          echo "OAUTH2_PROXY_LOGIN_URL=http://127.0.0.1.nip.io:8080/realms/gercon-realm/protocol/openid-connect/auth" >> env/config.env
+          # URLs Internas (Proxy -> Keycloak direto pela rede do Docker)
+          echo "OAUTH2_PROXY_REDEEM_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/token" >> env/config.env
+          echo "OAUTH2_PROXY_JWKS_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/certs" >> env/config.env
+          echo "OAUTH2_PROXY_VALIDATE_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/userinfo" >> env/config.env
+
       # --- SRE FIX 2: Hot-Patching para matar o DNS Hardcoded do código ---
       - name: 🩹 Patch Hardcoded Redis DNS in Worker
         run: |
@@ -135,12 +147,12 @@ jobs:
       - name: 🚨 SRE Debug - Dump Container Logs
         if: failure()
         run: |
-          echo "=== 🔴 LOGS DO ANALYTICS ==="
-          docker logs ger-ci_analytics-ci || true
           echo "=== 🔴 LOGS DO WORKER ==="
           docker logs ger-ci_arq_worker || true
           echo "=== 🔴 LOGS DO KEYCLOAK ==="
           docker logs ger-ci_keycloak || true
+          echo "=== 🔴 LOGS DO PROXY ==="
+          docker logs ger-ci_proxy || true
           echo "=== 🟡 ESTADO DOS CONTAINERS ==="
           docker ps -a
 
