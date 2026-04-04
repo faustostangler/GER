@@ -59,7 +59,7 @@ jobs:
 
       - name: ⚙️ Setup Mock Environment (.env)
         run: |
-          # 1. Fallbacks base do sistema (Interpolação do Docker Compose)
+          # 1. Fallbacks Vitais para o docker-compose.yml (Sistema)
           touch .env
           echo "COMPOSE_PROJECT_NAME=ger-ci" >> .env
           echo "HEALTHCHECK_RETRIES=3" >> .env
@@ -72,9 +72,14 @@ jobs:
           echo "ANALYTICS_MEM_LIMIT=2G" >> .env
           echo "ANALYTICS_MEM_RESERVATION=512M" >> .env
           echo "RDE_ACCESS_TOKEN=mock-token-ci" >> .env
+          # SRE FIX: Vacinando o Keycloak contra URLs vazias e definindo o DB
+          echo "POSTGRES_DB=keycloak" >> .env
           echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> .env
+          echo "KEYCLOAK_EXTERNAL_PORT=8080" >> .env
+          echo "KEYCLOAK_INTERNAL_PORT=8080" >> .env
+          echo "DOCKER_BIND_IP=127.0.0.1" >> .env
 
-          # 2. SRE FIX: Criação das pastas e arquivos de ambiente (env_file)
+          # 2. Arquivos de Credenciais para DENTRO dos Containers (env_file)
           mkdir -p env
           
           # MOCK: env/creds.env (Segredos)
@@ -87,9 +92,12 @@ jobs:
           echo "OAUTH2_PROXY_CLIENT_SECRET=mock-secret" >> env/creds.env
           echo "OAUTH2_PROXY_COOKIE_SECRET=Abcdefghijklmnopqrstuvwxyz0123456789==" >> env/creds.env
           
-          # SRE FIX: Injeta a configuração vital de Dev e alinha as portas
+          # 3. SRE FIX: Forçando Identidade Dev e DNS Correto do Redis
           echo "ENVIRONMENT=dev" >> env/creds.env
           echo "PORT=8501" >> env/creds.env
+          # O DNS interno do Docker Compose resolve pelo nome do serviço
+          echo "REDIS__HOST=redis-queue" >> env/creds.env
+          echo "REDIS_QUEUE_HOST=redis-queue" >> env/creds.env
 
           # MOCK: env/config.env (Configurações não sensíveis)
           touch env/config.env
@@ -116,10 +124,12 @@ jobs:
       - name: 🚨 SRE Debug - Dump Container Logs
         if: failure()
         run: |
-          echo "=== 🔴 LOGS DO ANALYTICS (CRASH) ==="
-          docker logs ger-ci_analytics-ci
-          echo "=== 🔴 LOGS DO WORKER (CRASH) ==="
-          docker logs ger-ci_arq_worker
+          echo "=== 🔴 LOGS DO ANALYTICS ==="
+          docker logs ger-ci_analytics-ci || true
+          echo "=== 🔴 LOGS DO WORKER ==="
+          docker logs ger-ci_arq_worker || true
+          echo "=== 🔴 LOGS DO KEYCLOAK ==="
+          docker logs ger-ci_keycloak || true
           echo "=== 🟡 ESTADO DOS CONTAINERS ==="
           docker ps -a
 
