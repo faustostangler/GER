@@ -883,7 +883,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Situação Atual",
-            "situacao",
+            "entidade_situacao_descricao",
             clauses,
             curr_where,
             "sit",
@@ -1156,7 +1156,7 @@ def main():
             st.session_state.user,
         )
 
-        # Componente que injeta idade (com Slider Duplo)
+        # Componente que injeta entidade_idade_idadeInteiro (com Slider Duplo)
         curr_where = render_age_slider(
             "Faixa Etária (Idade)", clauses, "f_idade", ui_filters[cat], state_keys[cat]
         )
@@ -1867,7 +1867,7 @@ def main():
                     "entidade_cidPrincipal_codigo",
                     "entidade_cidPrincipal_descricao",
                     "origem_lista",
-                    "situacao",
+                    "entidade_situacao_descricao",
                     "entidade_especialidade_tipoRegulacao",
                     "entidade_especialidade_ativa",
                     "entidade_especialidade_teleconsulta",
@@ -2038,9 +2038,9 @@ def main():
                 UNION ALL
                 SELECT '2. Triado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != ''
                 UNION ALL
-                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND situacao ILIKE '%AGENDADA%'
+                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_situacao_descricao ILIKE '%AGENDADA%'
                 UNION ALL
-                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND (situacao ILIKE '%ATENDIDO%' OR situacao ILIKE '%REALIZADO%')
+                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND (entidade_situacao_descricao ILIKE '%ATENDIDO%' OR entidade_situacao_descricao ILIKE '%REALIZADO%')
             """,
                 filters,
                 st.session_state.user,
@@ -2057,17 +2057,17 @@ def main():
             )
 
         df_sit = use_case.execute_custom_query(
-            f"SELECT situacao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC",
+            f"SELECT entidade_situacao_descricao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC",
             spec=filters,
             current_user=st.session_state.user,
         )
         st.plotly_chart(
             px.bar(
                 df_sit,
-                x="situacao",
+                x="entidade_situacao_descricao",
                 y="Vol",
-                title="situacao Geral da Rede",
-                color="situacao",
+                title="entidade_situacao_descricao Geral da Rede",
+                color="entidade_situacao_descricao",
                 template="plotly_white",
             ),
             width="stretch",
@@ -2358,9 +2358,9 @@ def main():
                 f"""
                 SELECT numeroCMCE, entidade_classificacaoRisco_cor, TRY_CAST(entidade_classificacaoRisco_totalPontos AS INTEGER) as Pontos, 
                     DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) as DiasFila,
-                    situacao, entidade_especialidade_descricao
+                    entidade_situacao_descricao, entidade_especialidade_descricao
                 FROM gercon 
-                WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
+                WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND entidade_situacao_descricao NOT ILIKE '%ENCERRADA%'
                 ORDER BY DiasFila DESC, Pontos DESC
                 LIMIT 3000
             """,
@@ -2433,7 +2433,7 @@ def main():
         df_audit = use_case.execute_custom_query(
             f"""
             SELECT numeroCMCE, CAST(dataSolicitacao AS DATE) as Solicitação, CAST(dataCadastro AS TIMESTAMP) as Data_Evolução, 
-            situacao, entidade_classificacaoRisco_cor as "Risco Cor", historico_quadro_clinico 
+            entidade_situacao_descricao, entidade_classificacaoRisco_cor as "Risco Cor", historico_quadro_clinico 
             FROM gercon WHERE {FINAL_WHERE} ORDER BY dataSolicitacao DESC, dataCadastro DESC LIMIT {limit}
         """,
             filters,
