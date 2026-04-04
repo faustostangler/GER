@@ -134,6 +134,7 @@ temp/
 *.db-wal
 data/
 *.json
+!infra/identity/gercon-realm-export.json
 
 # Profiles and logs
 *.profile
