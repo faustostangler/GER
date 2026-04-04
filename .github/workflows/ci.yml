@@ -57,6 +57,20 @@ jobs:
             exit 1
           fi
 
+      - name: ⚙️ Setup Mock Environment (.env)
+        run: |
+          touch .env
+          echo "HEALTHCHECK_RETRIES=3" >> .env
+          echo "HEALTHCHECK_INTERVAL=30s" >> .env
+          echo "HEALTHCHECK_TIMEOUT=10s" >> .env
+          echo "DOCKER_RESTART_POLICY=no" >> .env
+          echo "DOCKER_LOG_MAX_SIZE=10m" >> .env
+          echo "DOCKER_LOG_MAX_FILE=3" >> .env
+          echo "ANALYTICS_SERVICE_NAME=analytics-ci" >> .env
+          echo "ANALYTICS_MEM_LIMIT=2G" >> .env
+          echo "ANALYTICS_MEM_RESERVATION=512M" >> .env
+          echo "RDE_ACCESS_TOKEN=mock-token-ci" >> .env
+
       - name: Spin up Integration Infrastructure
         run: docker compose --profile iam up -d --wait
 

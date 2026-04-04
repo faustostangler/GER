@@ -3,19 +3,19 @@
 x-logging: &default-logging
   driver: "json-file"
   options:
-    max-size: "${DOCKER_LOG_MAX_SIZE}"
-    max-file: "${DOCKER_LOG_MAX_FILE}"
+    max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+    max-file: "${DOCKER_LOG_MAX_FILE:-3}"
 
 services:
   # Analytics Layer (Presentation BFF & Primary Runtime)
   analytics:
     build: .
-    container_name: ${COMPOSE_PROJECT_NAME}_${ANALYTICS_SERVICE_NAME}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_${ANALYTICS_SERVICE_NAME:-analytics}
     env_file:
       - env/creds.env
       - env/config.env
     environment:
-      - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN}
+      - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN:-}
       - SERVICE_TYPE=analytics
     networks:
       - ger-infra-mesh
@@ -23,25 +23,25 @@ services:
     ports:
       - "6080:6080"   # noVNC Browser Access
       - "50051:50051" # gRPC Service-to-Service
-    restart: ${DOCKER_RESTART_POLICY}
+    restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
     logging: *default-logging
     deploy:
       resources:
         limits:
-          memory: '${ANALYTICS_MEM_LIMIT}'
+          memory: '${ANALYTICS_MEM_LIMIT:-2G}'
         reservations:
-          memory: '${ANALYTICS_MEM_RESERVATION}'
+          memory: '${ANALYTICS_MEM_RESERVATION:-512M}'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
-      interval: ${HEALTHCHECK_INTERVAL}
-      timeout: ${HEALTHCHECK_TIMEOUT}
-      retries: ${HEALTHCHECK_RETRIES}
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-3}
       start_period: 30s
 
   # SRE: Router de Borda Interno para lidar com Redirecionamentos de Root (/) 
   router:
     image: nginx:alpine
-    container_name: ${COMPOSE_PROJECT_NAME}_router
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_router
     networks:
       - ger-infra-mesh
       - iap-mesh
@@ -54,8 +54,8 @@ services:
 
   # --- SRE FIX: Redis Session Store para suportar JWTs gigantes do Keycloak ---
   redis-session:
-    image: ${REDIS_IMAGE_NAME}:${REDIS_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_redis_session
+    image: ${REDIS_IMAGE_NAME:-redis}:${REDIS_IMAGE_VERSION:-7-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_redis_session
     profiles: ["iam"]
     networks:
       - iap-mesh
@@ -63,7 +63,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: '${REDIS_SESSION_MEM_LIMIT}'
+          memory: '${REDIS_SESSION_MEM_LIMIT:-512M}'
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -71,21 +71,21 @@ services:
       retries: 10
 
   oauth2-proxy:
-    image: ${OAUTH2_PROXY_IMAGE_NAME}:${OAUTH2_PROXY_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_proxy
+    image: ${OAUTH2_PROXY_IMAGE_NAME:-quay.io/oauth2-proxy/oauth2-proxy}:${OAUTH2_PROXY_IMAGE_VERSION:-v7.6.0}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_proxy
     profiles: ["iam"]
     ports:
-      - "${DOCKER_BIND_IP}:${OAUTH2_PROXY_EXTERNAL_PORT}:${OAUTH2_PROXY_INTERNAL_PORT}"  
+      - "${DOCKER_BIND_IP:-127.0.0.1}:${OAUTH2_PROXY_EXTERNAL_PORT:-4180}:${OAUTH2_PROXY_INTERNAL_PORT:-4180}"  
     env_file:
       - env/creds.env
       - env/config.env
     environment:
       OAUTH2_PROXY_PROVIDER: "keycloak-oidc"
-      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:${OAUTH2_PROXY_INTERNAL_PORT}"
+      OAUTH2_PROXY_HTTP_ADDRESS: "0.0.0.0:${OAUTH2_PROXY_INTERNAL_PORT:-4180}"
       OAUTH2_PROXY_PASS_ACCESS_TOKEN: "true"
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
       OAUTH2_PROXY_EMAIL_DOMAINS: "*"  # TODO (Day2/Prod): Restringir ao domínio do hospital
-      OAUTH2_PROXY_REDIRECT_URL: "http://${EXTERNAL_DOMAIN}/oauth2/callback"
+      OAUTH2_PROXY_REDIRECT_URL: "http://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}/oauth2/callback"
       # SRE: Compatibilidade com Keycloak defaults
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
@@ -94,7 +94,7 @@ services:
       # foram movidas para o env/config.env para evitar interpolação precoce e permitir o Fix manual.
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
-      OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME}_redis_session:6379"
+      OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME:-ger}_redis_session:6379"
     logging: *default-logging
     depends_on:
       redis-session:
@@ -111,8 +111,8 @@ services:
   # Event Streaming (SOTA Redpanda, Thread-per-core)
   # ----------------------------------------------------
   redpanda-0:
-    image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_event_bus
+    image: docker.redpanda.com/redpandadata/redpanda:${REDPANDA_IMAGE_VERSION:-latest}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_event_bus
     networks:
       - ger-infra-mesh
     ports:
@@ -126,7 +126,7 @@ services:
       - --reserve-memory 0M
       - --overprovisioned
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda-0:9092,external://127.0.0.1.nip.io:19092
+      - --advertise-kafka-addr internal://redpanda-0:9092,external://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}:19092
     logging: *default-logging
     deploy:
       resources:
@@ -142,15 +142,15 @@ services:
   # Async Processing Queue (SOTA Resiliency with Arq)
   # ----------------------------------------------------
   redis-queue:
-    image: ${REDIS_IMAGE_NAME}:${REDIS_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_redis_queue
+    image: ${REDIS_IMAGE_NAME:-redis}:${REDIS_IMAGE_VERSION:-7-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_redis_queue
     networks:
       - ger-infra-mesh
     logging: *default-logging
     deploy:
       resources:
         limits:
-          memory: '${REDIS_QUEUE_MEM_LIMIT}'
+          memory: '${REDIS_QUEUE_MEM_LIMIT:-512M}'
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 2s
@@ -159,12 +159,12 @@ services:
 
   worker:
     build: .
-    container_name: ${COMPOSE_PROJECT_NAME}_arq_worker
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_arq_worker
     env_file:
       - env/creds.env
       - env/config.env
     environment:
-      - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN}
+      - RDE_ACCESS_TOKEN=${RDE_ACCESS_TOKEN:-}
       - SERVICE_TYPE=worker
     networks:
       - ger-infra-mesh
@@ -176,9 +176,9 @@ services:
     deploy:
       resources:
         limits:
-          memory: '${WORKER_MEM_LIMIT}'
+          memory: '${WORKER_MEM_LIMIT:-2G}'
     ports:
-      - "${DOCKER_BIND_IP}:8000:8000"  # SRE: Exposição da telemetria Prometheus
+      - "${DOCKER_BIND_IP:-127.0.0.1}:8000:8000"  # SRE: Exposição da telemetria Prometheus
     labels:
       - "prometheus.io/scrape=true"
       - "prometheus.io/port=8000"
@@ -189,8 +189,8 @@ services:
   # ----------------------------------------------------
   # 1. Banco de Dados do Keycloak (Stateful)
   postgres-keycloak:
-    image: ${POSTGRES_IMAGE_NAME}:${POSTGRES_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_keycloak_db
+    image: ${POSTGRES_IMAGE_NAME:-postgres}:${POSTGRES_IMAGE_VERSION:-16-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_keycloak_db
     profiles: ["iam"]
     env_file:
       - env/creds.env
@@ -203,17 +203,17 @@ services:
     deploy:
       resources:
         limits:
-          memory: '${KEYCLOAK_DB_MEM_LIMIT}'
+          memory: '${KEYCLOAK_DB_MEM_LIMIT:-1G}'
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: ${HEALTHCHECK_INTERVAL}
-      timeout: ${HEALTHCHECK_TIMEOUT}
-      retries: ${HEALTHCHECK_RETRIES}
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-keycloak} -d $${POSTGRES_DB:-keycloak}"]
+      interval: ${HEALTHCHECK_INTERVAL:-30s}
+      timeout: ${HEALTHCHECK_TIMEOUT:-10s}
+      retries: ${HEALTHCHECK_RETRIES:-3}
 
   # 2. Servidor de Identidade (Keycloak)
   keycloak:
-    image: ${KEYCLOAK_IMAGE_NAME}:${KEYCLOAK_IMAGE_VERSION}
-    container_name: ${COMPOSE_PROJECT_NAME}_keycloak
+    image: ${KEYCLOAK_IMAGE_NAME:-quay.io/keycloak/keycloak}:${KEYCLOAK_IMAGE_VERSION:-24.0.2}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_keycloak
     profiles: ["iam"]
     # SRE FIX: Importação declarativa do estado do Realm (IaC)
     command: start-dev --import-realm
@@ -221,19 +221,19 @@ services:
       - env/creds.env
     environment:
       KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://${COMPOSE_PROJECT_NAME}_keycloak_db:5432/${POSTGRES_DB}
+      KC_DB_URL: jdbc:postgresql://${COMPOSE_PROJECT_NAME:-ger}_keycloak_db:5432/${POSTGRES_DB:-keycloak}
       KC_PROXY_HEADERS: xforwarded
       KC_HTTP_ENABLED: "true"
       KC_HEALTH_ENABLED: "true"
       # --- SRE FIX: Edge Identity & Split-Horizon DNS ---
-      KC_HOSTNAME_URL: "http://${EXTERNAL_DOMAIN}:${KEYCLOAK_EXTERNAL_PORT}"
-      KC_HOSTNAME_ADMIN_URL: "http://${EXTERNAL_DOMAIN}:${KEYCLOAK_EXTERNAL_PORT}"
+      KC_HOSTNAME_URL: "http://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}:${KEYCLOAK_EXTERNAL_PORT:-8080}"
+      KC_HOSTNAME_ADMIN_URL: "http://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}:${KEYCLOAK_EXTERNAL_PORT:-8080}"
       KC_HOSTNAME_STRICT_BACKCHANNEL: "false" # Permite que chamadas de backend continuem usando 'http://keycloak'
     volumes:
       - ./infra/identity/gercon-realm-export.json:/opt/keycloak/data/import/realm.json:ro
     ports:
       # SRE: Exposto temporariamente para o setup administrativo
-      - "${DOCKER_BIND_IP}:${KEYCLOAK_EXTERNAL_PORT}:${KEYCLOAK_INTERNAL_PORT}"
+      - "${DOCKER_BIND_IP:-127.0.0.1}:${KEYCLOAK_EXTERNAL_PORT:-8080}:${KEYCLOAK_INTERNAL_PORT:-8080}"
     depends_on:
       postgres-keycloak:
         condition: service_healthy
@@ -245,7 +245,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: '${KEYCLOAK_MEM_LIMIT}'
+          memory: '${KEYCLOAK_MEM_LIMIT:-2G}'
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: 127.0.0.1.nip.io\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 2s
@@ -255,10 +255,10 @@ services:
 
 networks:
   ger-infra-mesh:
-    name: ${COMPOSE_PROJECT_NAME}_${INFRA_NETWORK_NAME}
+    name: ${COMPOSE_PROJECT_NAME:-ger}_${INFRA_NETWORK_NAME:-infra-mesh}
   iap-mesh:
-    name: ${COMPOSE_PROJECT_NAME}_${IAP_NETWORK_NAME}
+    name: ${COMPOSE_PROJECT_NAME:-ger}_${IAP_NETWORK_NAME:-iap-mesh}
 
 volumes:
   keycloak_data:
-    name: ${COMPOSE_PROJECT_NAME}_keycloak_data
+    name: ${COMPOSE_PROJECT_NAME:-ger}_keycloak_data
