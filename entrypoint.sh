@@ -25,8 +25,8 @@ x11vnc -display :1 -forever -nopw -listen 127.0.0.1 -rfbport 5901 &
 # 5. Executa o Processo Principal (Analytics ou Worker)
 if [ "$ROLE" = "analytics" ]; then
     echo "Starting Analytics App..."
-    # SRE FIX: Execução nativa direto do .venv (sem uv run)
-    exec streamlit run app_analytics.py --server.port=8501 --server.address=0.0.0.0 --server.headless=true
+    # SRE FIX: Porta dinâmica (Atende ao Cloud Run e ao LocalHost)
+    exec streamlit run app_analytics.py --server.port="${PORT:-8501}" --server.address=0.0.0.0 --server.headless=true
 elif [ "$ROLE" = "worker" ]; then
     echo "Starting ARQ Worker..."
     # SRE FIX: Execução nativa direto do .venv (sem uv run)

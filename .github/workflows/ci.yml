@@ -249,7 +249,8 @@ jobs:
           env_vars: |
             GIT_SHA=${{ github.sha }}
             SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-            APP__ENVIRONMENT=production
+            APP__ENVIRONMENT=dev
+            ENVIRONMENT=dev
 
       # --- DORA METRIC: Deployment Frequency & Lead Time ---
       - name: Record DORA Deployment Event
