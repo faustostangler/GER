@@ -2078,7 +2078,11 @@ def main():
         st.subheader("Inteligência Clínica & Perfil Demográfico")
         
         import time
-        from infrastructure.telemetry import RENDER_LATENCY, SILENT_ERRORS
+        try:
+            from infrastructure.telemetry.metrics import RENDER_LATENCY, SILENT_ERRORS
+        except ImportError:
+            # Degradação graciosa para ambientes de teste sem telemetria total
+            RENDER_LATENCY, SILENT_ERRORS = None, None
 
         c1, c2 = st.columns(2)
         with c1:

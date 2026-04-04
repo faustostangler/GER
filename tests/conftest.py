@@ -24,24 +24,36 @@ def seed_test_database():
     test_file = "gercon_consolidado.parquet"
     
     df = pd.DataFrame({
+        # Chaves Identificadoras e de Triagem
         "numeroCMCE": ["E2E-001", "E2E-002"],
-        "entidade_classificacaoRisco_cor": ["VERMELHO", "AMARELO"],
-        "entidade_especialidade_descricao": ["Cardiologia", "Ortopedia"],
         "dataSolicitacao": ["2026-04-01T10:00:00Z", "2026-04-02T10:00:00Z"],
         "dataCadastro": ["2026-04-01T09:00:00Z", "2026-04-02T09:00:00Z"],
-        "entidade_situacao_descricao": ["PENDENTE", "AGENDADO"],
+        "entidade_situacao_descricao": ["PENDENTE", "AGENDADA"],
+        "entidade_classificacaoRisco_cor": ["VERMELHO", "AMARELO"],
+        "entidade_classificacaoRisco_totalPontos": [50, 120], # Falta no scatter
+        
+        # Demografia e Rede
+        "usuarioSUS_municipioResidencia_nome": ["Porto Alegre", "Canoas"],
+        "usuarioSUS_bairro": ["Centro", "Mathias Velho"],
+        "usuarioSUS_dataNascimento": ["1980-01-01", "1965-05-15"], # Necessário para date_diff
+        "usuarioSUS_sexo": ["Masculino", "Feminino"],
         "entidade_idade_idadeInteiro": [45, 60],
-        "municipio_residencia": ["Porto Alegre", "Canoas"],
-        "origem": ["UBS A", "UBS B"],
-        "sexo": ["M", "F"],
-        "SLA_Lead_Time_Total_Dias": [10.0, 25.0],
+        
+        # Especialidades e Médicos
+        "entidade_especialidade_descricao": ["Cardiologia", "Ortopedia"],
         "entidade_especialidade_especialidadeMae_descricao": ["Clínica Médica", "Cirurgia"],
         "medicoSolicitante": ["Dr. João SRE", "Dra. Maria DevOps"],
+        "unidade_solicitante": ["UBS Centro", "UBS Norte"],
+        "origem_lista": ["Fila A", "Fila B"],
+        
+        # Diagnóstico e Auditoria
+        "entidade_cidPrincipal_descricao": ["Hipertensão", "Fratura"],
         "paciente_nome": ["John Doe", "Jane Doe"],
         "cpf": ["111.111.111-11", "222.222.222-22"],
-        "unidade_solicitante": ["UBS Centro", "UBS Norte"],
-        "entidade_cidPrincipal_descricao": ["Hipertensão", "Fratura"],
-        "origem_lista": ["Fila A", "Fila B"]
+        "historico_quadro_clinico": ["Paciente relata dor", "Evolução estável"], # Necessário para Tabela
+        
+        # SLAs
+        "SLA_Lead_Time_Total_Dias": [10.0, 25.0]
     })
     
     df.to_parquet(test_file)
