@@ -69,5 +69,8 @@ omit = [
     "src/application/use_cases/interfaces.py",
     "src/application/use_cases/scraper_interfaces.py",
     "src/infrastructure/telemetry/*.py",
-    "src/infrastructure/adapters/playwright_scraper.py"
+    "src/infrastructure/telemetry.py",                # FIX: Raiz da telemetria
+    "src/domain/identity.py",                         # Modelos declarativos/Auth
+    "src/infrastructure/adapters/playwright_scraper.py",
+    "src/infrastructure/repositories/parquet_data_repository.py" # FIX: Pure I/O Bound
 ]

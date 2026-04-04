@@ -62,3 +62,37 @@ def test_scraper_use_case_successful_execution(mock_contract):
     # Verifica o Audit Log (O Sucesso finalmente é atingido!)
     log_call_args = mock_logger.log_execution.call_args[0][0]
     assert log_call_args.status == IngestionStatus.SUCCESS
+
+def test_scraper_use_case_circuit_breaker_and_dlq():
+    """Valida se o Worker lida graciosamente com falhas catastróficas da API (Unhappy Path)."""
+    from unittest.mock import MagicMock
+    from application.use_cases.scraper_use_case import ScraperUseCase
+    from application.use_cases.scraper_interfaces import IScraperClient, IRawDataRepository, IProcessedDataRepository, IIngestionLogRepository
+    from domain.models import IngestionStatus
+
+    # 1. Setup
+    mock_scraper = MagicMock(spec=IScraperClient)
+    mock_sqlite = MagicMock(spec=IRawDataRepository)
+    mock_csv = MagicMock(spec=IProcessedDataRepository)
+    mock_logger = MagicMock(spec=IIngestionLogRepository)
+
+    # 2. Injeta o Veneno (A API vai estourar um Timeout)
+    mock_scraper.login.return_value = True
+    mock_scraper.fetch_batch.side_effect = Exception("API HTTP 504 Gateway Timeout")
+
+    use_case = ScraperUseCase(
+        scraper_client=mock_scraper,
+        raw_repo=mock_sqlite,
+        csv_repo=mock_csv,
+        listas_alvo=[{"chave": "fila_teste", "nome": "Fila Teste"}],
+        page_size=10,
+        ingestion_log=mock_logger
+    )
+
+    # 3. Execução (Não deve estourar exceção para o SO, deve ser contido)
+    use_case.execute_sync()
+
+    # 4. Asserções (O log de ingestão DEVE registrar a falha)
+    log_call_args = mock_logger.log_execution.call_args[0][0]
+    assert log_call_args.status == IngestionStatus.FAILURE
+    assert "API HTTP 504" in log_call_args.error_message
