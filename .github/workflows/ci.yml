@@ -273,6 +273,8 @@ jobs:
             ENVIRONMENT=dev
             APP__ENVIRONMENT=dev
             OUTPUT_FILE=/app/data/gercon_consolidado.parquet
+            ROLE=analytics
+            SERVICE_TYPE=analytics
 
       # --- DORA METRIC: Deployment Frequency & Lead Time ---
       - name: Record DORA Deployment Event
