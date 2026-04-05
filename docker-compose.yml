@@ -23,6 +23,9 @@ services:
     ports:
       - "6080:6080"   # noVNC Browser Access
       - "50051:50051" # gRPC Service-to-Service
+    volumes:
+      - ./gercon_raw_data.db:/app/gercon_raw_data.db
+      - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
     logging: *default-logging
     deploy:
@@ -32,7 +35,7 @@ services:
         reservations:
           memory: '${ANALYTICS_MEM_RESERVATION:-512M}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8501/dashboard/_stcore/health"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
       retries: ${HEALTHCHECK_RETRIES:-3}
@@ -172,6 +175,9 @@ services:
       - ROLE=worker
     networks:
       - ger-infra-mesh
+    volumes:
+      - ./gercon_raw_data.db:/app/gercon_raw_data.db
+      - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     depends_on:
       redis-queue:
         condition: service_healthy
