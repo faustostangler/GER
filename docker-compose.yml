@@ -32,7 +32,7 @@ services:
         reservations:
           memory: '${ANALYTICS_MEM_RESERVATION:-512M}'
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8501/dashboard/_stcore/health"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
       retries: ${HEALTHCHECK_RETRIES:-3}

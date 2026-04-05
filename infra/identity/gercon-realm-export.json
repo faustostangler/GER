@@ -666,7 +666,7 @@
       "enabled": true,
       "alwaysDisplayInConsole": false,
       "clientAuthenticatorType": "client-secret",
-      "secret": "**********",
+      "secret": "CF2SK7q8eQz2mquM961NZQw0AZe6mFqK",
       "redirectUris": [
         "http://127.0.0.1.nip.io/*"
       ],
