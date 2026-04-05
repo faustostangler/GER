@@ -31,7 +31,9 @@ if [ "$ROLE" = "analytics" ]; then
          --server.port="${PORT:-8501}" \
          --server.address=0.0.0.0 \
          --server.headless=true \
-         --server.baseUrlPath="/dashboard"
+         --server.baseUrlPath="/dashboard" \
+         --server.enableCORS=false \
+         --server.enableXsrfProtection=false
 elif [ "$ROLE" = "worker" ]; then
     echo "Starting ARQ Worker..."
     # SRE FIX: Execução nativa direto do .venv (sem uv run)

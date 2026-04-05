@@ -244,7 +244,7 @@ services:
     networks:
       iap-mesh:
         aliases:
-          - 127.0.0.1.nip.io # SRE: Hack de DNS Interno para o Proxy achar o IdP
+          - iam.127.0.0.1.nip.io # SRE: Hack de DNS Interno para Analytics e Proxy acharem o IdP
     logging: *default-logging
     deploy:
       resources:
