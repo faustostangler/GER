@@ -705,6 +705,7 @@
             "id.token.claim": "true",
             "lightweight.claim": "false",
             "introspection.token.claim": "true",
+            "included.custom.audience": "gercon-analytics",
             "access.token.claim": "true",
             "userinfo.token.claim": "true"
           }
