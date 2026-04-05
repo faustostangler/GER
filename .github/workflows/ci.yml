@@ -129,6 +129,10 @@ jobs:
           echo "OAUTH2_PROXY_JWKS_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/certs" >> env/config.env
           echo "OAUTH2_PROXY_VALIDATE_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/userinfo" >> env/config.env
 
+          # MOCK: Volumes locais vazios para evitar falhas do Docker daemon criar diretórios
+          touch gercon_raw_data.db
+          touch gercon_consolidado.parquet
+          
           # --- SRE FIX 4: O Arquivo Fantasma do Realm (Prevenção de Bind-Mount) ---
           mkdir -p infra/identity
           # Garante que não é um diretório criado acidentalmente por tentativas anteriores
@@ -212,10 +216,10 @@ jobs:
         with:
           credentials_json: '${{ secrets.GCP_CREDENTIALS }}'
 
+      # MUDANÇA 1: Aponta o Docker para os EUA
       - name: Configure Docker for GCP
-        run: gcloud auth configure-docker southamerica-east1-docker.pkg.dev --quiet
+        run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-      # DORA: Record deploy start time for Lead Time calculation
       - name: Record Deploy Metadata
         id: deploy_meta
         run: |
@@ -224,7 +228,8 @@ jobs:
 
       - name: Build and Push Docker Image
         env:
-          REGISTRY: southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo
+          # MUDANÇA 2: Registo da Imagem nos EUA
+          REGISTRY: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo
           IMAGE_NAME: gercon-analytics
           IMAGE_TAG: ${{ github.sha }}
         run: |
@@ -243,14 +248,22 @@ jobs:
         uses: google-github-actions/deploy-cloudrun@v2
         with:
           service: gercon-analytics
-          image: southamerica-east1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo/gercon-analytics:${{ github.sha }}
-          region: southamerica-east1
-          flags: '--allow-unauthenticated'
+          # MUDANÇA 3: Imagem e Região nos EUA
+          image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo/gercon-analytics:${{ github.sha }}
+          region: us-central1
+          # MUDANÇA 4: Configuração Gen2 e Montagem do Bucket
+          flags: >-
+            --allow-unauthenticated
+            --execution-environment=gen2
+            --add-volume=name=datalake,type=cloud-storage,bucket=gercon-data-lake-prod-1030926202193
+            --add-volume-mount=volume=datalake,mount-path=/app/data
+          # MUDANÇA 5: Aponta o código para o disco virtual e usa ambiente 'dev'
           env_vars: |
             GIT_SHA=${{ github.sha }}
             SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-            APP__ENVIRONMENT=dev
             ENVIRONMENT=dev
+            APP__ENVIRONMENT=dev
+            OUTPUT_FILE=/app/data/gercon_consolidado.parquet
 
       # --- DORA METRIC: Deployment Frequency & Lead Time ---
       - name: Record DORA Deployment Event
@@ -291,7 +304,7 @@ jobs:
             "change_failure_rate": 0.0,
             "environment": "production",
             "service": "gercon-analytics",
-            "region": "southamerica-east1"
+            "region": "us-central1"
           }
           EOF
           

@@ -676,21 +676,25 @@ def main():
     st.cache_data.clear()
 
     # SRE Loop: Mitigação de WebSocket Staleness via Re-Handshake (com 60s de Leeway)
+    # SRE FIX: O OAuth2-Proxy (IAP) realiza renovação silenciosa de tokens no background via Redis.
+    # A expiração do claim `exp` do JWT injetado no header HTTP inicial (no momento da abertura do WebSocket)
+    # não reflete o estado real da sessão ativa no IAP.
+    # Foi removido o `st.stop()` para evitar que interações legítimas com os gráficos sejam bloqueadas a cada 4 minutos.
     import time
     import streamlit.components.v1 as components
 
     if "token_exp" in st.session_state and time.time() > (
         st.session_state.token_exp - 60
     ):
-        st.warning(
-            "🔄 Sua sessão segura foi renovada no background. Clique abaixo para sincronizar o túnel Proxy."
+        st.info(
+            "⏳ O seu token inicial atingiu o tempo nominal, mas o túnel seguro gerencia a renovação."
         )
-        # TODO(UX/SRE): Sincronizar FilterCriteria com st.query_params antes do reload
-        if st.button("Sincronizar Sessão", type="primary"):
+        
+        # Apenas disponibiliza o botão caso o usuário venha a ter problemas reais de cache/dessincronização, mas NÃO paralisa a aplicação.
+        if st.button("Sincronizar Sessão Opcionalmente", type="secondary"):
             components.html(
                 "<script>window.parent.location.reload();</script>", height=0, width=0
             )
-        st.stop()  # Mata a execução do Python imediatamente. Previne vazamento de dados via token vencido.
 
     if "user" not in st.session_state:
         try:
@@ -1856,44 +1860,43 @@ def main():
         # Dividimos a tela para os dois controles do usuário
         c_hier, c_metric = st.columns([0.7, 0.3])
 
+        # Dicionário de tradução SRE UX para humanos
+        MAPA_NOMES_HUMANOS = {
+            "entidade_especialidade_especialidadeMae_descricao": "Especialidade Mãe",
+            "entidade_especialidade_descricao": "Especialidade",
+            "entidade_especialidade_cbo_descricao": "CBO Especialidade",
+            "entidade_cidPrincipal_codigo": "CID Principal (Código)",
+            "entidade_cidPrincipal_descricao": "CID Principal (Descrição)",
+            "origem_lista": "Origem da Lista",
+            "entidade_situacao_descricao": "Situação",
+            "entidade_especialidade_tipoRegulacao": "Tipo de Regulação",
+            "entidade_especialidade_ativa": "Especialidade Ativa",
+            "entidade_especialidade_teleconsulta": "Teleconsulta",
+            "entidade_centralRegulacao_nome": "Central de Regulação",
+            "entidade_unidadeOperador_centralRegulacao_nome": "Central de Regulação do Operador",
+            "Ordem Judicial": "Ordem Judicial",
+            "entidade_unidadeOperador_nome": "Unidade Operadora",
+            "entidade_unidadeOperador_razaoSocial": "Razão Social Operadora",
+            "entidade_unidadeOperador_tipoUnidade_descricao": "Tipo de Unidade Operadora",
+            "medicoSolicitante": "Médico Solicitante",
+            "operador_nome": "Operador",
+            "usuarioSolicitante_nome": "Usuário Solicitante",
+            "evolucoes_json": "Evoluções (JSON)",
+            "historico_evolucoes_completo": "Histórico de Evoluções",
+            "entidade_complexidade": "Complexidade",
+            "entidade_classificacaoRisco_cor": "Classificação de Risco (Cor)",
+            "corRegulador": "Cor do Regulador",
+            "usuarioSUS_municipioResidencia_nome": "Município de Residência",
+            "usuarioSUS_bairro": "Bairro",
+            "usuarioSUS_sexo": "Sexo",
+            "usuarioSUS_racaCor": "Raça/Cor",
+            "usuarioSUS_nacionalidade": "Nacionalidade",
+        }
+
         with c_hier:
             niveis_sunburst = st.multiselect(
                 "Selecione a Hierarquia de Dados (Máx: 5 níveis):",
-                options=[
-                    # --- Clínico & Regulação ---
-                    "entidade_especialidade_especialidadeMae_descricao",
-                    "entidade_especialidade_descricao",
-                    "entidade_especialidade_cbo_descricao",
-                    "entidade_cidPrincipal_codigo",
-                    "entidade_cidPrincipal_descricao",
-                    "origem_lista",
-                    "entidade_situacao_descricao",
-                    "entidade_especialidade_tipoRegulacao",
-                    "entidade_especialidade_ativa",
-                    "entidade_especialidade_teleconsulta",
-                    "entidade_centralRegulacao_nome",
-                    "entidade_unidadeOperador_centralRegulacao_nome",
-                    # --- Governança & Atores ---
-                    "Ordem Judicial",
-                    "entidade_unidadeOperador_nome",
-                    "entidade_unidadeOperador_razaoSocial",
-                    "entidade_unidadeOperador_tipoUnidade_descricao",
-                    "medicoSolicitante",
-                    "operador_nome",
-                    "usuarioSolicitante_nome",
-                    "evolucoes_json",
-                    "historico_evolucoes_completo",
-                    # --- Triagem & entidade_classificacaoRisco_totalPontos ---
-                    "entidade_complexidade",
-                    "entidade_classificacaoRisco_cor",
-                    "corRegulador",
-                    # --- Demografia & Rede ---
-                    "usuarioSUS_municipioResidencia_nome",
-                    "usuarioSUS_bairro",
-                    "usuarioSUS_sexo",
-                    "usuarioSUS_racaCor",
-                    "usuarioSUS_nacionalidade",
-                ],
+                options=list(MAPA_NOMES_HUMANOS.keys()),
                 default=[
                     "entidade_especialidade_especialidadeMae_descricao",
                     "entidade_especialidade_descricao",
@@ -1901,6 +1904,7 @@ def main():
                 ],
                 max_selections=5,
                 help="Arraste e solte as tags para reordenar o funil (path) do gráfico.",
+                format_func=lambda x: MAPA_NOMES_HUMANOS.get(x, x),
             )
 
         with c_metric:
@@ -1983,7 +1987,7 @@ def main():
                     color="Metrica_Cor",
                     color_continuous_scale=paleta,
                     title=f"Análise Bivariada: Tamanho (Carga) vs Cor ({nome_metrica})",
-                    labels={"Vol": "Pacientes", "Metrica_Cor": nome_metrica},
+                    labels={"Vol": "Pacientes", "Metrica_Cor": nome_metrica, **MAPA_NOMES_HUMANOS},
                 )
 
                 # SRE UX: Injeta dinamicamente a unidade correta (dias, pts ou anos) e remove bordas
