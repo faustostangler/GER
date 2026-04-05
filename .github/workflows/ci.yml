@@ -78,6 +78,12 @@ jobs:
           echo "KEYCLOAK_EXTERNAL_PORT=8080" >> .env
           echo "KEYCLOAK_INTERNAL_PORT=8080" >> .env
           echo "DOCKER_BIND_IP=127.0.0.1" >> .env
+          # SRE FIX 5: Variáveis de Identidade do Keycloak (KC_HOSTNAME_URL)
+          # Sem estas, docker-compose interpola KC_HOSTNAME_URL como "://:8080" → Keycloak exit(1)
+          echo "PROTOCOL=http" >> .env
+          echo "PROJECT_DOMAIN=127.0.0.1.nip.io" >> .env
+          echo "IAM_SUBDOMAIN=iam.127.0.0.1.nip.io" >> .env
+          echo "KEYCLOAK_REALM=gercon-realm" >> .env
 
           # 2. Arquivos de Credenciais para DENTRO dos Containers (env_file)
           mkdir -p env
@@ -112,8 +118,11 @@ jobs:
           echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> env/config.env
           echo "KEYCLOAK_EXTERNAL_PORT=8080" >> env/config.env
           echo "KEYCLOAK_INTERNAL_PORT=8080" >> env/config.env
+          echo "KEYCLOAK_REALM=gercon-realm" >> env/config.env
           echo "OAUTH2_PROXY_INTERNAL_PORT=4180" >> env/config.env
           echo "OAUTH2_PROXY_EXTERNAL_PORT=4180" >> env/config.env
+          echo "OAUTH2_PROXY_UPSTREAMS=http://router:80" >> env/config.env
+          echo "OAUTH2_PROXY_COOKIE_SECURE=false" >> env/config.env
           echo "IAP_NETWORK_NAME=iap-mesh" >> env/config.env
           echo "INFRA_NETWORK_NAME=infra-mesh" >> env/config.env
           echo "DOCKER_BIND_IP=127.0.0.1" >> env/config.env
