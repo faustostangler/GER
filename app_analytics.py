@@ -701,12 +701,16 @@ def get_authenticated_user():
         return mock_user, "mock-jwt-token"
 
     # Prod Flow: Extração do Header injetado pelo OAuth2-Proxy (Streamlit 1.37+)
-    auth_header = st.context.headers.get("X-Forwarded-Access-Token")
+    # SRE: Tenta múltiplas variantes de cabeçalho comuns entre diferentes proxys/configurações
+    auth_header = (
+        st.context.headers.get("x-forwarded-access-token") or 
+        st.context.headers.get("x-auth-request-access-token") or
+        st.context.headers.get("authorization", "").replace("Bearer ", "")
+    )
+    
     if not auth_header:
-        st.error(
-            "🚨 Acesso Bloqueado: IAP Proxy não detectado. Contate o administrador do Cluster (Zero Trust)."
-        )
-        st.stop()
+        # Se vazio em prod, levanta exceção para ser capturada pelo loop de Login
+        raise ValueError("Missing Authentication Headers (IAP Proxy)")
 
     from infrastructure.auth.jwt_validator import verify_token
 
@@ -743,21 +747,25 @@ def _render_user_widget(user) -> None:
 
     st.sidebar.markdown(
         f"""
-        <div style="padding: 10px 0 4px 0; margin-bottom: 4px;">
-            <div style="font-size: 0.82rem; color: #94a3b8; font-weight: 400;">
-                {'<span style="color:#f59e0b;">&#128295; DEV MODE &nbsp;</span>' if is_dev else ''}
-                &#128100; <b style="color: #e2e8f0;">{display_name}</b>
-                <span style="color:#64748b;"> &mdash; {role_label}</span>
-            </div>
-            <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">{session_caption}</div>
+        <div style="margin-bottom: 12px; margin-top: 10px;">
+            <a href="{logout_url}" target="_self" style="
+                display: block;
+                text-align: center;
+                background-color: transparent;
+                color: #ef4444;
+                text-decoration: none;
+                padding: 6px 12px;
+                border-radius: 6px;
+                font-weight: 500;
+                font-size: 0.9rem;
+                border: 1px solid #ef4444;
+                transition: all 0.2s ease-in-out;
+            " onmouseover="this.style.background='#ef4444'; this.style.color='white';" onmouseout="this.style.background='transparent'; this.style.color='#ef4444';">
+                🚨 Logout &mdash; {display_name}
+            </a>
         </div>
         """,
         unsafe_allow_html=True,
-    )
-    st.sidebar.link_button(
-        label=f"🚨 Logout &mdash; {display_name}",
-        url=logout_url,
-        use_container_width=True,
     )
     st.sidebar.divider()
 
@@ -807,16 +815,46 @@ def main():
             st.session_state.token_exp = (
                 user_domain.exp if user_domain.exp else (time.time() + 86400)
             )
+            # Força o rerun já com a sessão populada para injetar o CSS e carregar o app
+            st.rerun()
         except Exception as _auth_err:
             # Falha real de autenticação (ex: header IAP ausente, token inválido)
+            # URL de Início Real do Proxy para forçar redirecionamento ao Keycloak
+            login_url = "/oauth2/start?rd=/dashboard/"
+            
             st.error(
                 "🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade."
             )
-            st.link_button(
-                "🔑 Fazer Login",
-                "/dashboard/",
-                type="primary",
+            
+            # WHY: st.link_button abre em nova janela. HTML <a> com target="_self" abre na mesma.
+            st.markdown(
+                f"""
+                <div style="display: flex; justify-content: center; margin-top: 20px;">
+                    <a href="{login_url}" target="_self" style="
+                        background-color: #ef4444;
+                        color: white;
+                        text-decoration: none;
+                        padding: 12px 32px;
+                        border-radius: 12px;
+                        font-weight: 600;
+                        font-size: 1.1rem;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                        border: 2px solid #ef4444;
+                    " onmouseover="this.style.background='#dc2626'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#ef4444'; this.style.transform='translateY(0)';">
+                        🔑 Realizar Login (Keycloak)
+                    </a>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
+            
+            # Debug (Opcional): Remova em prod se não quiser expor headers
+            if os.getenv("APP__DEBUG", "false").lower() == "true":
+                with st.expander("🛠️ Debug Identity (Headers detectados)"):
+                    st.write("Headers detectados via st.context.headers:")
+                    st.json({k: v for k, v in st.context.headers.items() if k.lower().startswith("x-")})
+                    
             st.stop()
 
     inject_custom_css()
