@@ -1532,62 +1532,16 @@ def main():
         )
 
         st.markdown("---")
-        # Motivo Pendência — extrai 4 campos do JSON via DuckDB json_extract_string
-        # WHY: get_dynamic_options("{expr}") envolve o argumento com aspas duplas,
-        # tornando a expressão SQL inválida. A query é feita diretamente no use_case.
-        st.write(
-            "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>📦 Motivo Pendência</span>",
-            unsafe_allow_html=True,
+        curr_where = render_include_exclude(
+            "Motivo Pendência",
+            "motivoPendencia",
+            clauses,
+            curr_where,
+            "mot_pend",
+            ui_filters[cat],
+            state_keys[cat],
+            st.session_state.user,
         )
-        _pend_fields = [
-            ("Tipo",       "json_extract_string(\"motivoPendencia\", '$.tipo')",       "mot_pend_tipo"),
-            ("Motivo",     "json_extract_string(\"motivoPendencia\", '$.motivo')",     "mot_pend_mot"),
-            ("Descrição", "json_extract_string(\"motivoPendencia\", '$.descricao')",  "mot_pend_desc"),
-            ("Status",     "json_extract_string(\"motivoPendencia\", '$.status')",     "mot_pend_sta"),
-        ]
-        _where_for_pend = curr_where if curr_where.strip() else "1=1"
-        _uc = get_use_case()
-        for _pf_label, _pf_expr, _pf_key in _pend_fields:
-            try:
-                _pf_sql = (
-                    f"SELECT DISTINCT {_pf_expr} AS val "
-                    f"FROM gercon "
-                    f"WHERE {_where_for_pend} "
-                    f"AND {_pf_expr} IS NOT NULL "
-                    f"AND {_pf_expr} != '' "
-                    f"ORDER BY 1"
-                )
-                _pf_raw = _uc.execute_custom_query(
-                    _pf_sql, None, st.session_state.user
-                )
-                _pf_opts = _pf_raw["val"].dropna().tolist() if not _pf_raw.empty else []
-            except Exception:
-                _pf_opts = []
-
-            if not _pf_opts:
-                continue
-
-            state_keys[cat].extend([f"{_pf_key}_in", f"{_pf_key}_ex"])
-            st.caption(_pf_label)
-            _pf_c1, _pf_c2 = st.columns(2)
-            _pf_incl = _pf_c1.multiselect(
-                f"{_pf_label} ✅", sorted(set(str(o) for o in _pf_opts)),
-                key=f"{_pf_key}_in", label_visibility="collapsed", placeholder="✅ Incluir..."
-            )
-            _pf_excl = _pf_c2.multiselect(
-                f"{_pf_label} ❌", sorted(set(str(o) for o in _pf_opts)),
-                key=f"{_pf_key}_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
-            )
-            if _pf_incl:
-                _pf_safe = "', '".join(v.replace("'", "''") for v in _pf_incl)
-                clauses.append(f"{_pf_expr} IN ('{_pf_safe}')")
-                ui_filters[cat].append({"text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}", "keys": [f"{_pf_key}_in"]})
-                curr_where = " AND ".join(clauses)
-            if _pf_excl:
-                _pf_safe_ex = "', '".join(v.replace("'", "''") for v in _pf_excl)
-                clauses.append(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
-                ui_filters[cat].append({"text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}", "keys": [f"{_pf_key}_ex"]})
-                curr_where = " AND ".join(clauses)
 
         st.markdown("---")
         curr_where = render_include_exclude(
