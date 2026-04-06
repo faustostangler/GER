@@ -15,7 +15,8 @@ def wait_for_streamlit(url="http://localhost:8509/_stcore/health"):
 @pytest.fixture(scope="module")
 def streamlit_server():
     env = os.environ.copy()
-    env["ENVIRONMENT"] = "dev"  # Bypass IAP Proxy
+    env["ENVIRONMENT"] = "dev"             # Bypass IAP Proxy (1/2)
+    env["ALLOW_UNAUTHENTICATED_DEV"] = "true"  # Bypass IAP Proxy (2/2) — guarda dupla
     env["PYTHONPATH"] = "src"
     
     # Start the Streamlit application in a background process
