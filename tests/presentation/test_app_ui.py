@@ -1,23 +1,15 @@
 import pytest
 import os
+import tempfile
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
 from domain.models import AnalyticKPIs
-from infrastructure.config import settings
 
 # SRE FIX: Localiza a raiz do projeto absoltamente (2 níveis acima de tests/presentation/)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 APP_PATH = str(BASE_DIR / "app_analytics.py")
 
-# Salvar referência para não quebrar módulos internos do python
-original_exists = os.path.exists
-
-def mock_exists_side_effect(path):
-    # Se for a base duckdb que o analytics exige
-    if str(path) == str(settings.OUTPUT_FILE):
-        return True
-    return original_exists(path)
 
 @pytest.fixture
 def mock_analytics_use_case():
@@ -26,7 +18,7 @@ def mock_analytics_use_case():
         instance = MagicMock()
         instance.get_global_bounds.return_value = (1, 100)
         instance.get_dynamic_options.return_value = ["Opção A", "Opção B"]
-        
+
         mock_kpis = AnalyticKPIs(
             pacientes=100,
             eventos=500,
@@ -46,12 +38,9 @@ def mock_analytics_use_case():
 
         def mock_execute_custom_query(query, spec, current_user, **kwargs):
             import pandas as pd
-            # SRE: query is available if needed for complex mocks
-            
-            # Base fat dataframe
             df_base = {
                 "Categoria": ["A", "B"],
-                "Vol": [10, 20], 
+                "Vol": [10, 20],
                 "entidade_classificacaoRisco_cor": ["VERMELHO", "VERDE"],
                 "Etapa": ["1. Solicitado", "2. Triado"],
                 "entidade_situacao_descricao": ["AGENDADA", "ATENDIDO"],
@@ -90,45 +79,72 @@ def mock_analytics_use_case():
                 "numeroCMCE": [1001, 1002]
             }
             return pd.DataFrame(df_base)
-            
+
         instance.execute_custom_query.side_effect = mock_execute_custom_query
         instance.get_executive_summary.return_value = mock_kpis
         mock_use_case_class.return_value = instance
         yield instance
+
 
 @pytest.fixture
 def mock_duckdb_repo():
     with patch("infrastructure.repositories.duckdb_repository.DuckDBAnalyticsRepository") as mock_db:
         yield mock_db
 
-@patch("os.path.exists", side_effect=mock_exists_side_effect)
-def test_app_ui_loads_and_updates_state(mock_exists, mock_duckdb_repo, mock_analytics_use_case):
-    # 1. Instanciando a Simulação Streamlit (Humble Object)
-    # Bypass do IAP Proxy pelo fluxo de "dev"
-    with patch.dict("os.environ", {"ENVIRONMENT": "dev", "ALLOW_UNAUTHENTICATED_DEV": "true"}):
-        # SRE FIX: Use path absoluto para evitar quebra no sandbox do mutmut
-        at = AppTest.from_file(APP_PATH).run(timeout=10)
-    
-        if at.exception:
-            pytest.fail(f"Streamlit AppTest Exception: {at.exception}")
 
-        # 2. Verificar se a tela inicial e o Título carregaram corretamente (invariantes visuais)
-        assert len(at.title) > 0, "Nenhum título foi renderizado"
-        assert "🎯 Gercon SRE | Advanced Root Cause Analysis" in at.title[0].value
-        
-        # 3. Simular interação com a aplicação e verificar mutação do estado de Tracker SRE
-        if len(at.toggle) > 0:
-            first_toggle = at.toggle[0]
-            first_toggle.set_value(True).run()
-            assert not at.exception
+def test_app_ui_loads_and_updates_state(mock_duckdb_repo, mock_analytics_use_case):
+    """
+    Humble Object Test: valida que a camada de apresentação renderiza corretamente.
 
-        if len(at.button) > 0:
-            clear_all_button = None
-            for idx, b in enumerate(at.button):
-                if "Limpar Todos os Filtros" in getattr(b, "label", getattr(b, "value", "")):
-                    clear_all_button = at.button[idx]
-                    break
-            
-            if clear_all_button:
-                clear_all_button.click().run()
+    WHY — Estratégia de isolamento via os.environ, não via @patch:
+    O @patch("os.path.exists") não propaga para dentro do contexto exec() do AppTest
+    (que roda em thread separada do Streamlit). Em vez disso, criamos um arquivo .parquet
+    real em /tmp e apontamos OUTPUT_FILE para ele via os.environ — que SIM é visível na
+    thread do AppTest pois patch.dict modifica o dict os.environ compartilhado em memória.
+    O mesmo princípio se aplica ao bypass de autenticação: ALLOW_UNAUTHENTICATED_DEV
+    é o segundo fator obrigatório da guarda dupla em _is_dev_mock_allowed().
+    """
+    import pandas as pd
+
+    # Cria um arquivo parquet mínimo válido para satisfazer os.path.exists no app
+    with tempfile.NamedTemporaryFile(suffix=".parquet", delete=False) as tmp:
+        tmp_parquet_path = tmp.name
+    pd.DataFrame({"col": [1, 2]}).to_parquet(tmp_parquet_path, index=False)
+
+    try:
+        env_overrides = {
+            "ENVIRONMENT": "dev",
+            "ALLOW_UNAUTHENTICATED_DEV": "true",  # Guarda dupla IAP: 2º fator de bypass
+            "OUTPUT_FILE": tmp_parquet_path,       # Parquet real em /tmp (visível na thread)
+        }
+        with patch.dict("os.environ", env_overrides):
+            # SRE FIX: Use path absoluto para evitar quebra no sandbox do mutmut
+            at = AppTest.from_file(APP_PATH).run(timeout=10)
+
+            if at.exception:
+                pytest.fail(f"Streamlit AppTest Exception: {at.exception}")
+
+            # 2. Verificar se a tela inicial e o Título carregaram corretamente
+            assert len(at.title) > 0, "Nenhum título foi renderizado"
+            assert "🎯 Gercon SRE | Advanced Root Cause Analysis" in at.title[0].value
+
+            # 3. Simular interação com a aplicação e verificar mutação do estado de Tracker SRE
+            if len(at.toggle) > 0:
+                first_toggle = at.toggle[0]
+                first_toggle.set_value(True).run()
                 assert not at.exception
+
+            if len(at.button) > 0:
+                clear_all_button = None
+                for idx, b in enumerate(at.button):
+                    if "Limpar Todos os Filtros" in getattr(b, "label", getattr(b, "value", "")):
+                        clear_all_button = at.button[idx]
+                        break
+
+                if clear_all_button:
+                    clear_all_button.click().run()
+                    assert not at.exception
+    finally:
+        # Limpeza: remove o parquet temporário do /tmp após o teste
+        if os.path.exists(tmp_parquet_path):
+            os.unlink(tmp_parquet_path)
