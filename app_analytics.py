@@ -442,8 +442,10 @@ def render_age_slider(
                 "keys": [f"{key}_sld", f"{key}_min", f"{key}_max"],
             }
         )
+        # SRE FIX: Usa a coluna pré-calculada entidade_idade_idadeInteiro do Parquet
+        # WHY: DATEDIFF calculado em runtime é mais lento e não aproveita o valor já consolidado.
         clauses.append(
-            f"date_diff('year', TRY_CAST(usuarioSUS_dataNascimento AS DATE), CURRENT_DATE) BETWEEN {val[0]} AND {val[1]}"
+            f'TRY_CAST("entidade_idade_idadeInteiro" AS INTEGER) BETWEEN {val[0]} AND {val[1]}'
         )
     return " AND ".join(clauses)
 
@@ -716,118 +718,102 @@ def get_authenticated_user():
 # --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP) ---
 def _render_user_widget(user) -> None:
     """
-    Renderiza o card de identidade do usuário na sidebar com ação de logout via OAuth2-Proxy.
-    WHY: Fornece ao clínico visibilidade de quem está autenticado e uma saída segura
-    sem expor endpoints internos do Keycloak. O logout destrói a sessão Redis do Proxy
+    Renderiza o botão de logout na sidebar com o nome do usuário autenticado.
+    WHY: Um botão nativo Streamlit é mais estável no AppTest e evita problemas de
+    renderização de HTML injetado. O logout destrói a sessão Redis do Proxy
     e redireciona para a página de login do Keycloak (Zero Trust completo).
     """
     import time
 
-    # --- Avatar baseado nas iniciais do username ---
     username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
     display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
-    initials = "".join(p[0].upper() for p in display_name.split()[:2]) or "?"
-    email = getattr(user, "email", "")
-    roles = getattr(user, "roles", [])
-    role_label = roles[0].replace("_", " ").title() if roles else "Usuário"
-    token_exp = getattr(st.session_state, "token_exp", None) or st.session_state.get("token_exp")
+    token_exp = st.session_state.get("token_exp", 0)
     is_dev = _is_dev_mock_allowed()
 
-    # Formata hora de expiração
-    if token_exp:
-        exp_dt = time.strftime("%H:%M", time.localtime(token_exp))
-        exp_date = time.strftime("%d/%m", time.localtime(token_exp))
-        session_info = f"Sessão válida até {exp_date} às {exp_dt}"
-    else:
-        session_info = "Sessão ativa (24h)"
+    # Exibe informações de sessão no sidebar
+    with st.sidebar:
+        # Cabeçalho do usuário
+        roles = getattr(user, "roles", [])
+        role_label = roles[0].replace("_", " ").title() if roles else "Usuário"
 
-    # Logout URL: OAuth2-Proxy destrói cookie + sessão Redis, Keycloak invalida SSO
-    logout_url = "/oauth2/sign_out?rd=/dashboard/"
+        if token_exp:
+            from datetime import datetime
+            exp_str = datetime.fromtimestamp(token_exp).strftime("%d/%m às %H:%M")
+            session_caption = f"⏰ Sessão válida até {exp_str}"
+        else:
+            session_caption = "⏰ Sessão ativa (24h)"
 
-    st.sidebar.markdown(
-        f"""
-        <div style="
-            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
-            border: 1px solid #334155;
-            border-radius: 12px;
-            padding: 14px 16px;
-            margin-bottom: 16px;
-        ">
-            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
-                <div style="
-                    width: 38px; height: 38px; border-radius: 50%;
-                    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                    display: flex; align-items: center; justify-content: center;
-                    font-weight: 700; font-size: 0.85rem; color: white;
-                    flex-shrink: 0;
-                ">{initials}</div>
-                <div style="overflow: hidden;">
-                    <div style="font-weight: 600; font-size: 0.9rem; color: #f1f5f9;
-                                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {display_name}
-                    </div>
-                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;
-                                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
-                        {email}
-                    </div>
-                </div>
-            </div>
-            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
-                <span style="
-                    background: #1d4ed8; color: #bfdbfe;
-                    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
-                    padding: 2px 8px; border-radius: 20px; text-transform: uppercase;
-                ">{role_label}</span>
-                {"<span style='background: #065f46; color: #6ee7b7; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; text-transform: uppercase;'>DEV MODE</span>" if is_dev else ""}
-            </div>
-            <div style="font-size: 0.72rem; color: #475569; margin-bottom: 10px;">
-                🕐 {session_info}
-            </div>
-            <a href="{logout_url}" style="
-                display: block; text-align: center;
-                background: #1e293b; border: 1px solid #334155;
-                color: #94a3b8; font-size: 0.78rem; font-weight: 500;
-                padding: 6px 0; border-radius: 8px; text-decoration: none;
-                transition: all 0.2s ease;
-            " onmouseover="this.style.background='#ef4444';this.style.color='white';this.style.borderColor='#ef4444'"
-               onmouseout="this.style.background='#1e293b';this.style.color='#94a3b8';this.style.borderColor='#334155'">
-                🚪 Sair (Logout)
-            </a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+        if is_dev:
+            st.sidebar.caption("🛠️ DEV MODE")
+
+        st.sidebar.caption(f"👤 **{display_name}** — {role_label}")
+        st.sidebar.caption(session_caption)
+
+        # Logout URL: OAuth2-Proxy destrói cookie + sessão Redis, Keycloak invalida SSO
+        logout_url = "/oauth2/sign_out?rd=/dashboard/"
+        st.sidebar.link_button(
+            label=f"🚨 Sair ({display_name})",
+            url=logout_url,
+            use_container_width=True,
+        )
+        st.sidebar.divider()
 
 
 # --- 5. MAIN APP ---
 def main():
     setup_ui()
-    # Cache Bust Temporário para instanciar as novas bibliotecas e códigos importados:
-    st.cache_resource.clear()
-    st.cache_data.clear()
+    # WHY: cache_resource.clear() + cache_data.clear() removidos do loop de rerun.
+    # Esses calls destruíiam a conexão DuckDB e o use_case a cada interação do usuário,
+    # cascãideando falhas transitórias que disparavam o alerta de sessão expirada.
+    # O cache é válido e gerenciado pelos decoradores @st.cache_resource/@st.cache_data.
 
     import time
 
-    if "user" not in st.session_state:
+    # === CAMADA 1: Sessão já ativa e válida — zero fricção ===
+    _user_already_in_state = "user" in st.session_state
+    _token_exp = st.session_state.get("token_exp", 0)
+    _token_still_valid = _token_exp > time.time()
+
+    if _user_already_in_state and _token_still_valid:
+        # Caminho feliz: usuário ativo, sem nenhuma verificação adicional neste rerun
+        pass
+
+    elif _user_already_in_state and not _token_still_valid:
+        # === CAMADA 2: Token venceu — apresenta CTA de renovar apenas 1 vez ===
+        # WHY: Exibir alerta apenas quando o token realmente expirou (>24h), nunca em
+        # reruns transitórios. O usuário clica explicitamente para sair.
+        st.warning(
+            "⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.",
+            icon="🔒",
+        )
+        st.link_button(
+            "🔄 Renovar Login",
+            "/oauth2/sign_out?rd=/dashboard/",
+            type="primary",
+        )
+        st.stop()
+
+    else:
+        # === CAMADA 3: Primeira carga — autentica e popula session_state ===
         try:
             user_domain, jwt_str = get_authenticated_user()
             st.session_state.user = user_domain
             st.session_state.raw_jwt = jwt_str
-            # SRE: Sessão de 24h alinhada com Keycloak (ssoSessionMaxLifespan) e OAuth2-Proxy (cookie-expire)
+            # SRE: Sessão de 24h alinhada com Keycloak + OAuth2-Proxy cookie-expire
             st.session_state.token_exp = (
                 user_domain.exp if user_domain.exp else (time.time() + 86400)
             )
-        except Exception:
-            st.warning("⏱️ A sua sessão expirou devido a um longo período de inatividade.")
-            st.info("Para proteger os seus dados, a ligação ao servidor foi encerrada.")
-
-            # Rota de Fuga SRE: Força o OAuth2-Proxy a destruir a sessão e redireciona para o dashboard
+        except Exception as _auth_err:
+            # Falha real de autenticação (ex: header IAP ausente, token inválido)
+            st.error(
+                "🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade."
+            )
             st.link_button(
-                "Renovar Sessão / Fazer Login",
-                "/oauth2/sign_out?rd=/dashboard/",
+                "🔑 Fazer Login",
+                "/dashboard/",
                 type="primary",
             )
-            st.stop()  # Interrompe a renderização do resto do painel
+            st.stop()
 
     inject_custom_css()
     if not os.path.exists(settings.OUTPUT_FILE):
@@ -1280,10 +1266,19 @@ def main():
                 unsafe_allow_html=True,
             )
             state_keys[cat].extend(["num_min", "num_max"])
-            num_min, num_max = st.columns(2)
-            v_nmin = num_min.number_input("Nº Min", value=0, step=10, key="num_min")
-            v_nmax = num_max.number_input(
-                "Nº Max", value=99999, step=100, key="num_max"
+            # SRE FIX: Inicializa estado antes do widget para evitar mismatch de valor
+            if "num_min" not in st.session_state:
+                st.session_state["num_min"] = 0
+            if "num_max" not in st.session_state:
+                st.session_state["num_max"] = 99999
+            col_nmin, col_nmax = st.columns(2)
+            v_nmin = col_nmin.number_input(
+                "Nº Min", min_value=0, max_value=99999,
+                step=10, key="num_min", label_visibility="collapsed"
+            )
+            v_nmax = col_nmax.number_input(
+                "Nº Max", min_value=0, max_value=99999,
+                step=100, key="num_max", label_visibility="collapsed"
             )
             if v_nmin > 0 or v_nmax < 99999:
                 ui_filters[cat].append(
@@ -1293,7 +1288,7 @@ def main():
                     }
                 )
                 clauses.append(
-                    f'TRY_CAST("Número" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}'
+                    f'TRY_CAST("usuarioSUS_numero" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}'
                 )
             st.markdown("</div>", unsafe_allow_html=True)
 
@@ -1408,17 +1403,53 @@ def main():
 
     cat = "🎯 Desfechos, Gargalos & SLA"
     with st.sidebar.expander(cat, expanded=False):
-        # 1. Funil e Motivos (Include/Exclude)
-        curr_where = render_include_exclude(
-            "Tipo de Desfecho",
-            "SLA_Tipo_Desfecho",
-            clauses,
-            curr_where,
-            "sla_tipo",
-            ui_filters[cat],
-            state_keys[cat],
-            st.session_state.user,
+        # 1. Tipo de Desfecho — inclui "EM ANDAMENTO" para casos sem desfecho ainda
+        _desfecho_options_raw = get_dynamic_options("SLA_Tipo_Desfecho", curr_where, st.session_state.user)
+        _desfecho_options = sorted(set([o for o in _desfecho_options_raw if o])) + ["EM ANDAMENTO"]
+        cat_keys_desfecho = ["sla_tipo_in", "sla_tipo_ex"]
+        state_keys[cat].extend(cat_keys_desfecho)
+        _c1, _c2 = st.columns(2)
+        _sla_incl = _c1.multiselect(
+            "Tipo de Desfecho ✅", _desfecho_options,
+            key="sla_tipo_in", label_visibility="collapsed", placeholder="✅ Incluir..."
         )
+        _sla_excl = _c2.multiselect(
+            "Tipo de Desfecho ❌", _desfecho_options,
+            key="sla_tipo_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
+        )
+        st.write(
+            "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>Tipo de Desfecho</span>",
+            unsafe_allow_html=True,
+        )
+        if _sla_incl:
+            ui_filters[cat].append({"text": f"✅ Tipo Desfecho: {', '.join(_sla_incl)}", "keys": ["sla_tipo_in"]})
+            _parts = []
+            if "EM ANDAMENTO" in _sla_incl:
+                _rest = [v for v in _sla_incl if v != "EM ANDAMENTO"]
+                _parts.append('("SLA_Tipo_Desfecho" IS NULL OR "SLA_Tipo_Desfecho" = \'\')')
+                if _rest:
+                    _safe = "', '".join(v.replace("'", "''") for v in _rest)
+                    _parts.append(f'"SLA_Tipo_Desfecho" IN (\'{_safe}\')')
+            else:
+                _safe = "', '".join(v.replace("'", "''") for v in _sla_incl)
+                _parts.append(f'"SLA_Tipo_Desfecho" IN (\'{_safe}\')')
+            clauses.append(f"({' OR '.join(_parts)})")
+            curr_where = " AND ".join(clauses)
+        if _sla_excl:
+            ui_filters[cat].append({"text": f"❌ Tipo Desfecho: {', '.join(_sla_excl)}", "keys": ["sla_tipo_ex"]})
+            _parts_ex = []
+            if "EM ANDAMENTO" in _sla_excl:
+                _rest_ex = [v for v in _sla_excl if v != "EM ANDAMENTO"]
+                _parts_ex.append('("SLA_Tipo_Desfecho" IS NOT NULL AND "SLA_Tipo_Desfecho" != \'\')')
+                if _rest_ex:
+                    _safe_ex = "', '".join(v.replace("'", "''") for v in _rest_ex)
+                    _parts_ex.append(f'"SLA_Tipo_Desfecho" NOT IN (\'{_safe_ex}\')')
+            else:
+                _safe_ex = "', '".join(v.replace("'", "''") for v in _sla_excl)
+                _parts_ex.append(f'"SLA_Tipo_Desfecho" NOT IN (\'{_safe_ex}\')')
+            clauses.append(f"({' AND '.join(_parts_ex)})")
+            curr_where = " AND ".join(clauses)
+
         curr_where = render_include_exclude(
             "Status Provisório",
             "statusProvisorio",
@@ -1429,16 +1460,50 @@ def main():
             state_keys[cat],
             st.session_state.user,
         )
-        curr_where = render_include_exclude(
-            "Motivo Pendência",
-            "motivoPendencia",
-            clauses,
-            curr_where,
-            "mot_pend",
-            ui_filters[cat],
-            state_keys[cat],
-            st.session_state.user,
+
+        st.markdown("---")
+        # Motivo Pendência — extrai campos do JSON (tipo, motivo, descrição, status)
+        st.write(
+            "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>📦 Motivo Pendência (JSON)</span>",
+            unsafe_allow_html=True,
         )
+        _pend_fields = [
+            ("Tipo",        "json_extract_string(\"motivoPendencia\", '$.tipo')",
+             "mot_pend_tipo"),
+            ("Motivo",      "json_extract_string(\"motivoPendencia\", '$.motivo')",
+             "mot_pend_mot"),
+            ("Descrição",  "json_extract_string(\"motivoPendencia\", '$.descricao')",
+             "mot_pend_desc"),
+            ("Status",      "json_extract_string(\"motivoPendencia\", '$.status')",
+             "mot_pend_sta"),
+        ]
+        for _pf_label, _pf_expr, _pf_key in _pend_fields:
+            _pf_opts = get_dynamic_options(_pf_expr, curr_where, st.session_state.user)
+            if not _pf_opts:
+                continue
+            state_keys[cat].extend([f"{_pf_key}_in", f"{_pf_key}_ex"])
+            st.caption(_pf_label)
+            _pf_c1, _pf_c2 = st.columns(2)
+            _pf_incl = _pf_c1.multiselect(
+                f"{_pf_label} ✅", sorted(set([o for o in _pf_opts if o])),
+                key=f"{_pf_key}_in", label_visibility="collapsed", placeholder="✅ Incluir..."
+            )
+            _pf_excl = _pf_c2.multiselect(
+                f"{_pf_label} ❌", sorted(set([o for o in _pf_opts if o])),
+                key=f"{_pf_key}_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
+            )
+            if _pf_incl:
+                _pf_safe = "', '".join(v.replace("'", "''") for v in _pf_incl)
+                clauses.append(f"{_pf_expr} IN ('{_pf_safe}')")
+                ui_filters[cat].append({"text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}", "keys": [f"{_pf_key}_in"]})
+                curr_where = " AND ".join(clauses)
+            if _pf_excl:
+                _pf_safe_ex = "', '".join(v.replace("'", "''") for v in _pf_excl)
+                clauses.append(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
+                ui_filters[cat].append({"text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}", "keys": [f"{_pf_key}_ex"]})
+                curr_where = " AND ".join(clauses)
+
+        st.markdown("---")
         curr_where = render_include_exclude(
             "Motivo Cancelamento",
             "motivoCancelamento",
