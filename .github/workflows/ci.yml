@@ -260,18 +260,21 @@ jobs:
           # MUDANÇA 3: Imagem e Região nos EUA
           image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo/gercon-analytics:${{ github.sha }}
           region: us-central1
-          # MUDANÇA 4: Configuração Gen2 e Montagem do Bucket
+          # SRE/Security: --allow-unauthenticated foi REMOVIDO intencionalmente.
+          # WHY: Esse flag tornava o serviço publicamente acessível sem nenhuma verificação de identidade
+          # a nível de infra GCP, contornando toda a proteção de autenticação da aplicação.
+          # Sem ele, o Cloud Run exige um token GCP válido ou Cloud IAP antes de atingir o app.
+          # A autenticação de domínio clínico (JWT/OIDC) permanece na camada BFF (get_authenticated_user).
           flags: >-
-            --allow-unauthenticated
             --execution-environment=gen2
             --add-volume=name=datalake,type=cloud-storage,bucket=gercon-data-lake-prod-1030926202193
             --add-volume-mount=volume=datalake,mount-path=/app/data
-          # MUDANÇA 5: Aponta o código para o disco virtual e usa ambiente 'dev'
+          # MUDANÇA 5: Aponta o código para o disco virtual do GCS FUSE e usa ambiente de Produção
           env_vars: |
             GIT_SHA=${{ github.sha }}
             SENTRY_DSN=${{ secrets.SENTRY_DSN }}
-            ENVIRONMENT=dev
-            APP__ENVIRONMENT=dev
+            ENVIRONMENT=production
+            APP__ENVIRONMENT=production
             OUTPUT_FILE=/app/data/gercon_consolidado.parquet
             ROLE=analytics
             SERVICE_TYPE=analytics

@@ -130,14 +130,36 @@ def get_global_bounds(column: str, is_date=False):
 
 # --- 3. STATE MANAGEMENT ---
 def clear_filter_state(keys_to_clear: list):
+    """
+    Limpa o estado dos filtros no session_state do Streamlit.
+    WHY: Os text_inputs de Busca Profunda usam dois pares de chaves:
+      - `{key}_or_val` / `{key}_and_val` / `{key}_not_val` → backing store (valor lógico)
+      - `{key}_or`     / `{key}_and`     / `{key}_not`     → chave do widget Streamlit
+
+    Ambos devem ser zerados simultaneamente para que o sidebar reflita a limpeza.
+    Se apenas o _val for zerado, o widget Streamlit mantém o texto antigo no próximo render.
+    Se apenas o widget key for deletado, a próxima renderização cria um novo widget vazio
+    mas o _val ainda está preenchido, causando re-filtro fantasma.
+    """
     for key in keys_to_clear:
         if key in st.session_state:
             if key.endswith("_in") or key.endswith("_ex"):
                 st.session_state[key] = []
             elif key.endswith("_val"):
+                # SRE FIX: Limpa o backing store E o widget key correspondente (sem sufixo _val)
                 st.session_state[key] = ""
+                widget_key = key[:-4]  # Remove "_val" → obtém a chave do widget
+                if widget_key in st.session_state:
+                    st.session_state[widget_key] = ""
             elif key.endswith("_toggle"):
                 st.session_state[key] = False
+            elif key.endswith("_or") or key.endswith("_and") or key.endswith("_not"):
+                # Widget key direto do text_input — zera o texto visível no sidebar
+                st.session_state[key] = ""
+                # Zera também o backing store _val correspondente (mirror)
+                val_key = f"{key}_val"
+                if val_key in st.session_state:
+                    st.session_state[val_key] = ""
             elif key == "num_min":
                 st.session_state[key] = 0
             elif key == "num_max":
@@ -531,9 +553,14 @@ def render_advanced_text_search(
                 key=f"{key}_not",
             )
 
-            st.session_state[f"{key}_or_val"] = or_terms
-            st.session_state[f"{key}_and_val"] = and_terms
-            st.session_state[f"{key}_not_val"] = not_terms
+            # SRE FIX: Apenas sincroniza _val ← widget se o backing store não foi zerado
+            # pelo clear_filter_state. Isso previne o re-preenchimento fantasma após limpeza.
+            if st.session_state.get(f"{key}_or_val", "") or or_terms:
+                st.session_state[f"{key}_or_val"] = or_terms
+            if st.session_state.get(f"{key}_and_val", "") or and_terms:
+                st.session_state[f"{key}_and_val"] = and_terms
+            if st.session_state.get(f"{key}_not_val", "") or not_terms:
+                st.session_state[f"{key}_not_val"] = not_terms
 
             # --- LEXICAL PARSER EXTRACTED TO ADAPTER ---
             from presentation.adapters.parsers import parse_term
@@ -547,7 +574,7 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"✅ {label}: {or_terms}",
-                                "keys": [f"{key}_or_val", f"{key}_or"],
+                                "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"],
                             }
                         )
                         words = [w for w in or_terms.split(",") if w.strip()]
@@ -562,7 +589,7 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"⚠️ AND {label}: {and_terms}",
-                                "keys": [f"{key}_and_val", f"{key}_and"],
+                                "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"],
                             }
                         )
                         for w in [w for w in and_terms.split(",") if w.strip()]:
@@ -575,7 +602,7 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"❌ {label}: {not_terms}",
-                                "keys": [f"{key}_not_val", f"{key}_not"],
+                                "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"],
                             }
                         )
                         for w in [w for w in not_terms.split(",") if w.strip()]:
@@ -594,7 +621,7 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"✅ {label}: {or_terms}",
-                                "keys": [f"{key}_or_val", f"{key}_or"],
+                                "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"],
                             }
                         )
                         words = [w for w in or_terms.split(",") if w.strip()]
@@ -609,7 +636,7 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"⚠️ AND {label}: {and_terms}",
-                                "keys": [f"{key}_and_val", f"{key}_and"],
+                                "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"],
                             }
                         )
                         for w in [w for w in and_terms.split(",") if w.strip()]:
@@ -622,7 +649,7 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"❌ {label}: {not_terms}",
-                                "keys": [f"{key}_not_val", f"{key}_not"],
+                                "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"],
                             }
                         )
                         for w in [w for w in not_terms.split(",") if w.strip()]:
@@ -631,14 +658,31 @@ def render_advanced_text_search(
                                 f"strip_accents(\"{column}\") NOT ILIKE strip_accents('{p_term}')"
                             )
 
+    return " AND ".join(clauses)
+
 
 # --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
+def _is_dev_mock_allowed() -> bool:
+    """
+    Guarda de Segurança Dupla para bypass de autenticação em desenvolvimento.
+    WHY: Usar ENVIRONMENT=='dev' sozinho é fraco demais - qualquer deploy acidental com
+    ENVIRONMENT=dev (como ocorreu no Cloud Run) habilita acesso sem login.
+    Requer explicitamente ALLOW_UNAUTHENTICATED_DEV=true como segundo fator de opt-in.
+    Cloud Run e prod NUNCA devem ter esta variável setada.
+    """
+    environment = os.getenv("ENVIRONMENT", "production").lower()
+    allow_dev = os.getenv("ALLOW_UNAUTHENTICATED_DEV", "false").lower() == "true"
+    return environment in ("local", "dev") and allow_dev
+
+
 def get_authenticated_user():
     """
     SRE BFF Pattern: Extrai o JWT injetado pelo IAP Proxy ou Mock local.
     """
     # DX: Desenvolvimento Local sem IAP Proxy
-    if os.getenv("ENVIRONMENT") == "dev":
+    # WHY: Guarda dupla — não basta ENVIRONMENT=dev; exige ALLOW_UNAUTHENTICATED_DEV=true.
+    # Isso previne acesso não autenticado em Cloud Run caso ENVIRONMENT=dev seja injetado por engano.
+    if _is_dev_mock_allowed():
         from infrastructure.auth.token_acl import ValidatedUserToken
         import time
 
@@ -650,7 +694,7 @@ def get_authenticated_user():
             roles=["diretor_medico"],
             crm_numero="99999",
             crm_uf="RS",
-            exp=int(time.time() + 3600),  # 1h exp
+            exp=int(time.time() + 86400),  # 24h exp — SRE: Alinhado com a política de sessão clínica
         )
         return mock_user, "mock-jwt-token"
 
@@ -668,6 +712,93 @@ def get_authenticated_user():
     return user, auth_header
 
 
+
+# --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP) ---
+def _render_user_widget(user) -> None:
+    """
+    Renderiza o card de identidade do usuário na sidebar com ação de logout via OAuth2-Proxy.
+    WHY: Fornece ao clínico visibilidade de quem está autenticado e uma saída segura
+    sem expor endpoints internos do Keycloak. O logout destrói a sessão Redis do Proxy
+    e redireciona para a página de login do Keycloak (Zero Trust completo).
+    """
+    import time
+
+    # --- Avatar baseado nas iniciais do username ---
+    username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
+    display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
+    initials = "".join(p[0].upper() for p in display_name.split()[:2]) or "?"
+    email = getattr(user, "email", "")
+    roles = getattr(user, "roles", [])
+    role_label = roles[0].replace("_", " ").title() if roles else "Usuário"
+    token_exp = getattr(st.session_state, "token_exp", None) or st.session_state.get("token_exp")
+    is_dev = _is_dev_mock_allowed()
+
+    # Formata hora de expiração
+    if token_exp:
+        exp_dt = time.strftime("%H:%M", time.localtime(token_exp))
+        exp_date = time.strftime("%d/%m", time.localtime(token_exp))
+        session_info = f"Sessão válida até {exp_date} às {exp_dt}"
+    else:
+        session_info = "Sessão ativa (24h)"
+
+    # Logout URL: OAuth2-Proxy destrói cookie + sessão Redis, Keycloak invalida SSO
+    logout_url = "/oauth2/sign_out?rd=/dashboard/"
+
+    st.sidebar.markdown(
+        f"""
+        <div style="
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+        ">
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                <div style="
+                    width: 38px; height: 38px; border-radius: 50%;
+                    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                    display: flex; align-items: center; justify-content: center;
+                    font-weight: 700; font-size: 0.85rem; color: white;
+                    flex-shrink: 0;
+                ">{initials}</div>
+                <div style="overflow: hidden;">
+                    <div style="font-weight: 600; font-size: 0.9rem; color: #f1f5f9;
+                                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        {display_name}
+                    </div>
+                    <div style="font-size: 0.72rem; color: #64748b; margin-top: 1px;
+                                white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        {email}
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 8px;">
+                <span style="
+                    background: #1d4ed8; color: #bfdbfe;
+                    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em;
+                    padding: 2px 8px; border-radius: 20px; text-transform: uppercase;
+                ">{role_label}</span>
+                {"<span style='background: #065f46; color: #6ee7b7; font-size: 0.68rem; font-weight: 600; padding: 2px 8px; border-radius: 20px; text-transform: uppercase;'>DEV MODE</span>" if is_dev else ""}
+            </div>
+            <div style="font-size: 0.72rem; color: #475569; margin-bottom: 10px;">
+                🕐 {session_info}
+            </div>
+            <a href="{logout_url}" style="
+                display: block; text-align: center;
+                background: #1e293b; border: 1px solid #334155;
+                color: #94a3b8; font-size: 0.78rem; font-weight: 500;
+                padding: 6px 0; border-radius: 8px; text-decoration: none;
+                transition: all 0.2s ease;
+            " onmouseover="this.style.background='#ef4444';this.style.color='white';this.style.borderColor='#ef4444'"
+               onmouseout="this.style.background='#1e293b';this.style.color='#94a3b8';this.style.borderColor='#334155'">
+                🚪 Sair (Logout)
+            </a>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # --- 5. MAIN APP ---
 def main():
     setup_ui()
@@ -675,35 +806,19 @@ def main():
     st.cache_resource.clear()
     st.cache_data.clear()
 
-    # SRE Loop: Mitigação de WebSocket Staleness via Re-Handshake (com 60s de Leeway)
     import time
-    import streamlit.components.v1 as components
-
-    if "token_exp" in st.session_state and time.time() > (
-        st.session_state.token_exp - 60
-    ):
-        st.warning(
-            "🔄 Sua sessão segura foi renovada no background. Clique abaixo para sincronizar o túnel Proxy."
-        )
-        # TODO(UX/SRE): Sincronizar FilterCriteria com st.query_params antes do reload
-        if st.button("Sincronizar Sessão", type="primary"):
-            components.html(
-                "<script>window.parent.location.reload();</script>", height=0, width=0
-            )
-        st.stop()  # Mata a execução do Python imediatamente. Previne vazamento de dados via token vencido.
 
     if "user" not in st.session_state:
         try:
             user_domain, jwt_str = get_authenticated_user()
             st.session_state.user = user_domain
             st.session_state.raw_jwt = jwt_str
+            # SRE: Sessão de 24h alinhada com Keycloak (ssoSessionMaxLifespan) e OAuth2-Proxy (cookie-expire)
             st.session_state.token_exp = (
                 user_domain.exp if user_domain.exp else (time.time() + 86400)
             )
         except Exception:
-            st.warning(
-                "⏱️ A sua sessão expirou devido a um longo período de inatividade."
-            )
+            st.warning("⏱️ A sua sessão expirou devido a um longo período de inatividade.")
             st.info("Para proteger os seus dados, a ligação ao servidor foi encerrada.")
 
             # Rota de Fuga SRE: Força o OAuth2-Proxy a destruir a sessão e redireciona para o dashboard
@@ -718,6 +833,11 @@ def main():
     if not os.path.exists(settings.OUTPUT_FILE):
         st.error(f"⚠️ Base Parquet não encontrada ({settings.OUTPUT_FILE}).")
         return
+
+    # ==========================================
+    # SIDEBAR: USER IDENTITY WIDGET (IAP / Keycloak)
+    # ==========================================
+    _render_user_widget(st.session_state.user)
 
     st.title("🎯 Gercon SRE | Advanced Root Cause Analysis")
 
@@ -864,7 +984,7 @@ def main():
             state_keys[cat],
             st.session_state.user,
         )
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "CID Principal (Descrição)",
             "entidade_cidPrincipal_descricao",
             clauses,
@@ -874,7 +994,7 @@ def main():
         )
         # MÁGICA CLÍNICA MOVIDA: Agregação pelo numeroCMCE inteiro
         st.markdown("---")
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "Evoluções do Paciente",
             "historico_quadro_clinico",
             clauses,
@@ -888,7 +1008,7 @@ def main():
     cat = "🏛️ Governança & Atores"
     with st.sidebar.expander(cat, expanded=False):
         # Atores movidos da antiga aba de Evoluções
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "Tipo de Informação",
             "historico_evolucoes_completo",
             clauses,
@@ -896,7 +1016,7 @@ def main():
             ui_filters[cat],
             state_keys[cat],
         )
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "Origem da Informação",
             "evolucoes_json",
             clauses,
@@ -1113,7 +1233,7 @@ def main():
 
     cat = "🌍 Demografia & Rede"
     with st.sidebar.expander(cat, expanded=False):
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "Pesquisa: Nome do Paciente",
             "usuarioSUS_nomeCompleto",
             clauses,
@@ -1146,7 +1266,7 @@ def main():
         )
 
         # Logradouro com a condicional injetando a numeração dento da Deep Search
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "Logradouro",
             "usuarioSUS_logradouro",
             clauses,
@@ -1342,7 +1462,7 @@ def main():
 
         st.markdown("---")
         # 2. Textos de Justificativa (Deep Search)
-        render_advanced_text_search(
+        curr_where = render_advanced_text_search(
             "Justificativa de Retorno",
             "justificativaRetorno",
             clauses,

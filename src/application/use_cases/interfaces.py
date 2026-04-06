@@ -36,5 +36,7 @@ class IAnalyticsRepository(ABC):
         pass
 
     @abstractmethod
-    def execute_custom_query(self, sql: str, user: ValidatedUserToken) -> pd.DataFrame:
+    def execute_custom_query(
+        self, sql: str, spec: Specification, user: ValidatedUserToken
+    ) -> pd.DataFrame:
         pass

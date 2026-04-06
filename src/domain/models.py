@@ -1,5 +1,7 @@
 from pydantic import BaseModel, Field
 from enum import Enum
+from typing import Any
+from domain.specifications import Specification
 
 
 class IngestionStatus(str, Enum):
@@ -22,8 +24,12 @@ class IngestionLogEntry(BaseModel):
     error_message: str = Field(default="", description="Mensagem de erro se status != SUCCESS")
 
 
-class FilterCriteria(BaseModel):
+class FilterCriteria(BaseModel, Specification):
     clauses: list[str] = Field(default_factory=list, description="Lista de cláusulas SQL injetadas de forma segura")
+
+    def is_satisfied_by(self, candidate: Any) -> bool:
+        # FilterCriteria é principalmente para tradução SQL, mas podemos implementar para memória
+        return True
 
 
 class AnalyticKPIs(BaseModel):

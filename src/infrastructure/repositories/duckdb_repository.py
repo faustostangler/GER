@@ -4,7 +4,7 @@ import pandas as pd
 import re
 from typing import List, Tuple, Any
 from application.use_cases.interfaces import IAnalyticsRepository
-from domain.models import AnalyticKPIs
+from domain.models import AnalyticKPIs, FilterCriteria
 from domain.specifications import (
     Specification,
     AndSpecification,
@@ -37,6 +37,8 @@ class DuckDBSpecificationTranslator:
                 return f"DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > {spec.dias_vencimento}"
             case LeadTimeCriticoSpec():
                 return f"DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > {spec.max_dias}"
+            case FilterCriteria():
+                return " AND ".join(spec.clauses) if spec.clauses else "1=1"
             case _:
                 return "1=1"
 
@@ -254,12 +256,22 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         except Exception:
             return None, None
 
-    def execute_custom_query(self, sql: str, user: ValidatedUserToken) -> pd.DataFrame:
+    def execute_custom_query(
+        self, sql: str, spec: Specification, user: ValidatedUserToken
+    ) -> pd.DataFrame:
         cte = self._get_rls_cte(user)
+        
+        # 0. Tradução do Specification/FilterCriteria se existir
+        final_where = DuckDBSpecificationTranslator.translate(spec) if spec else "1=1"
+        
+        # SRE FIX: Injeção Segura do WHERE dinâmico na query customizada
+        sql_final_where = sql.replace("{FINAL_WHERE}", final_where)
 
         # 1. Substituição Robusta de RLS (Ignora maiúsculas/minúsculas, aspas e múltiplos espaços)
         # Ex: converte 'from  "gercon"' ou 'FROM gercon' para 'FROM BaseRLS'
-        sql_seguro = re.sub(r'(?i)\bfrom\s+("?)gercon("?)\b', r"FROM \1BaseRLS\2", sql)
+        sql_seguro = re.sub(
+            r'(?i)\bfrom\s+("?)gercon("?)\b', r"FROM \1BaseRLS\2", sql_final_where
+        )
 
         # 2. Validação Fail-Close (Proteção contra Joins maliciosos ou bypass)
         # Se a palavra gercon ainda existir na query (ex: em um JOIN gercon), abortamos.

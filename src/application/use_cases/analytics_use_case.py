@@ -52,9 +52,4 @@ class AnalyticsUseCase:
     def execute_custom_query(
         self, sql: str, spec: Specification, current_user: ValidatedUserToken
     ) -> pd.DataFrame:
-        # Injetando spec no sql usando tradutor se necessário, mas o spec_translator vive no adapter
-        # O use case geralmente orquestra
-        if spec and "{FINAL_WHERE}" in sql:
-            # Atenção: Passar a responsabilidade da tradução para o repositório
-            pass
-        return self.repository.execute_custom_query(sql, current_user)
+        return self.repository.execute_custom_query(sql, spec, current_user)

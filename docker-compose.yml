@@ -98,10 +98,15 @@ services:
       # Integração com Redis
       OAUTH2_PROXY_SESSION_STORE_TYPE: "redis"
       OAUTH2_PROXY_REDIS_CONNECTION_URL: "redis://${COMPOSE_PROJECT_NAME:-ger}_redis_session:6379"
+      # SRE: Sessão longa de 24h para evitar renovações frequentes em uso clínico
+      OAUTH2_PROXY_COOKIE_EXPIRE: "24h0m0s"
+      OAUTH2_PROXY_COOKIE_REFRESH: "0h"
     command:
       - --cookie-domain=.${PROJECT_DOMAIN} # O ponto no início permite todos os subdomínios
       - --oidc-issuer-url=http://keycloak:8080/realms/${KEYCLOAK_REALM:-gercon-realm}
       - --whitelist-domain=.${PROJECT_DOMAIN}
+      - --cookie-expire=24h0m0s
+      - --cookie-refresh=0h
     logging: *default-logging
     depends_on:
       redis-session:
