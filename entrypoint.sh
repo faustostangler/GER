@@ -27,7 +27,7 @@ if [ -z "$K_SERVICE" ]; then
 else
     echo "☁️  Cloud Run Mode: Skipping GUI Stack (K_SERVICE=$K_SERVICE)"
 fi
-
+ 
 # 5. Executa o Processo Principal (Analytics ou Worker)
 if [ "$ROLE" = "analytics" ]; then
     echo "Starting Analytics App on port ${PORT:-8501}..."
