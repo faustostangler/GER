@@ -24,6 +24,8 @@ services:
       - "6080:6080"   # noVNC Browser Access
       - "50051:50051" # gRPC Service-to-Service
     volumes:
+      - ./src:/app/src
+      - ./app_analytics.py:/app/app_analytics.py
       - ./gercon_raw_data.db:/app/gercon_raw_data.db
       - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
