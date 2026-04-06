@@ -16,7 +16,7 @@ if __name__ == "__main__":
         mock_uc.return_value = instance
 
         with patch("src.infrastructure.repositories.duckdb_repository.DuckDBAnalyticsRepository") as mock_db:
-            with patch.dict(os.environ, {"ENVIRONMENT": "dev"}):
+            with patch.dict(os.environ, {"ENVIRONMENT": "dev", "ALLOW_UNAUTHENTICATED_DEV": "true"}):
                 with patch("os.path.exists", return_value=True):
                     print("Rodando AppTest...")
                     at = AppTest.from_file("app_analytics.py").run(timeout=10)

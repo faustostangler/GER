@@ -105,7 +105,7 @@ def mock_duckdb_repo():
 def test_app_ui_loads_and_updates_state(mock_exists, mock_duckdb_repo, mock_analytics_use_case):
     # 1. Instanciando a Simulação Streamlit (Humble Object)
     # Bypass do IAP Proxy pelo fluxo de "dev"
-    with patch.dict("os.environ", {"ENVIRONMENT": "dev"}):
+    with patch.dict("os.environ", {"ENVIRONMENT": "dev", "ALLOW_UNAUTHENTICATED_DEV": "true"}):
         # SRE FIX: Use path absoluto para evitar quebra no sandbox do mutmut
         at = AppTest.from_file(APP_PATH).run(timeout=10)
     
