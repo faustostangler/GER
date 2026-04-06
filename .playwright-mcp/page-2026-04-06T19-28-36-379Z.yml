@@ -1,0 +1,385 @@
+- generic:
+  - generic:
+    - generic [ref=e2]:
+      - generic [ref=e8]:
+        - heading "🎛️ Filtros em Cascata" [level=2] [ref=e12]
+        - group [ref=e15]:
+          - generic "keyboard_arrow_right 🩺 Clínico & Regulação" [ref=e16] [cursor=pointer]:
+            - generic [ref=e17]:
+              - generic [ref=e19]: keyboard_arrow_right
+              - paragraph [ref=e22]: 🩺 Clínico & Regulação
+        - group [ref=e25]:
+          - generic "keyboard_arrow_right 🏛️ Governança & Atores" [ref=e26] [cursor=pointer]:
+            - generic [ref=e27]:
+              - generic [ref=e29]: keyboard_arrow_right
+              - paragraph [ref=e32]: 🏛️ Governança & Atores
+        - group [ref=e35]:
+          - generic "keyboard_arrow_right 📅 Ciclo de Vida (Datas)" [ref=e36] [cursor=pointer]:
+            - generic [ref=e37]:
+              - generic [ref=e39]: keyboard_arrow_right
+              - paragraph [ref=e42]: 📅 Ciclo de Vida (Datas)
+        - group [ref=e45]:
+          - generic "keyboard_arrow_right 🌍 Demografia & Rede" [ref=e46] [cursor=pointer]:
+            - generic [ref=e47]:
+              - generic [ref=e49]: keyboard_arrow_right
+              - paragraph [ref=e52]: 🌍 Demografia & Rede
+        - group [ref=e55]:
+          - generic "keyboard_arrow_right ⚠️ Triagem & Risco" [ref=e56] [cursor=pointer]:
+            - generic [ref=e57]:
+              - generic [ref=e59]: keyboard_arrow_right
+              - paragraph [ref=e62]: ⚠️ Triagem & Risco
+        - group [ref=e65]:
+          - generic "keyboard_arrow_right 🎯 Desfechos, Gargalos & SLA" [ref=e66] [cursor=pointer]:
+            - generic [ref=e67]:
+              - generic [ref=e69]: keyboard_arrow_right
+              - paragraph [ref=e72]: 🎯 Desfechos, Gargalos & SLA
+      - generic [ref=e75]:
+        - banner [ref=e76]:
+          - generic [ref=e79]:
+            - generic [ref=e532]:
+              - img [ref=e533]
+              - generic [ref=e535]: Connecting
+            - button "Main menu" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+        - generic [ref=e87]:
+          - heading "🎯 Gercon SRE | Advanced Root Cause Analysis" [level=1] [ref=e92]:
+            - text: 🎯 Gercon SRE | Advanced Root Cause Analysis
+            - generic [ref=e93]:
+              - link "Link to heading":
+                - /url: "#gercon-sre-advanced-root-cause-analysis"
+                - img
+          - group [ref=e99]:
+            - generic "keyboard_arrow_down 🔍 Filtros Ativos (1)" [ref=e100] [cursor=pointer]:
+              - generic [ref=e101]:
+                - generic [ref=e103]: keyboard_arrow_down
+                - paragraph [ref=e106]: 🔍 Filtros Ativos (1)
+            - generic [ref=e108]:
+              - generic [ref=e113]: 📅 Ciclo de Vida (Datas)
+              - 'button "Data de Solicitação: 07/03/2026 a 06/04/2026" [disabled] [ref=e118]':
+                - paragraph [ref=e122]: "Data de Solicitação: 07/03/2026 a 06/04/2026"
+              - button "🗑️ Limpar Todos os Filtros" [disabled] [ref=e125]:
+                - paragraph [ref=e129]: 🗑️ Limpar Todos os Filtros
+          - generic [ref=e131]:
+            - tablist [ref=e133]:
+              - tab "📊 Visão Geral (KPIs)" [selected] [ref=e134] [cursor=pointer]:
+                - paragraph [ref=e136]: 📊 Visão Geral (KPIs)
+              - tab "📈 Estratégia (Macro)" [ref=e137] [cursor=pointer]:
+                - paragraph [ref=e139]: 📈 Estratégia (Macro)
+              - tab "🩺 Inteligência Clínica" [ref=e140] [cursor=pointer]:
+                - paragraph [ref=e142]: 🩺 Inteligência Clínica
+              - tab "🔎 Auditoria (Micro)" [ref=e143] [cursor=pointer]:
+                - paragraph [ref=e145]: 🔎 Auditoria (Micro)
+            - tabpanel "📊 Visão Geral (KPIs)" [ref=e148]:
+              - generic [ref=e149]:
+                - heading "Painel de Desempenho (SLA e Carga)" [level=4] [ref=e155]:
+                  - text: Painel de Desempenho (SLA e Carga)
+                  - generic [ref=e156]:
+                    - link "Link to heading":
+                      - /url: "#painel-de-desempenho-sla-e-carga"
+                      - img
+                - generic [ref=e158]:
+                  - generic [ref=e163]:
+                    - generic [ref=e164]:
+                      - paragraph [ref=e166]: 🏢 Origens do Gercon
+                      - button "Help for 🏢 Origens do Gercon" [ref=e170] [cursor=pointer]:
+                        - img [ref=e171]
+                    - paragraph [ref=e176]: "5"
+                  - generic [ref=e181]:
+                    - generic [ref=e182]:
+                      - paragraph [ref=e184]: 👥 Pacientes
+                      - button "Help for 👥 Pacientes" [ref=e188] [cursor=pointer]:
+                        - img [ref=e189]
+                    - paragraph [ref=e194]: "830"
+                  - generic [ref=e199]:
+                    - generic [ref=e200]:
+                      - paragraph [ref=e202]: 📋 Evoluções
+                      - button "Help for 📋 Evoluções" [ref=e206] [cursor=pointer]:
+                        - img [ref=e207]
+                    - paragraph [ref=e212]: "830"
+                  - generic [ref=e217]:
+                    - generic [ref=e218]:
+                      - paragraph [ref=e220]: 📈 Evoluções/Paciente
+                      - button "Help for 📈 Evoluções/Paciente" [ref=e224] [cursor=pointer]:
+                        - img [ref=e225]
+                    - paragraph [ref=e230]: 1,0
+                - generic [ref=e232]:
+                  - generic [ref=e237]:
+                    - generic [ref=e238]:
+                      - paragraph [ref=e240]: 🏛️ entidade_especialidade_descricaos (Mãe)
+                      - button "Help for 🏛️ entidade_especialidade_descricaos (Mãe)" [ref=e244] [cursor=pointer]:
+                        - img [ref=e245]
+                    - paragraph [ref=e250]: "40"
+                  - generic [ref=e255]:
+                    - generic [ref=e256]:
+                      - paragraph [ref=e258]: 🎯 Subespecialidades
+                      - button "Help for 🎯 Subespecialidades" [ref=e262] [cursor=pointer]:
+                        - img [ref=e263]
+                    - paragraph [ref=e268]: "119"
+                  - generic [ref=e273]:
+                    - generic [ref=e274]:
+                      - paragraph [ref=e276]: 🔀 Subs/entidade_especialidade_descricao
+                      - button "Help for 🔀 Subs/entidade_especialidade_descricao" [ref=e280] [cursor=pointer]:
+                        - img [ref=e281]
+                    - paragraph [ref=e286]: 3,0
+                  - generic [ref=e291]:
+                    - generic [ref=e292]:
+                      - paragraph [ref=e294]: "⏱️ Fila: Média | Pior"
+                      - 'button "Help for ⏱️ Fila: Média | Pior" [ref=e298] [cursor=pointer]':
+                        - img [ref=e299]
+                    - paragraph [ref=e304]: 22.1 dias | 28 dias
+                - generic [ref=e306]:
+                  - generic [ref=e311]:
+                    - generic [ref=e312]:
+                      - paragraph [ref=e314]: 👨⚕️ Médicos Solicitantes
+                      - button "Help for 👨⚕️ Médicos Solicitantes" [ref=e318] [cursor=pointer]:
+                        - img [ref=e319]
+                    - paragraph [ref=e324]: "129"
+                  - generic [ref=e329]:
+                    - generic [ref=e330]:
+                      - paragraph [ref=e332]: 📅 Cadastros/Mês
+                      - button "Help for 📅 Cadastros/Mês" [ref=e336] [cursor=pointer]:
+                        - img [ref=e337]
+                    - paragraph [ref=e342]: 830,0
+                  - generic [ref=e347]:
+                    - generic [ref=e348]:
+                      - paragraph [ref=e350]: 🧠 Dispersão Diagnóstica
+                      - button "Help for 🧠 Dispersão Diagnóstica" [ref=e354] [cursor=pointer]:
+                        - img [ref=e355]
+                    - paragraph [ref=e360]: 3,2
+                  - generic [ref=e365]:
+                    - generic [ref=e366]:
+                      - paragraph [ref=e368]: ⚙️ Carga/Médico
+                      - button "Help for ⚙️ Carga/Médico" [ref=e372] [cursor=pointer]:
+                        - img [ref=e373]
+                    - paragraph [ref=e378]: 6,4
+                - separator [ref=e383]
+                - 'heading "Anatomia Comparativa: Dispersão e Escala de Espera" [level=4] [ref=e389]':
+                  - text: "Anatomia Comparativa: Dispersão e Escala de Espera"
+                  - generic [ref=e390]:
+                    - link "Link to heading":
+                      - /url: "#anatomia-comparativa-dispersao-e-escala-de-espera"
+                      - img
+                - generic [ref=e395]: "Como ler os gráficos: A linha central na caixa é a mediana (paciente típico). A caixa agrupa 50% da fila. As linhas tracejadas mostram as fronteiras SRE: P10 (os 10% mais rápidos/eficiência) e P90 (o limite de 90% da rede/garantia). Os pontos individuais à direita são os outliers (casos críticos fora do padrão)."
+                - generic [ref=e401]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: "0"
+                          - generic:
+                            - generic: "5"
+                          - generic:
+                            - generic: "10"
+                          - generic:
+                            - generic: "15"
+                          - generic:
+                            - generic: "20"
+                          - generic:
+                            - generic: "25"
+                          - generic:
+                            - generic: "30"
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: "Abandono: Dias sem Evolução"
+                      - generic:
+                        - generic: dias_esquecido
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Min
+                              - generic: "13"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Q1
+                              - generic: "19"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Q3
+                              - generic: "26"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Max
+                              - generic: "28"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "17"
+                              - text: P10
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "21"
+                              - text: Med
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "27"
+                              - text: P90
+                  - img
+                - generic [ref=e420]:
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: "0"
+                          - generic:
+                            - generic: "5"
+                          - generic:
+                            - generic: "10"
+                          - generic:
+                            - generic: "15"
+                          - generic:
+                            - generic: "20"
+                          - generic:
+                            - generic: "25"
+                          - generic:
+                            - generic: "30"
+                  - img:
+                    - generic:
+                      - generic:
+                        - generic:
+                          - generic: "Cadastro: Dias de Espera"
+                      - generic:
+                        - generic: dias_fila
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Min
+                              - generic: "13"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Q1
+                              - generic: "19"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Q3
+                              - generic: "26"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - text: Max
+                              - generic: "28"
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "17"
+                              - text: P10
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "21"
+                              - text: Med
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic:
+                              - generic: "27"
+                              - text: P90
+                  - img
+                - paragraph [ref=e438]: ℹ️ Escala otimizada (outliers extremos ocultos do visor de alcance para facilitar visualização). Estatísticas preservadas.
+                - generic [ref=e440]:
+                  - generic [ref=e445]:
+                    - generic [ref=e446]:
+                      - paragraph [ref=e448]: ⏳ P90 Tempo Esquecido
+                      - button "Help for ⏳ P90 Tempo Esquecido" [ref=e452] [cursor=pointer]:
+                        - img [ref=e453]
+                    - paragraph [ref=e458]: 27 dias
+                  - generic [ref=e463]:
+                    - generic [ref=e464]:
+                      - paragraph [ref=e466]: ⏱️ P90 Tempo de Fila
+                      - button "Help for ⏱️ P90 Tempo de Fila" [ref=e470] [cursor=pointer]:
+                        - img [ref=e471]
+                    - paragraph [ref=e476]: 27 dias
+                - generic [ref=e478]:
+                  - generic [ref=e486]:
+                    - img
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: 49.8%
+                            - generic: "-"
+                          - generic:
+                            - generic:
+                              - generic: "0"
+                            - generic:
+                              - generic: "20"
+                            - generic:
+                              - generic: "40"
+                            - generic:
+                              - generic: "60"
+                            - generic:
+                              - generic: "80"
+                            - generic:
+                              - generic: "100"
+                          - generic: Índice de Gravidade
+                    - img
+                  - generic [ref=e494]:
+                    - img
+                    - img:
+                      - generic:
+                        - generic:
+                          - generic:
+                            - generic: 0%
+                          - generic:
+                            - generic:
+                              - generic: "0"
+                            - generic:
+                              - generic: "20"
+                            - generic:
+                              - generic: "40"
+                            - generic:
+                              - generic: "60"
+                            - generic:
+                              - generic: "80"
+                            - generic:
+                              - generic: "100"
+                          - generic: Quebra de SLA (>180d)
+                    - img
+                - separator [ref=e499]
+          - alert [ref=e502]:
+            - paragraph [ref=e507]:
+              - text: ⚠️
+              - strong [ref=e508]: "Amber Alert:"
+              - text: Os dados exibidos estão com defasagem de 27.5 horas. O Worker Scraper pode estar inativo ou ter falhado no último ciclo.
+          - alert [ref=e511]:
+            - generic [ref=e514]:
+              - generic [ref=e515]: "_duckdb.BinderException: Binder Error: Referenced column \"entidade_situacao_descricao\" not found in FROM clause! Candidate bindings: \"entidade_especialidade_descricao\", \"entidade_especialidade_cbo_descricao\", \"entidade_possuiDita\", \"entidade_sistemaOrigem\", \"entidade_semClassificacao\" LINE 7: ...-03-07' AND '2026-04-06' AND dataSolicitacao IS NOT NULL AND entidade_situacao_descricao NOT ILIKE '%ENCERRADA%' ^"
+              - generic [ref=e516]:
+                - generic [ref=e517]: "Traceback:"
+                - code [ref=e520]:
+                  - generic [ref=e521]: File "/app/.venv/lib/python3.12/site-packages/streamlit/runtime/scriptrunner/exec_code.py", line 129, in exec_func_with_error_handling result = func() ^^^^^^
+                  - generic [ref=e522]: "File \"/app/.venv/lib/python3.12/site-packages/streamlit/runtime/scriptrunner/script_runner.py\", line 689, in code_to_exec exec(code, module.__dict__) # noqa: S102 ^^^^^^^^^^^^^^^^^^^^^^^^^^^"
+                  - generic [ref=e523]: File "/app/app_analytics.py", line 2516, in <module> main()
+                  - generic [ref=e524]: File "/app/app_analytics.py", line 2415, in main df_outliers = use_case.execute_custom_query( ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                  - generic [ref=e525]: File "/app/src/application/use_cases/analytics_use_case.py", line 60, in execute_custom_query return self.repository.execute_custom_query(sql, current_user) ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                  - generic [ref=e526]: File "/app/src/infrastructure/repositories/duckdb_repository.py", line 288, in execute_custom_query return self._query(sql_final) ^^^^^^^^^^^^^^^^^^^^^^
+                  - generic [ref=e527]: File "/app/src/infrastructure/repositories/duckdb_repository.py", line 126, in _query df = self.con.execute(sql).df() ^^^^^^^^^^^^^^^^^^^^^
+    - dialog "dialog" [ref=e538]:
+      - generic [ref=e539]: Connection error
+      - generic [ref=e541]: Connection failed with status 502.
+      - button "Close" [active] [ref=e542] [cursor=pointer]:
+        - img [ref=e543]
+  - img [ref=e528]

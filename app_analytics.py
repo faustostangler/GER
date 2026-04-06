@@ -718,45 +718,49 @@ def get_authenticated_user():
 # --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP) ---
 def _render_user_widget(user) -> None:
     """
-    Renderiza o botão de logout na sidebar com o nome do usuário autenticado.
-    WHY: Um botão nativo Streamlit é mais estável no AppTest e evita problemas de
-    renderização de HTML injetado. O logout destrói a sessão Redis do Proxy
-    e redireciona para a página de login do Keycloak (Zero Trust completo).
+    Renderiza o card de identidade do usuário no topo da sidebar.
+    WHY: Usa componentes nativos Streamlit para máxima compatibilidade com AppTest
+    e evita problemas de HTML injetado. O logout destrói a sessão Redis do OAuth2-Proxy
+    e redireciona para o Keycloak (Zero Trust completo).
     """
-    import time
+    from datetime import datetime
 
     username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
     display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
+    roles = getattr(user, "roles", [])
+    role_label = roles[0].replace("_", " ").title() if roles else "Usuário"
     token_exp = st.session_state.get("token_exp", 0)
     is_dev = _is_dev_mock_allowed()
 
-    # Exibe informações de sessão no sidebar
-    with st.sidebar:
-        # Cabeçalho do usuário
-        roles = getattr(user, "roles", [])
-        role_label = roles[0].replace("_", " ").title() if roles else "Usuário"
+    if token_exp:
+        exp_str = datetime.fromtimestamp(token_exp).strftime("%d/%m/%Y às %H:%M")
+        session_caption = f"⏰ Sessão válida até {exp_str}"
+    else:
+        session_caption = "⏰ Sessão ativa (24h)"
 
-        if token_exp:
-            from datetime import datetime
-            exp_str = datetime.fromtimestamp(token_exp).strftime("%d/%m às %H:%M")
-            session_caption = f"⏰ Sessão válida até {exp_str}"
-        else:
-            session_caption = "⏰ Sessão ativa (24h)"
+    # Logout: OAuth2-Proxy destrói cookie Redis + invalida SSO no Keycloak
+    logout_url = "/oauth2/sign_out?rd=/dashboard/"
 
-        if is_dev:
-            st.sidebar.caption("🛠️ DEV MODE")
+    st.sidebar.markdown(
+        f"""
+        <div style="padding: 10px 0 4px 0; margin-bottom: 4px;">
+            <div style="font-size: 0.82rem; color: #94a3b8; font-weight: 400;">
+                {'<span style="color:#f59e0b;">&#128295; DEV MODE &nbsp;</span>' if is_dev else ''}
+                &#128100; <b style="color: #e2e8f0;">{display_name}</b>
+                <span style="color:#64748b;"> &mdash; {role_label}</span>
+            </div>
+            <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px;">{session_caption}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.sidebar.link_button(
+        label=f"🚨 Logout &mdash; {display_name}",
+        url=logout_url,
+        use_container_width=True,
+    )
+    st.sidebar.divider()
 
-        st.sidebar.caption(f"👤 **{display_name}** — {role_label}")
-        st.sidebar.caption(session_caption)
-
-        # Logout URL: OAuth2-Proxy destrói cookie + sessão Redis, Keycloak invalida SSO
-        logout_url = "/oauth2/sign_out?rd=/dashboard/"
-        st.sidebar.link_button(
-            label=f"🚨 Sair ({display_name})",
-            url=logout_url,
-            use_container_width=True,
-        )
-        st.sidebar.divider()
 
 
 # --- 5. MAIN APP ---
@@ -1462,34 +1466,50 @@ def main():
         )
 
         st.markdown("---")
-        # Motivo Pendência — extrai campos do JSON (tipo, motivo, descrição, status)
+        # Motivo Pendência — extrai 4 campos do JSON via DuckDB json_extract_string
+        # WHY: get_dynamic_options("{expr}") envolve o argumento com aspas duplas,
+        # tornando a expressão SQL inválida. A query é feita diretamente no use_case.
         st.write(
-            "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>📦 Motivo Pendência (JSON)</span>",
+            "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>📦 Motivo Pendência</span>",
             unsafe_allow_html=True,
         )
         _pend_fields = [
-            ("Tipo",        "json_extract_string(\"motivoPendencia\", '$.tipo')",
-             "mot_pend_tipo"),
-            ("Motivo",      "json_extract_string(\"motivoPendencia\", '$.motivo')",
-             "mot_pend_mot"),
-            ("Descrição",  "json_extract_string(\"motivoPendencia\", '$.descricao')",
-             "mot_pend_desc"),
-            ("Status",      "json_extract_string(\"motivoPendencia\", '$.status')",
-             "mot_pend_sta"),
+            ("Tipo",       "json_extract_string(\"motivoPendencia\", '$.tipo')",       "mot_pend_tipo"),
+            ("Motivo",     "json_extract_string(\"motivoPendencia\", '$.motivo')",     "mot_pend_mot"),
+            ("Descrição", "json_extract_string(\"motivoPendencia\", '$.descricao')",  "mot_pend_desc"),
+            ("Status",     "json_extract_string(\"motivoPendencia\", '$.status')",     "mot_pend_sta"),
         ]
+        _where_for_pend = curr_where if curr_where.strip() else "1=1"
+        _uc = get_use_case()
         for _pf_label, _pf_expr, _pf_key in _pend_fields:
-            _pf_opts = get_dynamic_options(_pf_expr, curr_where, st.session_state.user)
+            try:
+                _pf_sql = (
+                    f"SELECT DISTINCT {_pf_expr} AS val "
+                    f"FROM gercon "
+                    f"WHERE {_where_for_pend} "
+                    f"AND {_pf_expr} IS NOT NULL "
+                    f"AND {_pf_expr} != '' "
+                    f"ORDER BY 1"
+                )
+                _pf_raw = _uc.execute_custom_query(
+                    _pf_sql, None, st.session_state.user
+                )
+                _pf_opts = _pf_raw["val"].dropna().tolist() if not _pf_raw.empty else []
+            except Exception:
+                _pf_opts = []
+
             if not _pf_opts:
                 continue
+
             state_keys[cat].extend([f"{_pf_key}_in", f"{_pf_key}_ex"])
             st.caption(_pf_label)
             _pf_c1, _pf_c2 = st.columns(2)
             _pf_incl = _pf_c1.multiselect(
-                f"{_pf_label} ✅", sorted(set([o for o in _pf_opts if o])),
+                f"{_pf_label} ✅", sorted(set(str(o) for o in _pf_opts)),
                 key=f"{_pf_key}_in", label_visibility="collapsed", placeholder="✅ Incluir..."
             )
             _pf_excl = _pf_c2.multiselect(
-                f"{_pf_label} ❌", sorted(set([o for o in _pf_opts if o])),
+                f"{_pf_label} ❌", sorted(set(str(o) for o in _pf_opts)),
                 key=f"{_pf_key}_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
             )
             if _pf_incl:
