@@ -97,6 +97,9 @@ MANIFEST
 bin/
 temp/
 
+# Artifacts
+.playwright-mcp/
+
 # Document files
 *.doc
 *.docx

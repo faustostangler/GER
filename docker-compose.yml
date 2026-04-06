@@ -104,11 +104,12 @@ services:
       OAUTH2_PROXY_COOKIE_EXPIRE: "24h0m0s"
       OAUTH2_PROXY_COOKIE_REFRESH: "0h"
     command:
-      - --cookie-domain=.${PROJECT_DOMAIN} # O ponto no início permite todos os subdomínios
+      - --cookie-domain=${PROJECT_DOMAIN}
       - --oidc-issuer-url=http://keycloak:8080/realms/${KEYCLOAK_REALM:-gercon-realm}
       - --whitelist-domain=.${PROJECT_DOMAIN}
       - --cookie-expire=24h0m0s
       - --cookie-refresh=0h
+      - --cookie-name=_oauth2_proxy_gercon
     logging: *default-logging
     depends_on:
       redis-session:

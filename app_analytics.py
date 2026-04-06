@@ -742,32 +742,57 @@ def _render_user_widget(user) -> None:
     else:
         session_caption = "⏰ Sessão ativa (24h)"
 
-    # Logout: OAuth2-Proxy destrói cookie Redis + invalida SSO no Keycloak
-    logout_url = "/oauth2/sign_out?rd=/dashboard/"
+    # WHY: Logout exige dois passos — limpar o cookie do OAuth2-Proxy E destruir a sessão SSO
+    # do Keycloak. Sem destruir o SSO do Keycloak, o usuário é re-autenticado silenciosamente.
+    # Cadeia de redirects: proxy sign_out → Keycloak end_session → /dashboard/
+    from urllib.parse import quote
 
+    keycloak_base = os.getenv(
+        "KEYCLOAK_SERVER_URL", "http://iam.127.0.0.1.nip.io:8080"
+    )
+    realm = os.getenv("KEYCLOAK_REALM", "gercon-realm")
+    client_id = os.getenv("KEYCLOAK_CLIENT_ID", "gercon-analytics")
+    post_logout_uri = f"http://{os.getenv('EXTERNAL_DOMAIN', '127.0.0.1.nip.io')}/dashboard/"
+
+    keycloak_logout = (
+        f"{keycloak_base}/realms/{realm}/protocol/openid-connect/logout"
+        f"?client_id={client_id}"
+        f"&post_logout_redirect_uri={quote(post_logout_uri, safe='')}"
+    )
+    # rd= aponta para o Keycloak logout (que destrói o SSO e volta para /dashboard/)
+    proxy_signout_rd = quote(keycloak_logout, safe='')
+    logout_action = f"/oauth2/sign_out?rd={proxy_signout_rd}"
+
+    # WHY: st.markdown(unsafe_allow_html) renderiza <form> no DOM sem iframe.
+    # Streamlit filtra onclick/target de <a>, mas NÃO interfere em <form> GET submissions.
     st.sidebar.markdown(
         f"""
-        <div style="margin-bottom: 12px; margin-top: 10px;">
-            <a href="{logout_url}" target="_self" style="
+        <form action="/oauth2/sign_out" method="GET" style="margin: 10px 0;">
+            <input type="hidden" name="rd" value="{keycloak_logout}" />
+            <button type="submit" style="
                 display: block;
+                width: 100%;
                 text-align: center;
                 background-color: transparent;
                 color: #ef4444;
                 text-decoration: none;
-                padding: 6px 12px;
-                border-radius: 6px;
+                padding: 8px 12px;
+                border-radius: 8px;
                 font-weight: 500;
                 font-size: 0.9rem;
                 border: 1px solid #ef4444;
+                cursor: pointer;
+                font-family: 'Source Sans Pro', sans-serif;
                 transition: all 0.2s ease-in-out;
-            " onmouseover="this.style.background='#ef4444'; this.style.color='white';" onmouseout="this.style.background='transparent'; this.style.color='#ef4444';">
+            ">
                 🚨 Logout &mdash; {display_name}
-            </a>
-        </div>
+            </button>
+        </form>
         """,
         unsafe_allow_html=True,
     )
     st.sidebar.divider()
+
 
 
 
@@ -826,24 +851,27 @@ def main():
                 "🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade."
             )
             
-            # WHY: st.link_button abre em nova janela. HTML <a> com target="_self" abre na mesma.
             st.markdown(
                 f"""
                 <div style="display: flex; justify-content: center; margin-top: 20px;">
-                    <a href="{login_url}" target="_self" style="
-                        background-color: #ef4444;
-                        color: white;
-                        text-decoration: none;
-                        padding: 12px 32px;
-                        border-radius: 12px;
-                        font-weight: 600;
-                        font-size: 1.1rem;
-                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                        border: 2px solid #ef4444;
-                    " onmouseover="this.style.background='#dc2626'; this.style.transform='translateY(-2px)';" onmouseout="this.style.background='#ef4444'; this.style.transform='translateY(0)';">
-                        🔑 Realizar Login (Keycloak)
-                    </a>
+                    <form action="/oauth2/start" method="GET">
+                        <input type="hidden" name="rd" value="/dashboard/" />
+                        <button type="submit" style="
+                            background-color: #ef4444;
+                            color: white;
+                            padding: 12px 32px;
+                            border-radius: 12px;
+                            font-weight: 600;
+                            font-size: 1.1rem;
+                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                            border: 2px solid #ef4444;
+                            cursor: pointer;
+                            font-family: 'Source Sans Pro', sans-serif;
+                            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                        ">
+                            🔑 Realizar Login (Keycloak)
+                        </button>
+                    </form>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -879,7 +907,7 @@ def main():
         "entidade_cidPrincipal_codigo": "CID Principal (Código)",
         "entidade_cidPrincipal_descricao": "CID Principal (Descrição)",
         "origem_lista": "Origem (Lista)",
-        "entidade_situacao_descricao": "Situação Atual",
+        "situacao": "Situação Atual",
         "entidade_especialidade_tipoRegulacao": "Tipo de Regulação",
         "entidade_especialidade_ativa": "Especialidade Ativa",
         "entidade_especialidade_teleconsulta": "Aceita Teleconsulta",
@@ -928,7 +956,7 @@ def main():
         "🏛️ Governança & Atores": [],
         "📅 Ciclo de Vida (Datas)": [],
         "🌍 Demografia & Rede": [],
-        "⚠️ Triagem & entidade_classificacaoRisco_totalPontos": [],
+        "⚠️ Triagem & Classificação de Risco": [],
         "🎯 Desfechos, Gargalos & SLA": [],
     }
     state_keys = {k: [] for k in ui_filters.keys()}
@@ -1066,7 +1094,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Situação Atual",
-            "entidade_situacao_descricao",
+            "situacao",
             clauses,
             curr_where,
             "sit",
@@ -1374,7 +1402,7 @@ def main():
             st.session_state.user,
         )
 
-    cat = "⚠️ Triagem & entidade_classificacaoRisco_totalPontos"
+    cat = "⚠️ Triagem & Classificação de Risco"
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude(
             "Complexidade",
@@ -1435,7 +1463,7 @@ def main():
             state_keys[cat],
         )
         curr_where = render_dual_slider(
-            "entidade_classificacaoRisco_totalPontos Total",
+            "Pontos Totais",
             "entidade_classificacaoRisco_totalPontos",
             clauses,
             "pt_tot",
@@ -1798,20 +1826,20 @@ def main():
 
         st.write(" ")
 
-        # --- LINHA 2: entidade_complexidade Clínica e SLA ---
+        # --- LINHA 2: Complexidade Clínica e SLA ---
         r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
         r2_c1.metric(
-            "🏛️ entidade_especialidade_descricaos (Mãe)",
+            "🏛️ Especialidades (Mãe)",
             f"{esp_mae:,}".replace(",", "."),
             help="Grandes áreas clínicas abrangidas (Ex: CIRURGIA).",
         )
         r2_c2.metric(
             "🎯 Subespecialidades",
             f"{sub_esp:,}".replace(",", "."),
-            help="entidade_especialidade_descricaos finas abrangidas (Ex: CIRURGIA DA MÃO).",
+            help="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO).",
         )
         r2_c3.metric(
-            "🔀 Subs/entidade_especialidade_descricao",
+            "🔀 Subs/Especialidade",
             f"{sub_por_esp}".replace(".", ","),
             help="Média de ramificações por grande área clínica.",
         )
@@ -2145,7 +2173,7 @@ def main():
                     "entidade_cidPrincipal_codigo",
                     "entidade_cidPrincipal_descricao",
                     "origem_lista",
-                    "entidade_situacao_descricao",
+                    "situacao",
                     "entidade_especialidade_tipoRegulacao",
                     "entidade_especialidade_ativa",
                     "entidade_especialidade_teleconsulta",
@@ -2161,7 +2189,7 @@ def main():
                     "usuarioSolicitante_nome",
                     "evolucoes_json",
                     "historico_evolucoes_completo",
-                    # --- Triagem & entidade_classificacaoRisco_totalPontos ---
+                    # --- Triagem & Classificação de Risco ---
                     "entidade_complexidade",
                     "entidade_classificacaoRisco_cor",
                     "corRegulador",
@@ -2317,9 +2345,9 @@ def main():
                 UNION ALL
                 SELECT '2. Triado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != ''
                 UNION ALL
-                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_situacao_descricao ILIKE '%AGENDADA%'
+                SELECT '3. Agendado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND situacao ILIKE '%AGENDADA%'
                 UNION ALL
-                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND (entidade_situacao_descricao ILIKE '%ATENDIDO%' OR entidade_situacao_descricao ILIKE '%REALIZADO%')
+                SELECT '4. Realizado' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND (situacao ILIKE '%ATENDIDO%' OR situacao ILIKE '%REALIZADO%')
             """,
                 filters,
                 st.session_state.user,
@@ -2336,17 +2364,17 @@ def main():
             )
 
         df_sit = use_case.execute_custom_query(
-            f"SELECT entidade_situacao_descricao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC",
+            f"SELECT situacao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC",
             spec=filters,
             current_user=st.session_state.user,
         )
         st.plotly_chart(
             px.bar(
                 df_sit,
-                x="entidade_situacao_descricao",
+                x="situacao",
                 y="Vol",
-                title="entidade_situacao_descricao Geral da Rede",
-                color="entidade_situacao_descricao",
+                title="Situação Geral da Rede",
+                color="situacao",
                 template="plotly_white",
             ),
             width="stretch",
@@ -2641,9 +2669,9 @@ def main():
                 f"""
                 SELECT numeroCMCE, entidade_classificacaoRisco_cor, TRY_CAST(entidade_classificacaoRisco_totalPontos AS INTEGER) as Pontos, 
                     DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) as DiasFila,
-                    entidade_situacao_descricao, entidade_especialidade_descricao
+                    situacao, entidade_especialidade_descricao
                 FROM gercon 
-                WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND entidade_situacao_descricao NOT ILIKE '%ENCERRADA%'
+                WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
                 ORDER BY DiasFila DESC, Pontos DESC
                 LIMIT 3000
             """,
@@ -2671,7 +2699,7 @@ def main():
                     title="Deteção de Outliers: Tempo de Fila vs Gravidade",
                     labels={
                         "DiasFila": "Tempo de Espera (Dias)",
-                        "Pontos": "entidade_classificacaoRisco_totalPontos de Gravidade",
+                        "Pontos": "Pontos de Gravidade",
                     },
                     render_mode="svg",
                 )
@@ -2716,7 +2744,7 @@ def main():
         df_audit = use_case.execute_custom_query(
             f"""
             SELECT numeroCMCE, CAST(dataSolicitacao AS DATE) as Solicitação, CAST(dataCadastro AS TIMESTAMP) as Data_Evolução, 
-            entidade_situacao_descricao, entidade_classificacaoRisco_cor as "Risco Cor", historico_quadro_clinico 
+            situacao, entidade_classificacaoRisco_cor as "Risco Cor", historico_quadro_clinico 
             FROM gercon WHERE {FINAL_WHERE} ORDER BY dataSolicitacao DESC, dataCadastro DESC LIMIT {limit}
         """,
             filters,
