@@ -1044,22 +1044,21 @@ def main():
         "Não Informado": "#9ca3af",
     }
 
-    # WHY: O filtro padrão é Origem da Lista = 'Fila de Espera' em vez de data.
-    # Isso reflete o caso de uso primário: monitorar pacientes ativamente na fila,
-    # sem o ruído de registros Expirados, Pendentes ou Agendados/Confirmados.
+    # WHY: O filtro padrão é Origem da Lista = 'Fila de Espera', mas deve ser
+    # selecionável como qualquer outro filtro — o usuário pode modificá-lo ou
+    # removê-lo. A pré-seleção acontece APENAS na primeira carga da sessão
+    # via session_state, e o render_include_exclude gera a cláusula SQL
+    # dinamicamente a partir do estado do widget (como todos os outros filtros).
     _DEFAULT_LISTA = "Fila de Espera"
-    _DEFAULT_CLAUSE = f'"origem_lista" IN (\'{_DEFAULT_LISTA}\')'
 
-    clauses = ["1=1", _DEFAULT_CLAUSE]
-    curr_where = f"1=1 AND {_DEFAULT_CLAUSE}"
-
-    # Pré-seleciona o widget ANTES da sidebar renderizar (só na primeira carga da sessão)
+    # Pré-seleciona o widget SOMENTE na primeira carga da sessão.
+    # Após isso, o usuário controla o valor — não sobrescrevemos mais.
     if "lst_in" not in st.session_state:
         st.session_state["lst_in"] = [_DEFAULT_LISTA]
 
-    # ==========================================
-    # SRE FIX: DICIONÁRIO MESTRE (MANTÉM CONSISTÊNCIA DE ORDEM UI/UX)
-    # ==========================================
+    clauses = ["1=1"]
+    curr_where = "1=1"
+
     ui_filters = {
         "🩺 Clínico & Regulação": [],
         "🏛️ Governança & Atores": [],
@@ -1070,10 +1069,6 @@ def main():
     }
     state_keys = {k: [] for k in ui_filters.keys()}
 
-    # Registra o filtro padrão como tag ativa (visível no resumo de filtros aplicados)
-    ui_filters["🏛️ Governança & Atores"].append(
-        {"text": f"✅ Origem (Lista): {_DEFAULT_LISTA}", "keys": ["lst_in"]}
-    )
 
 
     # ==========================================
@@ -1177,7 +1172,10 @@ def main():
         curr_where = " AND ".join(clauses)
 
     cat = "🏛️ Governança & Atores"
-    with st.sidebar.expander(cat, expanded=False):
+    # WHY: Abre expandido na primeira carga para o usuário ver o filtro
+    # padrão "Fila de Espera" pré-selecionado e poder modificá-lo.
+    _gov_expanded = "lst_in" not in st.session_state or bool(st.session_state.get("lst_in"))
+    with st.sidebar.expander(cat, expanded=_gov_expanded):
         # Atores movidos da antiga aba de Evoluções
         curr_where = render_advanced_text_search(
             "Tipo de Informação",
