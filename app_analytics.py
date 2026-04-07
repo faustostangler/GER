@@ -1361,7 +1361,6 @@ def main():
             "dt_solic",
             ui_filters[cat],
             state_keys[cat],
-            default_to_30_days=True,
         )
         st.write(" ")
         curr_where = render_smart_date_range(
