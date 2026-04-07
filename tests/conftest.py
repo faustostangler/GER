@@ -36,30 +36,37 @@ def seed_test_database():
         "numeroCMCE": ["E2E-001", "E2E-002"],
         "dataSolicitacao": ["2026-04-01T10:00:00Z", "2026-04-02T10:00:00Z"],
         "dataCadastro": ["2026-04-01T09:00:00Z", "2026-04-02T09:00:00Z"],
+        # WHY: 'situacao' é a coluna raw usada diretamente em queries SQL (SELECT situacao ...)
+        # 'entidade_situacao_descricao' é usada em outros contextos de renaming.
+        # Ambas são necessárias no seed para não quebrar nenhum caminho de query.
+        "situacao": ["PENDENTE", "AGENDADA"],
         "entidade_situacao_descricao": ["PENDENTE", "AGENDADA"],
         "entidade_classificacaoRisco_cor": ["VERMELHO", "AMARELO"],
-        "entidade_classificacaoRisco_totalPontos": [50, 120], # Falta no scatter
-        
+        "entidade_classificacaoRisco_totalPontos": [50, 120],
+
         # Demografia e Rede
         "usuarioSUS_municipioResidencia_nome": ["Porto Alegre", "Canoas"],
         "usuarioSUS_bairro": ["Centro", "Mathias Velho"],
-        "usuarioSUS_dataNascimento": ["1980-01-01", "1965-05-15"], # Necessário para date_diff
+        "usuarioSUS_dataNascimento": ["1980-01-01", "1965-05-15"],
         "usuarioSUS_sexo": ["Masculino", "Feminino"],
         "entidade_idade_idadeInteiro": [45, 60],
-        
+
         # Especialidades e Médicos
         "entidade_especialidade_descricao": ["Cardiologia", "Ortopedia"],
         "entidade_especialidade_especialidadeMae_descricao": ["Clínica Médica", "Cirurgia"],
+        "entidade_especialidade_cbo_descricao": ["CBO-001", "CBO-002"],
         "medicoSolicitante": ["Dr. João SRE", "Dra. Maria DevOps"],
         "unidade_solicitante": ["UBS Centro", "UBS Norte"],
         "origem_lista": ["Fila A", "Fila B"],
-        
+        "entidade_centralRegulacao_nome": ["Central A", "Central B"],
+
         # Diagnóstico e Auditoria
         "entidade_cidPrincipal_descricao": ["Hipertensão", "Fratura"],
+        "entidade_cidPrincipal_codigo": ["I10", "S72"],
         "paciente_nome": ["John Doe", "Jane Doe"],
         "cpf": ["111.111.111-11", "222.222.222-22"],
-        "historico_quadro_clinico": ["Paciente relata dor", "Evolução estável"], # Necessário para Tabela
-        
+        "historico_quadro_clinico": ["Paciente relata dor", "Evolução estável"],
+
         # SLAs
         "SLA_Lead_Time_Total_Dias": [10.0, 25.0]
     })

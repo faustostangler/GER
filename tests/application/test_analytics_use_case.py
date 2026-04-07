@@ -63,10 +63,8 @@ def test_analytics_use_case_should_calculate_correct_kpis():
     user = ValidatedUserToken(
         sub="123",
         email="test@test.com",
-        name="Test",
-        roles=["admin"],
-        given_name="Test",
         preferred_username="test",
+        roles=["admin"],
     )
 
     kpis = use_case.get_executive_summary(None, user)

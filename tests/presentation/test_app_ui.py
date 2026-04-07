@@ -43,7 +43,8 @@ def mock_analytics_use_case():
                 "Vol": [10, 20],
                 "entidade_classificacaoRisco_cor": ["VERMELHO", "VERDE"],
                 "Etapa": ["1. Solicitado", "2. Triado"],
-                "entidade_situacao_descricao": ["AGENDADA", "ATENDIDO"],
+                "situacao": ["AGENDADA", "ATENDIDO"],                       # raw col used by px.bar at line 2519
+                "entidade_situacao_descricao": ["AGENDADA", "ATENDIDO"],    # renamed col used elsewhere
                 "origem_descricao": ["Origem A", "Origem B"],
                 "entidade_especialidade_descricao": ["Cardio", "Orto"],
                 "motivo_descricao": ["Motivo A", "Motivo B"],
@@ -76,7 +77,9 @@ def mock_analytics_use_case():
                 "Origem": ["A", "B"],
                 "Ofensor": ["X", "Y"],
                 "Pontos": [1, 2],
-                "numeroCMCE": [1001, 1002]
+                "numeroCMCE": [1001, 1002],
+                # Extra cols used by queries deeper in the app (defensive completeness)
+                "historico_quadro_clinico": ["Texto A", "Texto B"],
             }
             return pd.DataFrame(df_base)
 
