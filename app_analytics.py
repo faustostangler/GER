@@ -1044,21 +1044,12 @@ def main():
         "Não Informado": "#9ca3af",
     }
 
-    # WHY: O filtro padrão é Origem da Lista = 'Fila de Espera', mas deve ser
-    # selecionável como qualquer outro filtro — o usuário pode modificá-lo ou
-    # removê-lo. A pré-seleção acontece APENAS na primeira carga da sessão
-    # via session_state, e o render_include_exclude gera a cláusula SQL
-    # dinamicamente a partir do estado do widget (como todos os outros filtros).
-    _DEFAULT_LISTA = "Fila de Espera"
-
-    # Pré-seleciona o widget SOMENTE na primeira carga da sessão.
-    # Após isso, o usuário controla o valor — não sobrescrevemos mais.
-    if "lst_in" not in st.session_state:
-        st.session_state["lst_in"] = [_DEFAULT_LISTA]
-
     clauses = ["1=1"]
     curr_where = "1=1"
 
+    # ==========================================
+    # SRE FIX: DICIONÁRIO MESTRE (MANTÉM CONSISTÊNCIA DE ORDEM UI/UX)
+    # ==========================================
     ui_filters = {
         "🩺 Clínico & Regulação": [],
         "🏛️ Governança & Atores": [],
@@ -1068,8 +1059,6 @@ def main():
         "🎯 Desfechos, Gargalos & SLA": [],
     }
     state_keys = {k: [] for k in ui_filters.keys()}
-
-
 
     # ==========================================
     # CASCADING SIDEBAR (TOP-DOWN FLOW OTIMIZADO)
@@ -1172,10 +1161,7 @@ def main():
         curr_where = " AND ".join(clauses)
 
     cat = "🏛️ Governança & Atores"
-    # WHY: Abre expandido na primeira carga para o usuário ver o filtro
-    # padrão "Fila de Espera" pré-selecionado e poder modificá-lo.
-    _gov_expanded = "lst_in" not in st.session_state or bool(st.session_state.get("lst_in"))
-    with st.sidebar.expander(cat, expanded=_gov_expanded):
+    with st.sidebar.expander(cat, expanded=False):
         # Atores movidos da antiga aba de Evoluções
         curr_where = render_advanced_text_search(
             "Tipo de Informação",
@@ -1643,43 +1629,35 @@ def main():
             st.session_state.user,
         )
 
-        # WHY: motivoPendencia é armazenado como string Python-dict (aspas simples), não JSON válido.
-        # json_extract_string falha. A solução é regexp_extract diretamente no DuckDB para
-        # extrair tipo, descricao e status de forma segura e sem chamar o contexto do app.
-        st.markdown("**📦 Motivo Pendência**")
+        st.markdown("---")
+        # Motivo Pendência — extrai 4 campos do JSON via DuckDB json_extract_string
+        # WHY: get_dynamic_options("{expr}") envolve o argumento com aspas duplas,
+        # tornando a expressão SQL inválida. A query é feita diretamente no use_case.
+        st.write(
+            "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>📦 Motivo Pendência</span>",
+            unsafe_allow_html=True,
+        )
         _pend_fields = [
-            (
-                "Tipo",
-                "mot_pend_tipo",
-                r"regexp_extract(motivoPendencia, '''tipo'': ''([^'']+)''', 1)",
-                r"regexp_extract(motivoPendencia, '''tipo'': ''([^'']+)''', 1)",
-            ),
-            (
-                "Descrição",
-                "mot_pend_desc",
-                r"regexp_extract(motivoPendencia, '''descricao'': ''([^'']+)''', 1)",
-                r"regexp_extract(motivoPendencia, '''descricao'': ''([^'']+)''', 1)",
-            ),
-            (
-                "Status",
-                "mot_pend_sta",
-                r"regexp_extract(motivoPendencia, '''status'': ''([^'']+)''', 1)",
-                r"regexp_extract(motivoPendencia, '''status'': ''([^'']+)''', 1)",
-            ),
+            ("Tipo",       "json_extract_string(\"motivoPendencia\", '$.tipo')",       "mot_pend_tipo"),
+            ("Motivo",     "json_extract_string(\"motivoPendencia\", '$.motivo')",     "mot_pend_mot"),
+            ("Descrição", "json_extract_string(\"motivoPendencia\", '$.descricao')",  "mot_pend_desc"),
+            ("Status",     "json_extract_string(\"motivoPendencia\", '$.status')",     "mot_pend_sta"),
         ]
+        _where_for_pend = curr_where if curr_where.strip() else "1=1"
         _uc = get_use_case()
-        for _pf_label, _pf_key, _pf_expr, _pf_filter_expr in _pend_fields:
+        for _pf_label, _pf_expr, _pf_key in _pend_fields:
             try:
                 _pf_sql = (
                     f"SELECT DISTINCT {_pf_expr} AS val "
                     f"FROM gercon "
-                    f"WHERE {curr_where} "
-                    f"AND motivoPendencia IS NOT NULL "
-                    f"AND motivoPendencia != '' "
+                    f"WHERE {_where_for_pend} "
+                    f"AND {_pf_expr} IS NOT NULL "
                     f"AND {_pf_expr} != '' "
                     f"ORDER BY 1"
                 )
-                _pf_raw = _uc.execute_custom_query(_pf_sql, None, st.session_state.user)
+                _pf_raw = _uc.execute_custom_query(
+                    _pf_sql, None, st.session_state.user
+                )
                 _pf_opts = _pf_raw["val"].dropna().tolist() if not _pf_raw.empty else []
             except Exception:
                 _pf_opts = []
@@ -1688,49 +1666,25 @@ def main():
                 continue
 
             state_keys[cat].extend([f"{_pf_key}_in", f"{_pf_key}_ex"])
-            st.caption(f"Pendência — {_pf_label}")
+            st.caption(_pf_label)
             _pf_c1, _pf_c2 = st.columns(2)
             _pf_incl = _pf_c1.multiselect(
-                f"Pendência {_pf_label} ✅",
-                sorted(set(str(o) for o in _pf_opts)),
-                key=f"{_pf_key}_in",
-                label_visibility="collapsed",
-                placeholder="✅ Incluir...",
+                f"{_pf_label} ✅", sorted(set(str(o) for o in _pf_opts)),
+                key=f"{_pf_key}_in", label_visibility="collapsed", placeholder="✅ Incluir..."
             )
             _pf_excl = _pf_c2.multiselect(
-                f"Pendência {_pf_label} ❌",
-                sorted(set(str(o) for o in _pf_opts)),
-                key=f"{_pf_key}_ex",
-                label_visibility="collapsed",
-                placeholder="❌ Excluir...",
+                f"{_pf_label} ❌", sorted(set(str(o) for o in _pf_opts)),
+                key=f"{_pf_key}_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
             )
             if _pf_incl:
-                # WHY: regexp_matches é verdadeiro se o padrão aparece na string — não usamos IN()
-                # pois o campo inteiro é o dict Python, não o valor isolado.
-                _pf_pattern = "|".join(
-                    v.replace("'", "''").replace("(", r"\(").replace(")", r"\)")
-                    for v in _pf_incl
-                )
-                clauses.append(
-                    f"regexp_matches(motivoPendencia, '(?i){_pf_pattern}')"
-                )
-                ui_filters[cat].append({
-                    "text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}",
-                    "keys": [f"{_pf_key}_in"],
-                })
+                _pf_safe = "', '".join(v.replace("'", "''") for v in _pf_incl)
+                clauses.append(f"{_pf_expr} IN ('{_pf_safe}')")
+                ui_filters[cat].append({"text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}", "keys": [f"{_pf_key}_in"]})
                 curr_where = " AND ".join(clauses)
             if _pf_excl:
-                _pf_pattern_ex = "|".join(
-                    v.replace("'", "''").replace("(", r"\(").replace(")", r"\)")
-                    for v in _pf_excl
-                )
-                clauses.append(
-                    f"NOT regexp_matches(motivoPendencia, '(?i){_pf_pattern_ex}')"
-                )
-                ui_filters[cat].append({
-                    "text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}",
-                    "keys": [f"{_pf_key}_ex"],
-                })
+                _pf_safe_ex = "', '".join(v.replace("'", "''") for v in _pf_excl)
+                clauses.append(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
+                ui_filters[cat].append({"text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}", "keys": [f"{_pf_key}_ex"]})
                 curr_where = " AND ".join(clauses)
 
         st.markdown("---")
