@@ -2757,63 +2757,69 @@ def main():
             st.session_state.user,
         )
 
-        if not df_heatmap.empty:
-            df_heatmap["_diag_curto"] = df_heatmap["_diag"].apply(
-                lambda x: x[:45] + "..." if len(str(x)) > 45 else x
-            )
-
-            # Cria a Matriz Base (Volumes Absolutos para hover)
-            df_pivot_vol = df_heatmap.pivot_table(
-                index="_diag_curto",
-                columns="_ator",
-                values="Vol",
-                fill_value=0,
-            )
-            df_math = df_pivot_vol.copy().astype(float)
-
-            # --- 4. MOTOR ESTATÍSTICO (Vetorização Pandas) ---
-            paleta_heatmap = "RdBu_r"
-
-            if modo_heatmap == OPT_CID:
-                medias_linhas = df_math.mean(axis=1)
-                desvios_linhas = df_math.std(axis=1).replace(0, 1)
-                df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
-            elif modo_heatmap == OPT_MED:
-                medias_colunas = df_math.mean(axis=0)
-                desvios_colunas = df_math.std(axis=0).replace(0, 1)
-                df_math = df_math.sub(medias_colunas, axis=1).div(
-                    desvios_colunas, axis=1
+        # WHY: O heatmap usa aliases internos (_ator, _diag) e pivot_table — operações
+        # que podem falhar se o mock/query retornar DataFrame sem essas colunas ou com
+        # dados insuficientes para o cálculo de desvio padrão. Degradação graciosa.
+        try:
+            if not df_heatmap.empty and "_diag" in df_heatmap.columns and "_ator" in df_heatmap.columns:
+                df_heatmap["_diag_curto"] = df_heatmap["_diag"].apply(
+                    lambda x: x[:45] + "..." if len(str(x)) > 45 else x
                 )
 
-            # --- 5. FORMATADOR DE TEXTO VISUAL (Apenas Z-Score) ---
-            df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
+                # Cria a Matriz Base (Volumes Absolutos para hover)
+                df_pivot_vol = df_heatmap.pivot_table(
+                    index="_diag_curto",
+                    columns="_ator",
+                    values="Vol",
+                    fill_value=0,
+                )
+                df_math = df_pivot_vol.copy().astype(float)
 
-            # --- 6. RENDERIZAÇÃO MATRICIAL SOTA (px.imshow) ---
-            fig_heat = px.imshow(
-                df_math,
-                aspect="auto",
-                color_continuous_scale=paleta_heatmap,
-                color_continuous_midpoint=0,
-                title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} {_label_diag} × Top {top_x_med} {_label_ator}",
-                labels=dict(
-                    x=_label_ator, y=_label_diag, color="Z-Score"
-                ),
-            )
+                # --- 4. MOTOR ESTATÍSTICO (Vetorização Pandas) ---
+                paleta_heatmap = "RdBu_r"
 
-            fig_heat.update_traces(
-                text=df_text.values,
-                texttemplate="%{text}",
-                customdata=df_pivot_vol.values,
-                hovertemplate=f"<b>{_label_ator}:</b> %{{x}}<br><b>{_label_diag}:</b> %{{y}}<br><b>Volume Real:</b> %{{customdata}} pacientes<br><b>Z-Score:</b> %{{text}} desvios<extra></extra>",
-            )
+                if modo_heatmap == OPT_CID:
+                    medias_linhas = df_math.mean(axis=1)
+                    desvios_linhas = df_math.std(axis=1).replace(0, 1)
+                    df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
+                elif modo_heatmap == OPT_MED:
+                    medias_colunas = df_math.mean(axis=0)
+                    desvios_colunas = df_math.std(axis=0).replace(0, 1)
+                    df_math = df_math.sub(medias_colunas, axis=1).div(
+                        desvios_colunas, axis=1
+                    )
 
-            altura_dinamica = max(500, top_x_cid * 35)
-            fig_heat.update_layout(
-                xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120)
-            )
-            st.plotly_chart(
-                fig_heat, width="stretch", config={"displayModeBar": False}
-            )
+                # --- 5. FORMATADOR DE TEXTO VISUAL (Apenas Z-Score) ---
+                df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
+
+                # --- 6. RENDERIZAÇÃO MATRICIAL SOTA (px.imshow) ---
+                fig_heat = px.imshow(
+                    df_math,
+                    aspect="auto",
+                    color_continuous_scale=paleta_heatmap,
+                    color_continuous_midpoint=0,
+                    title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} {_label_diag} × Top {top_x_med} {_label_ator}",
+                    labels=dict(
+                        x=_label_ator, y=_label_diag, color="Z-Score"
+                    ),
+                )
+
+                fig_heat.update_traces(
+                    text=df_text.values,
+                    texttemplate="%{text}",
+                    customdata=df_pivot_vol.values,
+                    hovertemplate=f"<b>{_label_ator}:</b> %{{x}}<br><b>{_label_diag}:</b> %{{y}}<br><b>Volume Real:</b> %{{customdata}} pacientes<br><b>Z-Score:</b> %{{text}} desvios<extra></extra>",
+                )
+
+                altura_dinamica = max(500, top_x_cid * 35)
+                fig_heat.update_layout(
+                    xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120)
+                )
+                st.plotly_chart(
+                    fig_heat, width="stretch", config={"displayModeBar": False}
+                )
+        except Exception:
+            st.warning("⚠️ Dados insuficientes para gerar o heatmap de auditoria clínica.")
 
         # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Ator ➔ Diagnóstico) ---
         df_perfil_med = use_case.execute_custom_query(
@@ -2829,21 +2835,24 @@ def main():
             st.session_state.user,
         )
 
-        if not df_perfil_med.empty:
-            df_perfil_med["_ator"] = df_perfil_med["_ator"].replace("", f"{_label_ator} Não Informado")
-            df_perfil_med["_diag"] = df_perfil_med["_diag"].replace("", f"{_label_diag} Não Informado")
-            fig_tree_med = px.treemap(
-                df_perfil_med,
-                path=["_ator", "_diag"],
-                values="Vol",
-                color="Vol",
-                color_continuous_scale="Teal",
-                title=f"Perfil: {_label_ator} ➔ {_label_diag} (Clique para expandir)",
-            )
-            fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
-            st.plotly_chart(
-                fig_tree_med, width="stretch", config={"displayModeBar": False}
-            )
+        try:
+            if not df_perfil_med.empty and "_ator" in df_perfil_med.columns and "_diag" in df_perfil_med.columns:
+                df_perfil_med["_ator"] = df_perfil_med["_ator"].replace("", f"{_label_ator} Não Informado")
+                df_perfil_med["_diag"] = df_perfil_med["_diag"].replace("", f"{_label_diag} Não Informado")
+                fig_tree_med = px.treemap(
+                    df_perfil_med,
+                    path=["_ator", "_diag"],
+                    values="Vol",
+                    color="Vol",
+                    color_continuous_scale="Teal",
+                    title=f"Perfil: {_label_ator} ➔ {_label_diag} (Clique para expandir)",
+                )
+                fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
+                st.plotly_chart(
+                    fig_tree_med, width="stretch", config={"displayModeBar": False}
+                )
+        except Exception:
+            st.warning("⚠️ Dados insuficientes para gerar o treemap de perfil clínico.")
 
     with t_micro:
         st.subheader("Auditoria de Outliers & Top Ofensores (SRE)")
@@ -2865,38 +2874,41 @@ def main():
                 filters,
                 st.session_state.user,
             )
-            if not df_outliers.empty:
-                # 2. Prevenção de Nós Vazios
-                df_outliers["entidade_classificacaoRisco_cor"] = (
-                    df_outliers["entidade_classificacaoRisco_cor"]
-                    .replace("", "Não Informado")
-                    .fillna("Não Informado")
-                )
+            try:
+                if not df_outliers.empty and "DiasFila" in df_outliers.columns and "Pontos" in df_outliers.columns:
+                    # 2. Prevenção de Nós Vazios
+                    df_outliers["entidade_classificacaoRisco_cor"] = (
+                        df_outliers["entidade_classificacaoRisco_cor"]
+                        .replace("", "Não Informado")
+                        .fillna("Não Informado")
+                    )
 
-                # 3. Plotagem do Scatter com os parâmetros matematicamente corretos usando a global
-                fig_out = px.scatter(
-                    df_outliers,
-                    x="DiasFila",
-                    y="Pontos",
-                    color="entidade_classificacaoRisco_cor",
-                    color_discrete_map=MAPA_CORES_RISCO,
-                    opacity=0.7,
-                    size="Pontos",
-                    hover_data=["numeroCMCE"],
-                    title="Deteção de Outliers: Tempo de Fila vs Gravidade",
-                    labels={
-                        "DiasFila": "Tempo de Espera (Dias)",
-                        "Pontos": "Pontos de Gravidade",
-                    },
-                    render_mode="svg",
-                )
-                fig_out.add_hline(
-                    y=40, line_dash="dot", annotation_text="Alta Gravidade"
-                )
-                fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
-                st.plotly_chart(
-                    fig_out, width="stretch", config={"displayModeBar": False}
-                )
+                    # 3. Plotagem do Scatter com os parâmetros matematicamente corretos usando a global
+                    fig_out = px.scatter(
+                        df_outliers,
+                        x="DiasFila",
+                        y="Pontos",
+                        color="entidade_classificacaoRisco_cor",
+                        color_discrete_map=MAPA_CORES_RISCO,
+                        opacity=0.7,
+                        size="Pontos",
+                        hover_data=["numeroCMCE"],
+                        title="Deteção de Outliers: Tempo de Fila vs Gravidade",
+                        labels={
+                            "DiasFila": "Tempo de Espera (Dias)",
+                            "Pontos": "Pontos de Gravidade",
+                        },
+                        render_mode="svg",
+                    )
+                    fig_out.add_hline(
+                        y=40, line_dash="dot", annotation_text="Alta Gravidade"
+                    )
+                    fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
+                    st.plotly_chart(
+                        fig_out, width="stretch", config={"displayModeBar": False}
+                    )
+            except Exception:
+                st.warning("⚠️ Dados insuficientes para o scatter de outliers.")
 
         with c2:
             # Top Ofensores (Barra Horizontal)
@@ -2906,19 +2918,23 @@ def main():
                 spec=filters,
                 current_user=st.session_state.user,
             )
-            fig_ofensor = px.bar(
-                df_medico,
-                x="Vol",
-                y="medicoSolicitante",
-                orientation="h",
-                title="Top 10 Médicos (Volume)",
-            )
-            fig_ofensor.update_layout(
-                yaxis={"categoryorder": "total ascending"}, height=450
-            )
-            st.plotly_chart(
-                fig_ofensor, width="stretch", config={"displayModeBar": False}
-            )
+            try:
+                if not df_medico.empty and "medicoSolicitante" in df_medico.columns:
+                    fig_ofensor = px.bar(
+                        df_medico,
+                        x="Vol",
+                        y="medicoSolicitante",
+                        orientation="h",
+                        title="Top 10 Médicos (Volume)",
+                    )
+                    fig_ofensor.update_layout(
+                        yaxis={"categoryorder": "total ascending"}, height=450
+                    )
+                    st.plotly_chart(
+                        fig_ofensor, width="stretch", config={"displayModeBar": False}
+                    )
+            except Exception:
+                st.warning("⚠️ Dados insuficientes para o ranking de médicos.")
 
         # Log Clinical Audit
         st.markdown("---")
