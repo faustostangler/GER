@@ -189,8 +189,11 @@ jobs:
           docker logs ger-ci_keycloak || true
           echo "=== 🔴 LOGS DO PROXY ==="
           docker logs ger-ci_proxy || true
+          echo "=== 🔴 LOGS DO ROUTER (nginx) ==="
+          docker logs ger-ci_router || true
           echo "=== 🟡 ESTADO DOS CONTAINERS ==="
           docker ps -a
+
 
       - name: Consumer-Driven Contract Tests (CDC)
         run: uv run pytest tests/infrastructure/test_gercon_contract.py
