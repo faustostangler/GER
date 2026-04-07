@@ -47,3 +47,6 @@
 | **Circuit Breaker** | Padrão de resiliência: se >5% dos registros forem Poison Pills, aborta o ciclo de ingestão para proteger a integridade do Data Lake. |
 | **Degradação Graciosa** | Capacidade do sistema de continuar operando (com performance reduzida) quando uma dependência falha (ex: Redis indisponível → fallback para query direta). |
 | **Watermark** | Timestamp do último registro processado para cada lista. Usado para evitar reprocessamento em ciclos incrementais. |
+| **Cloud Run Auth Adapter** | Adaptador de autenticação para runtime serverless (ADR-004). Usa password gate temporário enquanto Firebase Auth não é configurado. Detectado via `K_SERVICE`. |
+| **Password Gate** | Mecanismo de autenticação temporário para Cloud Run via `CLOUD_RUN_AUTH_PASSWORD`. Substitui Keycloak/oauth2-proxy em ambientes sem sidecar de identidade. |
+| **Firebase Auth (Phase 2)** | Provedor de identidade gerenciado pelo GCP para substituir o Password Gate. Suporta email/senha, SSO Google e custom claims (CRM, roles). |

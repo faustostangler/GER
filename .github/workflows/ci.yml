@@ -260,16 +260,17 @@ jobs:
           # MUDANÇA 3: Imagem e Região nos EUA
           image: us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gercon-repo/gercon-analytics:${{ github.sha }}
           region: us-central1
-          # SRE/Security: --allow-unauthenticated foi REMOVIDO intencionalmente.
-          # WHY: Esse flag tornava o serviço publicamente acessível sem nenhuma verificação de identidade
-          # a nível de infra GCP, contornando toda a proteção de autenticação da aplicação.
-          # Sem ele, o Cloud Run exige um token GCP válido ou Cloud IAP antes de atingir o app.
-          # A autenticação de domínio clínico (JWT/OIDC) permanece na camada BFF (get_authenticated_user).
+          # ADR-004: --allow-unauthenticated é NECESSÁRIO para Cloud Run sem Cloud IAP.
+          # WHY: Sem oauth2-proxy/Keycloak como sidecar, não existe IdP para emitir tokens
+          # GCP que o IAM espera. A autenticação é gerenciada pela camada de aplicação
+          # (Firebase Auth / get_authenticated_user) — o Cloud Run serve apenas como runtime.
+          # A migração para Cloud IAP (Phase 2 do ADR-004) eliminará este flag.
           flags: >-
+            --allow-unauthenticated
             --execution-environment=gen2
             --add-volume=name=datalake,type=cloud-storage,bucket=gercon-data-lake-prod-1030926202193
             --add-volume-mount=volume=datalake,mount-path=/app/data
-          # MUDANÇA 5: Aponta o código para o disco virtual do GCS FUSE e usa ambiente de Produção
+          # ADR-004: Env vars para o runtime Cloud Run (auth + perfil clínico default)
           env_vars: |
             GIT_SHA=${{ github.sha }}
             SENTRY_DSN=${{ secrets.SENTRY_DSN }}
@@ -278,6 +279,10 @@ jobs:
             OUTPUT_FILE=/app/data/gercon_consolidado.parquet
             ROLE=analytics
             SERVICE_TYPE=analytics
+            CLOUD_RUN_AUTH_PASSWORD=${{ secrets.CLOUD_RUN_AUTH_PASSWORD }}
+            CLOUD_RUN_DEFAULT_EMAIL=${{ secrets.CLOUD_RUN_DEFAULT_EMAIL }}
+            CLOUD_RUN_DEFAULT_USER=${{ secrets.CLOUD_RUN_DEFAULT_USER }}
+            CLOUD_RUN_DEFAULT_ROLE=diretor_medico
 
       # --- DORA METRIC: Deployment Frequency & Lead Time ---
       - name: Record DORA Deployment Event

@@ -664,6 +664,13 @@ def render_advanced_text_search(
 
 
 # --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
+
+
+def _is_cloud_run() -> bool:
+    """Detecta se o runtime é Google Cloud Run via variável injetada automaticamente."""
+    return bool(os.getenv("K_SERVICE"))
+
+
 def _is_dev_mock_allowed() -> bool:
     """
     Guarda de Segurança Dupla para bypass de autenticação em desenvolvimento.
@@ -677,18 +684,87 @@ def _is_dev_mock_allowed() -> bool:
     return environment in ("local", "dev") and allow_dev
 
 
+def _cloud_run_login_gate():
+    """
+    ADR-004 Phase 1: Login gate para Cloud Run via senha compartilhada.
+    WHY: Cloud Run serverless não executa Keycloak/oauth2-proxy como sidecar.
+    Usa CLOUD_RUN_AUTH_PASSWORD (injetado via Cloud Run secrets) como gate temporário
+    enquanto Firebase Auth (Phase 2) não é implementado.
+    Retorna True se o usuário já está autenticado na session, False caso contrário.
+    """
+    import hashlib
+
+    # Já autenticou nesta sessão Streamlit
+    if st.session_state.get("cloud_run_authenticated"):
+        return True
+
+    expected_hash = os.getenv("CLOUD_RUN_AUTH_PASSWORD_HASH", "")
+    expected_plain = os.getenv("CLOUD_RUN_AUTH_PASSWORD", "")
+
+    # Fail-fast: Nenhuma senha configurada no Cloud Run
+    if not expected_hash and not expected_plain:
+        st.error(
+            "🚨 **Configuração Ausente.** "
+            "`CLOUD_RUN_AUTH_PASSWORD` não está definido no Cloud Run. "
+            "Contate o administrador."
+        )
+        st.stop()
+        return False  # pragma: no cover
+
+    st.markdown(
+        """
+        <div style="text-align: center; margin-top: 60px;">
+            <h1 style="font-family: 'Inter', sans-serif; color: #1e293b;">🎯 Gercon Analytics</h1>
+            <p style="color: #64748b; font-size: 1.1rem;">Sistema de Regulação Clínica</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_left, col_center, col_right = st.columns([1, 2, 1])
+    with col_center:
+        with st.form("cloud_run_login", clear_on_submit=True):
+            st.subheader("🔐 Login")
+            password = st.text_input(
+                "Senha de Acesso", type="password", key="cr_pwd"
+            )
+            submitted = st.form_submit_button(
+                "Entrar", use_container_width=True, type="primary"
+            )
+
+        if submitted and password:
+            # Validação: compara hash SHA-256 ou fallback para texto plano
+            pwd_sha256 = hashlib.sha256(password.encode()).hexdigest()
+
+            is_valid = False
+            if expected_hash:
+                is_valid = pwd_sha256 == expected_hash.lower()
+            elif expected_plain:
+                is_valid = password == expected_plain
+
+            if is_valid:
+                st.session_state["cloud_run_authenticated"] = True
+                st.rerun()
+            else:
+                st.error("❌ Senha incorreta.")
+
+    st.stop()
+    return False  # pragma: no cover
+
+
 def get_authenticated_user():
     """
-    SRE BFF Pattern: Extrai o JWT injetado pelo IAP Proxy ou Mock local.
+    SRE BFF Pattern: Estratégia de autenticação adaptável por runtime.
+    - Cloud Run: Password gate (ADR-004) → Mock user com perfil clínico.
+    - Docker Compose (RDE): IAP Proxy headers → JWT Keycloak.
+    - Local Dev: Mock dupla-guarda (ENVIRONMENT + ALLOW_UNAUTHENTICATED_DEV).
     """
-    # DX: Desenvolvimento Local sem IAP Proxy
-    # WHY: Guarda dupla — não basta ENVIRONMENT=dev; exige ALLOW_UNAUTHENTICATED_DEV=true.
-    # Isso previne acesso não autenticado em Cloud Run caso ENVIRONMENT=dev seja injetado por engano.
-    if _is_dev_mock_allowed():
-        from infrastructure.auth.token_acl import ValidatedUserToken
-        import time
+    import time
+    from infrastructure.auth.token_acl import ValidatedUserToken
 
-        # Mock Session para Desenvolvimento Local (Bypass RLS se role for diretor_medico)
+    # === PATH 1: Desenvolvimento Local sem IAP Proxy ===
+    # WHY: Guarda dupla — não basta ENVIRONMENT=dev; exige ALLOW_UNAUTHENTICATED_DEV=true.
+    if _is_dev_mock_allowed():
         mock_user = ValidatedUserToken(
             sub="dev-id-123",
             email="dev@gercon.com",
@@ -696,20 +772,35 @@ def get_authenticated_user():
             roles=["diretor_medico"],
             crm_numero="99999",
             crm_uf="RS",
-            exp=int(time.time() + 86400),  # 24h exp — SRE: Alinhado com a política de sessão clínica
+            exp=int(time.time() + 86400),
         )
         return mock_user, "mock-jwt-token"
 
-    # Prod Flow: Extração do Header injetado pelo OAuth2-Proxy (Streamlit 1.37+)
-    # SRE: Tenta múltiplas variantes de cabeçalho comuns entre diferentes proxys/configurações
+    # === PATH 2: Cloud Run Serverless (sem Keycloak/oauth2-proxy) ===
+    # ADR-004: Password gate → cria sessão com perfil clínico default.
+    # TODO(ADR-004/Phase2): Substituir por Firebase Auth com Firestore user profiles.
+    if _is_cloud_run():
+        _cloud_run_login_gate()  # Bloqueia com st.stop() se não autenticado
+        cloud_user = ValidatedUserToken(
+            sub="cloud-run-user",
+            email=os.getenv("CLOUD_RUN_DEFAULT_EMAIL", "clinico@gercon.com"),
+            preferred_username=os.getenv("CLOUD_RUN_DEFAULT_USER", "clinico"),
+            roles=[os.getenv("CLOUD_RUN_DEFAULT_ROLE", "diretor_medico")],
+            crm_numero=os.getenv("CLOUD_RUN_CRM_NUMERO"),
+            crm_uf=os.getenv("CLOUD_RUN_CRM_UF"),
+            exp=int(time.time() + 86400),
+        )
+        return cloud_user, "cloud-run-session"
+
+    # === PATH 3: Docker Compose / K8s com OAuth2-Proxy (Prod original) ===
+    # Extração do Header injetado pelo OAuth2-Proxy (Streamlit 1.37+)
     auth_header = (
-        st.context.headers.get("x-forwarded-access-token") or 
-        st.context.headers.get("x-auth-request-access-token") or
-        st.context.headers.get("authorization", "").replace("Bearer ", "")
+        st.context.headers.get("x-forwarded-access-token")
+        or st.context.headers.get("x-auth-request-access-token")
+        or st.context.headers.get("authorization", "").replace("Bearer ", "")
     )
-    
+
     if not auth_header:
-        # Se vazio em prod, levanta exceção para ser capturada pelo loop de Login
         raise ValueError("Missing Authentication Headers (IAP Proxy)")
 
     from infrastructure.auth.jwt_validator import verify_token
@@ -719,78 +810,74 @@ def get_authenticated_user():
 
 
 
-# --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP) ---
+# --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP / Cloud Run) ---
 def _render_user_widget(user) -> None:
     """
     Renderiza o card de identidade do usuário no topo da sidebar.
-    WHY: Usa componentes nativos Streamlit para máxima compatibilidade com AppTest
-    e evita problemas de HTML injetado. O logout destrói a sessão Redis do OAuth2-Proxy
-    e redireciona para o Keycloak (Zero Trust completo).
+    WHY: Adapta o logout conforme o runtime:
+    - Cloud Run: Limpa session_state e recarrega (sem proxy/Keycloak).
+    - Docker Compose: Destroi sessão Redis do OAuth2-Proxy + SSO Keycloak.
     """
-    from datetime import datetime
-
     username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
     display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
-    roles = getattr(user, "roles", [])
-    role_label = roles[0].replace("_", " ").title() if roles else "Usuário"
-    token_exp = st.session_state.get("token_exp", 0)
-    is_dev = _is_dev_mock_allowed()
 
-    if token_exp:
-        exp_str = datetime.fromtimestamp(token_exp).strftime("%d/%m/%Y às %H:%M")
-        session_caption = f"⏰ Sessão válida até {exp_str}"
+    if _is_cloud_run():
+        # Cloud Run: Logout simples — limpa session_state do Streamlit
+        st.sidebar.markdown(
+            f"👤 **{display_name}**",
+        )
+        if st.sidebar.button(
+            "🚪 Logout",
+            use_container_width=True,
+            key="cloud_run_logout",
+        ):
+            for key in list(st.session_state.keys()):
+                del st.session_state[key]
+            st.rerun()
     else:
-        session_caption = "⏰ Sessão ativa (24h)"
+        # Docker Compose / K8s: Logout com cadeia de redirects OAuth2-Proxy → Keycloak
+        # WHY: Logout exige dois passos — limpar cookie do OAuth2-Proxy E destruir SSO Keycloak.
+        from urllib.parse import quote
 
-    # WHY: Logout exige dois passos — limpar o cookie do OAuth2-Proxy E destruir a sessão SSO
-    # do Keycloak. Sem destruir o SSO do Keycloak, o usuário é re-autenticado silenciosamente.
-    # Cadeia de redirects: proxy sign_out → Keycloak end_session → /dashboard/
-    from urllib.parse import quote
+        keycloak_base = os.getenv(
+            "KEYCLOAK_SERVER_URL", "http://iam.127.0.0.1.nip.io:8080"
+        )
+        realm = os.getenv("KEYCLOAK_REALM", "gercon-realm")
+        client_id = os.getenv("KEYCLOAK_CLIENT_ID", "gercon-analytics")
+        post_logout_uri = f"http://{os.getenv('EXTERNAL_DOMAIN', '127.0.0.1.nip.io')}/dashboard/"
 
-    keycloak_base = os.getenv(
-        "KEYCLOAK_SERVER_URL", "http://iam.127.0.0.1.nip.io:8080"
-    )
-    realm = os.getenv("KEYCLOAK_REALM", "gercon-realm")
-    client_id = os.getenv("KEYCLOAK_CLIENT_ID", "gercon-analytics")
-    post_logout_uri = f"http://{os.getenv('EXTERNAL_DOMAIN', '127.0.0.1.nip.io')}/dashboard/"
+        keycloak_logout = (
+            f"{keycloak_base}/realms/{realm}/protocol/openid-connect/logout"
+            f"?client_id={client_id}"
+            f"&post_logout_redirect_uri={quote(post_logout_uri, safe='')}"
+        )
 
-    keycloak_logout = (
-        f"{keycloak_base}/realms/{realm}/protocol/openid-connect/logout"
-        f"?client_id={client_id}"
-        f"&post_logout_redirect_uri={quote(post_logout_uri, safe='')}"
-    )
-    # rd= aponta para o Keycloak logout (que destrói o SSO e volta para /dashboard/)
-    proxy_signout_rd = quote(keycloak_logout, safe='')
-    logout_action = f"/oauth2/sign_out?rd={proxy_signout_rd}"
-
-    # WHY: st.markdown(unsafe_allow_html) renderiza <form> no DOM sem iframe.
-    # Streamlit filtra onclick/target de <a>, mas NÃO interfere em <form> GET submissions.
-    st.sidebar.markdown(
-        f"""
-        <form action="/oauth2/sign_out" method="GET" style="margin: 10px 0;">
-            <input type="hidden" name="rd" value="{keycloak_logout}" />
-            <button type="submit" style="
-                display: block;
-                width: 100%;
-                text-align: center;
-                background-color: transparent;
-                color: #ef4444;
-                text-decoration: none;
-                padding: 8px 12px;
-                border-radius: 8px;
-                font-weight: 500;
-                font-size: 0.9rem;
-                border: 1px solid #ef4444;
-                cursor: pointer;
-                font-family: 'Source Sans Pro', sans-serif;
-                transition: all 0.2s ease-in-out;
-            ">
-                🚨 Logout &mdash; {display_name}
-            </button>
-        </form>
-        """,
-        unsafe_allow_html=True,
-    )
+        st.sidebar.markdown(
+            f"""
+            <form action="/oauth2/sign_out" method="GET" style="margin: 10px 0;">
+                <input type="hidden" name="rd" value="{keycloak_logout}" />
+                <button type="submit" style="
+                    display: block;
+                    width: 100%;
+                    text-align: center;
+                    background-color: transparent;
+                    color: #ef4444;
+                    text-decoration: none;
+                    padding: 8px 12px;
+                    border-radius: 8px;
+                    font-weight: 500;
+                    font-size: 0.9rem;
+                    border: 1px solid #ef4444;
+                    cursor: pointer;
+                    font-family: 'Source Sans Pro', sans-serif;
+                    transition: all 0.2s ease-in-out;
+                ">
+                    🚨 Logout &mdash; {display_name}
+                </button>
+            </form>
+            """,
+            unsafe_allow_html=True,
+        )
     st.sidebar.divider()
 
 
@@ -816,18 +903,24 @@ def main():
         pass
 
     elif _user_already_in_state and not _token_still_valid:
-        # === CAMADA 2: Token venceu — apresenta CTA de renovar apenas 1 vez ===
-        # WHY: Exibir alerta apenas quando o token realmente expirou (>24h), nunca em
-        # reruns transitórios. O usuário clica explicitamente para sair.
+        # === CAMADA 2: Token venceu — apresenta CTA de renovar ===
         st.warning(
             "⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.",
             icon="🔒",
         )
-        st.link_button(
-            "🔄 Renovar Login",
-            "/oauth2/sign_out?rd=/dashboard/",
-            type="primary",
-        )
+        if _is_cloud_run():
+            # Cloud Run: Limpa session e recarrega (sem oauth2-proxy)
+            if st.button("🔄 Renovar Login", type="primary"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+        else:
+            # Docker Compose: Redireciona para cadeia OAuth2-Proxy → Keycloak
+            st.link_button(
+                "🔄 Renovar Login",
+                "/oauth2/sign_out?rd=/dashboard/",
+                type="primary",
+            )
         st.stop()
 
     else:
@@ -836,7 +929,7 @@ def main():
             user_domain, jwt_str = get_authenticated_user()
             st.session_state.user = user_domain
             st.session_state.raw_jwt = jwt_str
-            # SRE: Sessão de 24h alinhada com Keycloak + OAuth2-Proxy cookie-expire
+            # SRE: Sessão de 24h alinhada com a política de sessão clínica
             st.session_state.token_exp = (
                 user_domain.exp if user_domain.exp else (time.time() + 86400)
             )
@@ -844,38 +937,44 @@ def main():
             st.rerun()
         except Exception as _auth_err:
             # Falha real de autenticação (ex: header IAP ausente, token inválido)
-            # URL de Início Real do Proxy para forçar redirecionamento ao Keycloak
-            login_url = "/oauth2/start?rd=/dashboard/"
-            
-            st.error(
-                "🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade."
-            )
-            
-            st.markdown(
-                f"""
-                <div style="display: flex; justify-content: center; margin-top: 20px;">
-                    <form action="/oauth2/start" method="GET">
-                        <input type="hidden" name="rd" value="/dashboard/" />
-                        <button type="submit" style="
-                            background-color: #ef4444;
-                            color: white;
-                            padding: 12px 32px;
-                            border-radius: 12px;
-                            font-weight: 600;
-                            font-size: 1.1rem;
-                            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                            border: 2px solid #ef4444;
-                            cursor: pointer;
-                            font-family: 'Source Sans Pro', sans-serif;
-                            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                        ">
-                            🔑 Realizar Login (Keycloak)
-                        </button>
-                    </form>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            if _is_cloud_run():
+                # Cloud Run: O password gate já tratou tudo via st.stop() dentro
+                # de _cloud_run_login_gate(). Se chegou aqui, é um bug.
+                st.error(
+                    "🚨 **Erro inesperado de autenticação no Cloud Run.** "
+                    "Recarregue a página."
+                )
+            else:
+                # Docker Compose: Mostra botão de login via OAuth2-Proxy
+                st.error(
+                    "🚨 **Acesso não autorizado.** "
+                    "Não foi possível verificar a sua identidade."
+                )
+                st.markdown(
+                    """
+                    <div style="display: flex; justify-content: center; margin-top: 20px;">
+                        <form action="/oauth2/start" method="GET">
+                            <input type="hidden" name="rd" value="/dashboard/" />
+                            <button type="submit" style="
+                                background-color: #ef4444;
+                                color: white;
+                                padding: 12px 32px;
+                                border-radius: 12px;
+                                font-weight: 600;
+                                font-size: 1.1rem;
+                                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                                border: 2px solid #ef4444;
+                                cursor: pointer;
+                                font-family: 'Source Sans Pro', sans-serif;
+                                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                            ">
+                                🔑 Realizar Login (Keycloak)
+                            </button>
+                        </form>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
             
             # Debug (Opcional): Remova em prod se não quiser expor headers
             if os.getenv("APP__DEBUG", "false").lower() == "true":
