@@ -945,8 +945,18 @@ def main():
         "Não Informado": "#9ca3af",
     }
 
-    clauses = ["1=1"]
-    curr_where = "1=1"
+    # WHY: O filtro padrão é Origem da Lista = 'Fila de Espera' em vez de data.
+    # Isso reflete o caso de uso primário: monitorar pacientes ativamente na fila,
+    # sem o ruído de registros Expirados, Pendentes ou Agendados/Confirmados.
+    _DEFAULT_LISTA = "Fila de Espera"
+    _DEFAULT_CLAUSE = f'"origem_lista" IN (\'{_DEFAULT_LISTA}\')'
+
+    clauses = ["1=1", _DEFAULT_CLAUSE]
+    curr_where = f"1=1 AND {_DEFAULT_CLAUSE}"
+
+    # Pré-seleciona o widget ANTES da sidebar renderizar (só na primeira carga da sessão)
+    if "lst_in" not in st.session_state:
+        st.session_state["lst_in"] = [_DEFAULT_LISTA]
 
     # ==========================================
     # SRE FIX: DICIONÁRIO MESTRE (MANTÉM CONSISTÊNCIA DE ORDEM UI/UX)
@@ -960,6 +970,12 @@ def main():
         "🎯 Desfechos, Gargalos & SLA": [],
     }
     state_keys = {k: [] for k in ui_filters.keys()}
+
+    # Registra o filtro padrão como tag ativa (visível no resumo de filtros aplicados)
+    ui_filters["🏛️ Governança & Atores"].append(
+        {"text": f"✅ Origem (Lista): {_DEFAULT_LISTA}", "keys": ["lst_in"]}
+    )
+
 
     # ==========================================
     # CASCADING SIDEBAR (TOP-DOWN FLOW OTIMIZADO)
@@ -1531,17 +1547,95 @@ def main():
             st.session_state.user,
         )
 
-        st.markdown("---")
-        curr_where = render_include_exclude(
-            "Motivo Pendência",
-            "motivoPendencia",
-            clauses,
-            curr_where,
-            "mot_pend",
-            ui_filters[cat],
-            state_keys[cat],
-            st.session_state.user,
-        )
+        # WHY: motivoPendencia é armazenado como string Python-dict (aspas simples), não JSON válido.
+        # json_extract_string falha. A solução é regexp_extract diretamente no DuckDB para
+        # extrair tipo, descricao e status de forma segura e sem chamar o contexto do app.
+        st.markdown("**📦 Motivo Pendência**")
+        _pend_fields = [
+            (
+                "Tipo",
+                "mot_pend_tipo",
+                r"regexp_extract(motivoPendencia, '''tipo'': ''([^'']+)''', 1)",
+                r"regexp_extract(motivoPendencia, '''tipo'': ''([^'']+)''', 1)",
+            ),
+            (
+                "Descrição",
+                "mot_pend_desc",
+                r"regexp_extract(motivoPendencia, '''descricao'': ''([^'']+)''', 1)",
+                r"regexp_extract(motivoPendencia, '''descricao'': ''([^'']+)''', 1)",
+            ),
+            (
+                "Status",
+                "mot_pend_sta",
+                r"regexp_extract(motivoPendencia, '''status'': ''([^'']+)''', 1)",
+                r"regexp_extract(motivoPendencia, '''status'': ''([^'']+)''', 1)",
+            ),
+        ]
+        _uc = get_use_case()
+        for _pf_label, _pf_key, _pf_expr, _pf_filter_expr in _pend_fields:
+            try:
+                _pf_sql = (
+                    f"SELECT DISTINCT {_pf_expr} AS val "
+                    f"FROM gercon "
+                    f"WHERE {curr_where} "
+                    f"AND motivoPendencia IS NOT NULL "
+                    f"AND motivoPendencia != '' "
+                    f"AND {_pf_expr} != '' "
+                    f"ORDER BY 1"
+                )
+                _pf_raw = _uc.execute_custom_query(_pf_sql, None, st.session_state.user)
+                _pf_opts = _pf_raw["val"].dropna().tolist() if not _pf_raw.empty else []
+            except Exception:
+                _pf_opts = []
+
+            if not _pf_opts:
+                continue
+
+            state_keys[cat].extend([f"{_pf_key}_in", f"{_pf_key}_ex"])
+            st.caption(f"Pendência — {_pf_label}")
+            _pf_c1, _pf_c2 = st.columns(2)
+            _pf_incl = _pf_c1.multiselect(
+                f"Pendência {_pf_label} ✅",
+                sorted(set(str(o) for o in _pf_opts)),
+                key=f"{_pf_key}_in",
+                label_visibility="collapsed",
+                placeholder="✅ Incluir...",
+            )
+            _pf_excl = _pf_c2.multiselect(
+                f"Pendência {_pf_label} ❌",
+                sorted(set(str(o) for o in _pf_opts)),
+                key=f"{_pf_key}_ex",
+                label_visibility="collapsed",
+                placeholder="❌ Excluir...",
+            )
+            if _pf_incl:
+                # WHY: regexp_matches é verdadeiro se o padrão aparece na string — não usamos IN()
+                # pois o campo inteiro é o dict Python, não o valor isolado.
+                _pf_pattern = "|".join(
+                    v.replace("'", "''").replace("(", r"\(").replace(")", r"\)")
+                    for v in _pf_incl
+                )
+                clauses.append(
+                    f"regexp_matches(motivoPendencia, '(?i){_pf_pattern}')"
+                )
+                ui_filters[cat].append({
+                    "text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}",
+                    "keys": [f"{_pf_key}_in"],
+                })
+                curr_where = " AND ".join(clauses)
+            if _pf_excl:
+                _pf_pattern_ex = "|".join(
+                    v.replace("'", "''").replace("(", r"\(").replace(")", r"\)")
+                    for v in _pf_excl
+                )
+                clauses.append(
+                    f"NOT regexp_matches(motivoPendencia, '(?i){_pf_pattern_ex}')"
+                )
+                ui_filters[cat].append({
+                    "text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}",
+                    "keys": [f"{_pf_key}_ex"],
+                })
+                curr_where = " AND ".join(clauses)
 
         st.markdown("---")
         curr_where = render_include_exclude(
@@ -2450,7 +2544,48 @@ def main():
         )
 
         st.markdown("---")
-        st.subheader("🕵️ Auditoria de Padrões Clínicos (Médico vs Diagnóstico)")
+        st.subheader("🕵️ Auditoria de Padrões Clínicos (Local / Ator  ×  Diagnóstico)")
+
+        # --- SELETORES DE DIMENSÃO ---
+        # WHY: Hardcodar medicoSolicitante × CID limita a análise.
+        # Com seletores livres o gestor pode parear qualquer eixo:
+        # "UBS × Especialidade Mãe" revela gargalos regionais; 
+        # "Médico × CID" mantém a auditoria individual original.
+        _OPCOES_DIAGNOSTICO = {
+            "CID — Descrição":             "entidade_cidPrincipal_descricao",
+            "CID — Código":                "entidade_cidPrincipal_codigo",
+            "Especialidade Mãe":           "entidade_especialidade_especialidadeMae_descricao",
+            "Especialidade Fina":          "entidade_especialidade_descricao",
+            "CBO (Especialidade)":         "entidade_especialidade_cbo_descricao",
+        }
+        _OPCOES_ATOR = {
+            "Médico Solicitante":          "medicoSolicitante",
+            "Unidade Operadora (UBS)":     "entidade_unidadeOperador_nome",
+            "Unidade Operadora (Razão Social)": "entidade_unidadeOperador_razaoSocial",
+            "Tipo de Unidade":             "entidade_unidadeOperador_tipoUnidade_descricao",
+            "Central de Regulação":        "entidade_centralRegulacao_nome",
+            "Operador (Regulador)":        "operador_nome",
+            "Usuário Solicitante":         "usuarioSolicitante_nome",
+        }
+
+        c_dim1, c_dim2 = st.columns(2)
+        with c_dim1:
+            _label_ator = st.selectbox(
+                "📍 Eixo X — Local / Ator:",
+                options=list(_OPCOES_ATOR.keys()),
+                index=0,
+                help="Define quem ou qual local aparece no eixo X do heatmap.",
+            )
+        with c_dim2:
+            _label_diag = st.selectbox(
+                "🔬 Eixo Y — Diagnóstico / Dimensão Clínica:",
+                options=list(_OPCOES_DIAGNOSTICO.keys()),
+                index=0,
+                help="Define qual dimensão clínica aparece no eixo Y do heatmap.",
+            )
+
+        _col_ator = _OPCOES_ATOR[_label_ator]
+        _col_diag = _OPCOES_DIAGNOSTICO[_label_diag]
 
         # --- 1. DEFINIÇÃO ESTRITA DE VARIÁVEIS DE ESTADO ---
         OPT_CID = "Análise Horizontal (Comparação de Pares)"
@@ -2460,21 +2595,21 @@ def main():
         c_top1, c_top2, c_metric = st.columns([0.15, 0.15, 0.7])
         with c_top1:
             top_x_med = st.slider(
-                "Top Médicos:",
+                f"Top {_label_ator.split('(')[0].strip()}:",
                 min_value=5,
                 max_value=100,
                 value=15,
                 step=1,
-                help="Define a quantidade de médicos no eixo X.",
+                help=f"Define a quantidade de itens de '{_label_ator}' no eixo X.",
             )
         with c_top2:
             top_x_cid = st.slider(
-                "Top Diagnósticos:",
+                f"Top {_label_diag.split('(')[0].strip()}:",
                 min_value=5,
                 max_value=100,
                 value=15,
                 step=1,
-                help="Define a quantidade de CIDs no eixo Y.",
+                help=f"Define a quantidade de itens de '{_label_diag}' no eixo Y.",
             )
         with c_metric:
             st.write(" ")
@@ -2487,49 +2622,51 @@ def main():
         # --- CAIXA DE EXPLICAÇÃO DINÂMICA DE LEITURA (UX) ---
         if modo_heatmap == OPT_CID:
             st.info(
-                "💡 **Dica: Análise Horizontal (Comparação de Pares):** Avalia um mesmo **Diagnóstico (linha)** entre todos os médicos. Tons quentes (vermelho) indicam que o médico em questão solicita este CID com uma frequência **estatisticamente muito acima da média de seus colegas**. É útil para identificar profissionais que apresentam desvio sistêmico de conduta para uma doença específica."
+                f"💡 **Dica: Análise Horizontal (Comparação de Pares):** Avalia um mesmo **{_label_diag} (linha)** entre todos os '{_label_ator}'. "
+                f"Tons quentes (vermelho) indicam que o ator em questão tem frequência **estatisticamente muito acima da média de seus pares**."
             )
         else:
             st.info(
-                "💡 **Dica: Análise Vertical (Perfil Individual):** Avalia a rotina de um único **Médico (coluna)** comparando todos os diagnósticos que ele próprio emite. Tons quentes (vermelho) revelam quais CIDs são anomalias (excessos) que **fogem do padrão normal de trabalho daquele profissional específico**. É útil para detectar concentração atípica ou vieses de encaminhamento de um indivíduo."
+                f"💡 **Dica: Análise Vertical (Perfil Individual):** Avalia a rotina de um único **{_label_ator} (coluna)** comparando todas as dimensões clínicas que ele apresenta. "
+                f"Tons quentes (vermelho) revelam quais '{_label_diag}' são anomalias que fogem do padrão normal daquele ator específico."
             )
 
         # --- 3. EXTRACÇÃO OLAP (DuckDB com Limites Independentes) ---
         df_heatmap = use_case.execute_custom_query(
             f"""
-            WITH TopMedicos AS (
-                SELECT medicoSolicitante FROM gercon 
-                WHERE {FINAL_WHERE} AND medicoSolicitante != '' AND medicoSolicitante IS NOT NULL
+            WITH TopAtores AS (
+                SELECT "{_col_ator}" FROM gercon
+                WHERE {FINAL_WHERE} AND "{_col_ator}" != '' AND "{_col_ator}" IS NOT NULL
                 GROUP BY 1 ORDER BY COUNT(DISTINCT numeroCMCE) DESC LIMIT {top_x_med}
             ),
-            TopCIDs AS (
-                SELECT entidade_cidPrincipal_descricao FROM gercon 
-                WHERE {FINAL_WHERE} AND entidade_cidPrincipal_descricao != '' AND entidade_cidPrincipal_descricao IS NOT NULL
+            TopDiags AS (
+                SELECT "{_col_diag}" FROM gercon
+                WHERE {FINAL_WHERE} AND "{_col_diag}" != '' AND "{_col_diag}" IS NOT NULL
                 GROUP BY 1 ORDER BY COUNT(DISTINCT numeroCMCE) DESC LIMIT {top_x_cid}
             )
-            SELECT 
-                medicoSolicitante, 
-                entidade_cidPrincipal_descricao, 
+            SELECT
+                "{_col_ator}"  AS _ator,
+                "{_col_diag}"  AS _diag,
                 COUNT(DISTINCT numeroCMCE) as Vol
             FROM gercon
             WHERE {FINAL_WHERE}
-              AND medicoSolicitante IN (SELECT medicoSolicitante FROM TopMedicos)
-              AND entidade_cidPrincipal_descricao IN (SELECT entidade_cidPrincipal_descricao FROM TopCIDs)
+              AND "{_col_ator}" IN (SELECT "{_col_ator}" FROM TopAtores)
+              AND "{_col_diag}" IN (SELECT "{_col_diag}" FROM TopDiags)
             GROUP BY 1, 2
-        """,
+            """,
             filters,
             st.session_state.user,
         )
 
         if not df_heatmap.empty:
-            df_heatmap["CID_Curto"] = df_heatmap[
-                "entidade_cidPrincipal_descricao"
-            ].apply(lambda x: x[:45] + "..." if len(x) > 45 else x)
+            df_heatmap["_diag_curto"] = df_heatmap["_diag"].apply(
+                lambda x: x[:45] + "..." if len(str(x)) > 45 else x
+            )
 
             # Cria a Matriz Base (Volumes Absolutos para hover)
             df_pivot_vol = df_heatmap.pivot_table(
-                index="CID_Curto",
-                columns="medicoSolicitante",
+                index="_diag_curto",
+                columns="_ator",
                 values="Vol",
                 fill_value=0,
             )
@@ -2549,7 +2686,7 @@ def main():
                     desvios_colunas, axis=1
                 )
 
-            # --- 5. FORMATADOR DE TEXTO VISUAL (Apenas Z-Score agora) ---
+            # --- 5. FORMATADOR DE TEXTO VISUAL (Apenas Z-Score) ---
             df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
 
             # --- 6. RENDERIZAÇÃO MATRICIAL SOTA (px.imshow) ---
@@ -2558,9 +2695,9 @@ def main():
                 aspect="auto",
                 color_continuous_scale=paleta_heatmap,
                 color_continuous_midpoint=0,
-                title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} CIDs vs Top {top_x_med} Médicos",
+                title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} {_label_diag} × Top {top_x_med} {_label_ator}",
                 labels=dict(
-                    x="Médico Solicitante", y="Diagnóstico (CID)", color="Z-Score"
+                    x=_label_ator, y=_label_diag, color="Z-Score"
                 ),
             )
 
@@ -2568,10 +2705,9 @@ def main():
                 text=df_text.values,
                 texttemplate="%{text}",
                 customdata=df_pivot_vol.values,
-                hovertemplate="<b>Médico:</b> %{x}<br><b>CID:</b> %{y}<br><b>Volume Real:</b> %{customdata} pacientes<br><b>Z-Score:</b> %{text} desvios<extra></extra>",
+                hovertemplate=f"<b>{_label_ator}:</b> %{{x}}<br><b>{_label_diag}:</b> %{{y}}<br><b>Volume Real:</b> %{{customdata}} pacientes<br><b>Z-Score:</b> %{{text}} desvios<extra></extra>",
             )
 
-            # A altura agora é ditada dinamicamente pelo slider de CIDs (Eixo Y)
             altura_dinamica = max(500, top_x_cid * 35)
             fig_heat.update_layout(
                 xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120)
@@ -2580,32 +2716,30 @@ def main():
                 fig_heat, width="stretch", config={"displayModeBar": False}
             )
 
-        # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Médico ➔ CID) ---
+        # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Ator ➔ Diagnóstico) ---
         df_perfil_med = use_case.execute_custom_query(
             f"""
-            SELECT medicoSolicitante, entidade_cidPrincipal_descricao, COUNT(DISTINCT numeroCMCE) as Vol
+            SELECT "{_col_ator}" AS _ator, "{_col_diag}" AS _diag, COUNT(DISTINCT numeroCMCE) as Vol
             FROM gercon
-            WHERE {FINAL_WHERE} AND medicoSolicitante != '' AND entidade_cidPrincipal_descricao != ''
-            GROUP BY 1, 2 HAVING COUNT(DISTINCT numeroCMCE) >= 3 ORDER BY 3 DESC LIMIT 100
-        """,
+            WHERE {FINAL_WHERE}
+              AND "{_col_ator}" != '' AND "{_col_ator}" IS NOT NULL
+              AND "{_col_diag}" != '' AND "{_col_diag}" IS NOT NULL
+            GROUP BY 1, 2 HAVING COUNT(DISTINCT numeroCMCE) >= 3 ORDER BY 3 DESC LIMIT 150
+            """,
             filters,
             st.session_state.user,
         )
 
         if not df_perfil_med.empty:
-            df_perfil_med["medicoSolicitante"] = df_perfil_med[
-                "medicoSolicitante"
-            ].replace("", "Médico Não Informado")
-            df_perfil_med["entidade_cidPrincipal_descricao"] = df_perfil_med[
-                "entidade_cidPrincipal_descricao"
-            ].replace("", "CID Não Informado")
+            df_perfil_med["_ator"] = df_perfil_med["_ator"].replace("", f"{_label_ator} Não Informado")
+            df_perfil_med["_diag"] = df_perfil_med["_diag"].replace("", f"{_label_diag} Não Informado")
             fig_tree_med = px.treemap(
                 df_perfil_med,
-                path=["medicoSolicitante", "entidade_cidPrincipal_descricao"],
+                path=["_ator", "_diag"],
                 values="Vol",
                 color="Vol",
                 color_continuous_scale="Teal",
-                title="Perfil de Diagnóstico por Médico (Clique no Médico para expandir)",
+                title=f"Perfil: {_label_ator} ➔ {_label_diag} (Clique para expandir)",
             )
             fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
             st.plotly_chart(
