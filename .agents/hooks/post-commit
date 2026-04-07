@@ -1,0 +1,44 @@
+#!/bin/bash
+# WHY: Garante convergência entre o código commitado e o ambiente local em qualquer branch,
+# sem penalizar o Flow State do TDD. A lógica é:
+#   - pyproject.toml ou uv.lock mudaram → rebuild completo (nova dependência foi adicionada)
+#   - Apenas src/ ou app_analytics.py mudaram → restart leve do worker
+#     (analytics usa Streamlit hot-reload via bind mount — zero intervenção necessária)
+# O CI/CD remoto (GitHub Actions) só dispara na main (ci.yml: branches: [main]).
+
+set -e
+
+PROJECT_DIR="$(git rev-parse --show-toplevel)"
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+GIT_SHORT_SHA=$(git rev-parse --short HEAD)
+
+# Detecta se dependências mudaram neste commit
+DEPS_CHANGED=$(git diff-tree --no-commit-id -r --name-only HEAD | grep -E "^(pyproject\.toml|uv\.lock)$" || true)
+
+echo ""
+echo "🔄 [post-commit] Branch: ${GIT_BRANCH} | Commit: ${GIT_SHORT_SHA}"
+
+if [ -n "$DEPS_CHANGED" ]; then
+    # WHY: pyproject.toml/uv.lock alterados → novo pacote instalado.
+    # Rebuild obrigatório para reidratar o .venv dentro da imagem.
+    echo "📦 Dependências alteradas (${DEPS_CHANGED}) → Rebuild completo..."
+    cd "$PROJECT_DIR" && docker compose \
+        --env-file env/creds.env \
+        --env-file env/config.env \
+        up -d --build --force-recreate analytics worker \
+        2>&1 | tail -6
+    echo "✅ Rebuild completo. Containers atualizados para ${GIT_SHORT_SHA}."
+else
+    # WHY: Apenas código (src/ ou app_analytics.py) mudou.
+    # analytics: Streamlit file-watcher detecta via bind mount (zero ação).
+    # worker (arq): não tem hot-reload nativo → restart leve (~2s).
+    echo "♻️  Apenas código alterado → Restart leve do worker..."
+    cd "$PROJECT_DIR" && docker compose \
+        --env-file env/creds.env \
+        --env-file env/config.env \
+        restart worker \
+        2>&1 | tail -3
+    echo "✅ Worker reiniciado. Streamlit recarregará via bind mount automaticamente."
+fi
+
+echo ""

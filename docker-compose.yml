@@ -184,6 +184,7 @@ services:
     networks:
       - ger-infra-mesh
     volumes:
+      - ./src:/app/src
       - ./gercon_raw_data.db:/app/gercon_raw_data.db
       - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     depends_on:
