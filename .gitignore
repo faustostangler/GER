@@ -158,3 +158,6 @@ data/
 # Mutation testing artifacts
 mutants/
 .mutmut-cache
+
+# Parquet files
+gercon_consolidado.parquet.new

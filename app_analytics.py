@@ -985,8 +985,12 @@ def main():
             st.stop()
 
     inject_custom_css()
-    if not os.path.exists(settings.OUTPUT_FILE):
-        st.error(f"⚠️ Base Parquet não encontrada ({settings.OUTPUT_FILE}).")
+    # WHY: os.path.exists() returns True for directories too — when Docker bind-mounts
+    # a non-existent host path, it auto-creates an empty dir. isfile() is the correct
+    # Fail-Fast guard: it will catch both "missing" and "is a directory" cases.
+    if not os.path.isfile(settings.OUTPUT_FILE):
+        st.error(f"⚠️ Base Parquet não encontrada ou inválida ({settings.OUTPUT_FILE}).")
+        st.info("Execute o pipeline de consolidação: `docker exec ger_analytics python sqlite_to_parquet.py`")
         return
 
     # ==========================================

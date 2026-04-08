@@ -61,23 +61,30 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             self.con.execute(f"SET s3_region='{region}';")
             self.con.execute("CALL load_aws_credentials();")
 
-        self.con.execute(
-            f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')"
-        )
-        
-        # ==========================================
-        # DATA CONTRACT (Shift-Right Healthcheck)
-        # ==========================================
+        # WHY: O arquivo Parquet vazio/inexistente gera IOException (não BinderException).
+        # No cold-start pós-deploy, o Worker ainda não rodou. Ao invés de crashar em loop,
+        # entramos no modo "sem dados" que permite a UI renderizar um estado de espera.
+        self._no_data = False
         try:
-            schema_df = self.con.execute("PRAGMA table_info('gercon')").df()
-            available_cols = set(schema_df['name'].tolist())
-            crit_cols = {"numeroCMCE", "entidade_classificacaoRisco_cor", "entidade_especialidade_descricao", "dataSolicitacao", "dataCadastro"}
-            missing = crit_cols - available_cols
-            if missing:
-                raise ValueError(f"Data Contract Quebrado! Colunas faltantes no Parquet: {missing}")
-        except duckdb.BinderException:
-            # If the view failed because file doesn't exist, ignore here (let it fail downstream or mock)
-            pass
+            self.con.execute(
+                f"CREATE OR REPLACE VIEW gercon AS SELECT * FROM read_parquet('{db_file}')"
+            )
+        except duckdb.IOException:
+            self._no_data = True
+
+        if not self._no_data:
+            # ==========================================
+            # DATA CONTRACT (Shift-Right Healthcheck)
+            # ==========================================
+            try:
+                schema_df = self.con.execute("PRAGMA table_info('gercon')").df()
+                available_cols = set(schema_df['name'].tolist())
+                crit_cols = {"numeroCMCE", "entidade_classificacaoRisco_cor", "entidade_especialidade_descricao", "dataSolicitacao", "dataCadastro"}
+                missing = crit_cols - available_cols
+                if missing:
+                    raise ValueError(f"Data Contract Quebrado! Colunas faltantes no Parquet: {missing}")
+            except duckdb.BinderException:
+                self._no_data = True
 
         # Redis Client for Distributed Caching (Graceful Degradation)
         import redis
@@ -87,6 +94,7 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
                 socket_connect_timeout=2, socket_timeout=2,
             )
             self.redis_client.ping()
+
         except Exception:
             import logging
             logging.getLogger(__name__).critical(
@@ -143,6 +151,14 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         spec_vencidos: Specification,
         user: ValidatedUserToken,
     ) -> AnalyticKPIs:
+        # WHY: Modo sem dados no cold-start (Parquet vazio/inexistente antes do 1º ciclo do Worker)
+        if self._no_data:
+            return AnalyticKPIs(
+                pacientes=0, eventos=0, esp_mae=0, sub_esp=0, medicos=0,
+                cids=0, origens=0, lead_time=0.0, max_lead_time=0, span_dias=0,
+                pac_urgentes=0, pac_vencidos=0, p90_lead_time=0.0, p90_esquecido=0.0,
+                last_sync_at=0.0,
+            )
         final_where = DuckDBSpecificationTranslator.translate(spec)
         urgentes_where = DuckDBSpecificationTranslator.translate(spec_urgentes)
         vencidos_where = DuckDBSpecificationTranslator.translate(spec_vencidos)
@@ -221,6 +237,9 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def get_distribution_data(
         self, spec: Specification, user: ValidatedUserToken
     ) -> pd.DataFrame:
+        # WHY: Modo sem dados — retorna DataFrame vazio para os gráficos renderizarem sem crash
+        if self._no_data:
+            return pd.DataFrame(columns=["dias_fila", "dias_esquecido"])
         final_where = DuckDBSpecificationTranslator.translate(spec)
         cte = self._get_rls_cte(user)
         return self._query(f"""
@@ -259,6 +278,9 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def execute_custom_query(
         self, sql: str, spec: Specification, user: ValidatedUserToken
     ) -> pd.DataFrame:
+        # WHY: Modo sem dados — retorna DataFrame vazio (cold start sem Parquet)
+        if self._no_data:
+            return pd.DataFrame()
         cte = self._get_rls_cte(user)
         
         # 0. Tradução do Specification/FilterCriteria se existir

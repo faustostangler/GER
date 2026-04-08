@@ -10,15 +10,26 @@ import sqlite3
 import json
 import pandas as pd
 import gc
-from src.domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
-from src.infrastructure.telemetry.logger import setup_structured_logger
+import sys
+import os
+
+# WHY: PYTHONPATH=src is set in pyproject.toml/Makefile; using src. prefix creates
+# duplicate class objects that silently break isinstance/match/case (Module Identity Mismatch).
+_src_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
+if _src_path not in sys.path:
+    sys.path.insert(0, _src_path)
+
+from domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
+from infrastructure.telemetry.logger import setup_structured_logger
 
 logger = setup_structured_logger("sqlite_to_parquet")
 
 
 def run_conversion():
-    db_path = "gercon_raw_data.db"
-    parquet_out = "gercon_consolidado.parquet"
+    # WHY: Use same env-driven config as analytics/worker containers for path consistency.
+    # Falls back to local defaults for CLI usage outside Docker.
+    db_path = os.environ.get("SQLITE_DB_FILE", "gercon_raw_data.db")
+    parquet_out = os.environ.get("OUTPUT_FILE", "gercon_consolidado.parquet")
 
     logger.info(f"🔄 Iniciando conversão de {db_path} para {parquet_out}")
 
