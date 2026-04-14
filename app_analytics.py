@@ -183,11 +183,19 @@ def render_include_exclude(
     ui_tracker: list,
     cat_keys: list,
     current_user,
+    default_in: list = None,
 ):
     cat_keys.extend([f"{key}_in", f"{key}_ex"])
     options = get_dynamic_options(column, current_where, current_user)
     if not options:
         return current_where
+
+    # SRE FIX: Injeção de estado padrão apenas no cold boot
+    if f"{key}_in" not in st.session_state:
+        if default_in:
+            st.session_state[f"{key}_in"] = [v for v in default_in if v in options]
+        else:
+            st.session_state[f"{key}_in"] = []
 
     st.write(
         f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
@@ -1194,6 +1202,7 @@ def main():
             ui_filters[cat],
             state_keys[cat],
             st.session_state.user,
+            default_in=["Fila de Espera"],
         )
         curr_where = render_include_exclude(
             "Situação Atual",

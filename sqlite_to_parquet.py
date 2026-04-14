@@ -19,8 +19,8 @@ _src_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "src")
 if _src_path not in sys.path:
     sys.path.insert(0, _src_path)
 
-from domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
-from infrastructure.telemetry.logger import setup_structured_logger
+from domain.solicitacao_mapper import flatten_solicitacao, clean_data_row  # noqa: E402
+from infrastructure.telemetry.logger import setup_structured_logger  # noqa: E402
 
 logger = setup_structured_logger("sqlite_to_parquet")
 
