@@ -34,7 +34,10 @@ def inject_custom_css():
             st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
     else:
         # Fallback minimal style
-        st.markdown("<style>body { background-color: #020617; color: white; }</style>", unsafe_allow_html=True)
+        st.markdown(
+            "<style>body { background-color: #020617; color: white; }</style>",
+            unsafe_allow_html=True,
+        )
 
 
 # --- 2. INFRASTRUCTURE: USE CASE & DI ---
@@ -44,8 +47,10 @@ def get_use_case():
         DuckDBAnalyticsRepository,
     )
     from application.use_cases.analytics_use_case import AnalyticsUseCase
+
     try:
         from infrastructure.telemetry.metrics import init_telemetry
+
         init_telemetry(port=8001)
     except (ImportError, AttributeError):
         pass
@@ -55,7 +60,7 @@ def get_use_case():
     except ValueError as e:
         st.error(f"🔌 **Circuit Breaker Acionado:** {e}")
         st.stop()
-        
+
     return AnalyticsUseCase(repo)
 
 
@@ -116,10 +121,11 @@ def clear_filter_state(keys_to_clear: list):
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
 def render_kpi(container, label_with_icon, value, help_text="", alert=False):
     alert_class = "alert" if alert else ""
-    help_clean = str(help_text).replace('"', '&quot;')
-    
+    help_clean = str(help_text).replace('"', "&quot;")
+
     # Extração de ícone caso exista (ex: "⏱️ Fila" -> ("⏱️", "Fila"))
     import re
+
     icon_match = re.match(r"^([^\w\s]+)\s*(.*)$", label_with_icon)
     if icon_match:
         icon, label = icon_match.groups()
@@ -140,6 +146,7 @@ def render_kpi(container, label_with_icon, value, help_text="", alert=False):
     </div>
     """
     container.markdown(html, unsafe_allow_html=True)
+
 
 def render_include_exclude(
     label: str,
@@ -165,18 +172,17 @@ def render_include_exclude(
             st.session_state[f"{key}_in"] = []
 
     st.write(
-        f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
+        f"<span class='sre-label'>{label}</span>",
         unsafe_allow_html=True,
     )
-    c1, c2 = st.columns(2)
-    incl = c1.multiselect(
+    incl = st.multiselect(
         "✅ Incluir",
         options,
         key=f"{key}_in",
         label_visibility="collapsed",
         placeholder="✅ Incluir...",
     )
-    excl = c2.multiselect(
+    excl = st.multiselect(
         "❌ Excluir",
         options,
         key=f"{key}_ex",
@@ -222,7 +228,7 @@ def render_boolean_radio(
         st.session_state[f"{key}_radio"] = "Ambos"
 
     st.write(
-        f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
+        f"<span class='sre-label'>{label}</span>",
         unsafe_allow_html=True,
     )
     val = st.radio(
@@ -254,7 +260,7 @@ def render_presence_radio(
         st.session_state[f"{key}_radio"] = "Ambos"
 
     st.write(
-        f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
+        f"<span class='sre-label'>{label}</span>",
         unsafe_allow_html=True,
     )
     val = st.radio(
@@ -295,7 +301,7 @@ def render_dual_slider(
             st.session_state[f"{key}_sld"] = (vmin_val, vmax_val)
 
         st.write(
-            f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
+            f"<span class='sre-label'>{label}</span>",
             unsafe_allow_html=True,
         )
 
@@ -370,7 +376,7 @@ def render_age_slider(
         st.session_state[f"{key}_sld"] = (vmin_val, vmax_val)
 
     st.write(
-        f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
+        f"<span class='sre-label'>{label}</span>",
         unsafe_allow_html=True,
     )
 
@@ -446,7 +452,7 @@ def render_smart_date_range(
             st.session_state[key] = ()
 
     st.write(
-        f"<span style='font-size: 0.9em; font-weight: 600; color: #4B5563;'>{label}</span>",
+        f"<span class='sre-label'>{label}</span>",
         unsafe_allow_html=True,
     )
 
@@ -566,7 +572,11 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"⚠️ AND {label}: {and_terms}",
-                                "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"],
+                                "keys": [
+                                    f"{key}_and_val",
+                                    f"{key}_and",
+                                    f"{key}_toggle",
+                                ],
                             }
                         )
                         for w in [w for w in and_terms.split(",") if w.strip()]:
@@ -579,7 +589,11 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"❌ {label}: {not_terms}",
-                                "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"],
+                                "keys": [
+                                    f"{key}_not_val",
+                                    f"{key}_not",
+                                    f"{key}_toggle",
+                                ],
                             }
                         )
                         for w in [w for w in not_terms.split(",") if w.strip()]:
@@ -613,7 +627,11 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"⚠️ AND {label}: {and_terms}",
-                                "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"],
+                                "keys": [
+                                    f"{key}_and_val",
+                                    f"{key}_and",
+                                    f"{key}_toggle",
+                                ],
                             }
                         )
                         for w in [w for w in and_terms.split(",") if w.strip()]:
@@ -626,7 +644,11 @@ def render_advanced_text_search(
                         ui_tracker.append(
                             {
                                 "text": f"❌ {label}: {not_terms}",
-                                "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"],
+                                "keys": [
+                                    f"{key}_not_val",
+                                    f"{key}_not",
+                                    f"{key}_toggle",
+                                ],
                             }
                         )
                         for w in [w for w in not_terms.split(",") if w.strip()]:
@@ -688,9 +710,12 @@ def _cloud_run_login_gate():
 
     st.markdown(
         """
-        <div style="text-align: center; margin-top: 60px;">
-            <h1 style="font-family: 'Inter', sans-serif; color: #1e293b;">🎯 Gercon Analytics</h1>
-            <p style="color: #64748b; font-size: 1.1rem;">Sistema de Regulação Clínica</p>
+        <div style="text-align: center; margin-top: 100px; padding: 2rem;">
+            <div style="display: inline-block; padding: 1.5rem; background: rgba(173, 198, 255, 0.05); border-radius: 50%; margin-bottom: 2rem;">
+                <span style="font-size: 3rem;">🎯</span>
+            </div>
+            <h1 style="font-family: 'Inter', sans-serif; font-weight: 900; color: #fff; font-size: 3.5rem; letter-spacing: -0.05em; margin-bottom: 0.5rem;">Gercon Analytics</h1>
+            <p style="color: #adc6ff; font-size: 1rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3em; opacity: 0.8;">Sistema de Regulação Clínica</p>
         </div>
         """,
         unsafe_allow_html=True,
@@ -700,9 +725,7 @@ def _cloud_run_login_gate():
     with col_center:
         with st.form("cloud_run_login", clear_on_submit=True):
             st.subheader("🔐 Login")
-            password = st.text_input(
-                "Senha de Acesso", type="password", key="cr_pwd"
-            )
+            password = st.text_input("Senha de Acesso", type="password", key="cr_pwd")
             submitted = st.form_submit_button(
                 "Entrar", use_container_width=True, type="primary"
             )
@@ -784,7 +807,6 @@ def get_authenticated_user():
     return user, auth_header
 
 
-
 # --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP / Cloud Run) ---
 def _render_user_widget(user) -> None:
     """
@@ -819,7 +841,9 @@ def _render_user_widget(user) -> None:
         )
         realm = os.getenv("KEYCLOAK_REALM", "gercon-realm")
         client_id = os.getenv("KEYCLOAK_CLIENT_ID", "gercon-analytics")
-        post_logout_uri = f"http://{os.getenv('EXTERNAL_DOMAIN', '127.0.0.1.nip.io')}/dashboard/"
+        post_logout_uri = (
+            f"http://{os.getenv('EXTERNAL_DOMAIN', '127.0.0.1.nip.io')}/dashboard/"
+        )
 
         keycloak_logout = (
             f"{keycloak_base}/realms/{realm}/protocol/openid-connect/logout"
@@ -854,8 +878,6 @@ def _render_user_widget(user) -> None:
             unsafe_allow_html=True,
         )
     st.sidebar.divider()
-
-
 
 
 # --- 5. MAIN APP ---
@@ -950,13 +972,19 @@ def main():
                     """,
                     unsafe_allow_html=True,
                 )
-            
+
             # Debug (Opcional): Remova em prod se não quiser expor headers
             if os.getenv("APP__DEBUG", "false").lower() == "true":
                 with st.expander("🛠️ Debug Identity (Headers detectados)"):
                     st.write("Headers detectados via st.context.headers:")
-                    st.json({k: v for k, v in st.context.headers.items() if k.lower().startswith("x-")})
-                    
+                    st.json(
+                        {
+                            k: v
+                            for k, v in st.context.headers.items()
+                            if k.lower().startswith("x-")
+                        }
+                    )
+
             st.stop()
 
     inject_custom_css()
@@ -965,7 +993,9 @@ def main():
     # Fail-Fast guard: it will catch both "missing" and "is a directory" cases.
     if not os.path.isfile(settings.OUTPUT_FILE):
         st.error(f"⚠️ Base Parquet não encontrada ou inválida ({settings.OUTPUT_FILE}).")
-        st.info("Execute o pipeline de consolidação: `docker exec ger_analytics python sqlite_to_parquet.py`")
+        st.info(
+            "Execute o pipeline de consolidação: `docker exec ger_analytics python sqlite_to_parquet.py`"
+        )
         return
 
     # ==========================================
@@ -1419,7 +1449,7 @@ def main():
         )
         if st.session_state.get("txt_logr_toggle", False):
             st.markdown(
-                "<div style='margin-left: 1rem; border-left: 2px solid #cbd5e1; padding-left: 0.5rem;'>",
+                "<div class='sre-filter-group'>",
                 unsafe_allow_html=True,
             )
             state_keys[cat].extend(["num_min", "num_max"])
@@ -1430,12 +1460,20 @@ def main():
                 st.session_state["num_max"] = 99999
             col_nmin, col_nmax = st.columns(2)
             v_nmin = col_nmin.number_input(
-                "Nº Min", min_value=0, max_value=99999,
-                step=10, key="num_min", label_visibility="collapsed"
+                "Nº Min",
+                min_value=0,
+                max_value=99999,
+                step=10,
+                key="num_min",
+                label_visibility="collapsed",
             )
             v_nmax = col_nmax.number_input(
-                "Nº Max", min_value=0, max_value=99999,
-                step=100, key="num_max", label_visibility="collapsed"
+                "Nº Max",
+                min_value=0,
+                max_value=99999,
+                step=100,
+                key="num_max",
+                label_visibility="collapsed",
             )
             if v_nmin > 0 or v_nmax < 99999:
                 ui_filters[cat].append(
@@ -1561,49 +1599,72 @@ def main():
     cat = "🎯 Desfechos, Gargalos & SLA"
     with st.sidebar.expander(cat, expanded=False):
         # 1. Tipo de Desfecho — inclui "EM ANDAMENTO" para casos sem desfecho ainda
-        _desfecho_options_raw = get_dynamic_options("SLA_Tipo_Desfecho", curr_where, st.session_state.user)
-        _desfecho_options = sorted(set([o for o in _desfecho_options_raw if o])) + ["EM ANDAMENTO"]
+        _desfecho_options_raw = get_dynamic_options(
+            "SLA_Tipo_Desfecho", curr_where, st.session_state.user
+        )
+        _desfecho_options = sorted(set([o for o in _desfecho_options_raw if o])) + [
+            "EM ANDAMENTO"
+        ]
         cat_keys_desfecho = ["sla_tipo_in", "sla_tipo_ex"]
         state_keys[cat].extend(cat_keys_desfecho)
-        _c1, _c2 = st.columns(2)
-        _sla_incl = _c1.multiselect(
-            "Tipo de Desfecho ✅", _desfecho_options,
-            key="sla_tipo_in", label_visibility="collapsed", placeholder="✅ Incluir..."
+        _sla_incl = st.multiselect(
+            "Tipo de Desfecho ✅",
+            _desfecho_options,
+            key="sla_tipo_in",
+            label_visibility="collapsed",
+            placeholder="✅ Incluir Desfecho...",
         )
-        _sla_excl = _c2.multiselect(
-            "Tipo de Desfecho ❌", _desfecho_options,
-            key="sla_tipo_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
+        _sla_excl = st.multiselect(
+            "Tipo de Desfecho ❌",
+            _desfecho_options,
+            key="sla_tipo_ex",
+            label_visibility="collapsed",
+            placeholder="❌ Excluir Desfecho...",
         )
         st.write(
             "<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>Tipo de Desfecho</span>",
             unsafe_allow_html=True,
         )
         if _sla_incl:
-            ui_filters[cat].append({"text": f"✅ Tipo Desfecho: {', '.join(_sla_incl)}", "keys": ["sla_tipo_in"]})
+            ui_filters[cat].append(
+                {
+                    "text": f"✅ Tipo Desfecho: {', '.join(_sla_incl)}",
+                    "keys": ["sla_tipo_in"],
+                }
+            )
             _parts = []
             if "EM ANDAMENTO" in _sla_incl:
                 _rest = [v for v in _sla_incl if v != "EM ANDAMENTO"]
-                _parts.append('("SLA_Tipo_Desfecho" IS NULL OR "SLA_Tipo_Desfecho" = \'\')')
+                _parts.append(
+                    '("SLA_Tipo_Desfecho" IS NULL OR "SLA_Tipo_Desfecho" = \'\')'
+                )
                 if _rest:
                     _safe = "', '".join(v.replace("'", "''") for v in _rest)
-                    _parts.append(f'"SLA_Tipo_Desfecho" IN (\'{_safe}\')')
+                    _parts.append(f"\"SLA_Tipo_Desfecho\" IN ('{_safe}')")
             else:
                 _safe = "', '".join(v.replace("'", "''") for v in _sla_incl)
-                _parts.append(f'"SLA_Tipo_Desfecho" IN (\'{_safe}\')')
+                _parts.append(f"\"SLA_Tipo_Desfecho\" IN ('{_safe}')")
             clauses.append(f"({' OR '.join(_parts)})")
             curr_where = " AND ".join(clauses)
         if _sla_excl:
-            ui_filters[cat].append({"text": f"❌ Tipo Desfecho: {', '.join(_sla_excl)}", "keys": ["sla_tipo_ex"]})
+            ui_filters[cat].append(
+                {
+                    "text": f"❌ Tipo Desfecho: {', '.join(_sla_excl)}",
+                    "keys": ["sla_tipo_ex"],
+                }
+            )
             _parts_ex = []
             if "EM ANDAMENTO" in _sla_excl:
                 _rest_ex = [v for v in _sla_excl if v != "EM ANDAMENTO"]
-                _parts_ex.append('("SLA_Tipo_Desfecho" IS NOT NULL AND "SLA_Tipo_Desfecho" != \'\')')
+                _parts_ex.append(
+                    '("SLA_Tipo_Desfecho" IS NOT NULL AND "SLA_Tipo_Desfecho" != \'\')'
+                )
                 if _rest_ex:
                     _safe_ex = "', '".join(v.replace("'", "''") for v in _rest_ex)
-                    _parts_ex.append(f'"SLA_Tipo_Desfecho" NOT IN (\'{_safe_ex}\')')
+                    _parts_ex.append(f"\"SLA_Tipo_Desfecho\" NOT IN ('{_safe_ex}')")
             else:
                 _safe_ex = "', '".join(v.replace("'", "''") for v in _sla_excl)
-                _parts_ex.append(f'"SLA_Tipo_Desfecho" NOT IN (\'{_safe_ex}\')')
+                _parts_ex.append(f"\"SLA_Tipo_Desfecho\" NOT IN ('{_safe_ex}')")
             clauses.append(f"({' AND '.join(_parts_ex)})")
             curr_where = " AND ".join(clauses)
 
@@ -1627,10 +1688,26 @@ def main():
             unsafe_allow_html=True,
         )
         _pend_fields = [
-            ("Tipo",       "json_extract_string(\"motivoPendencia\", '$.tipo')",       "mot_pend_tipo"),
-            ("Motivo",     "json_extract_string(\"motivoPendencia\", '$.motivo')",     "mot_pend_mot"),
-            ("Descrição", "json_extract_string(\"motivoPendencia\", '$.descricao')",  "mot_pend_desc"),
-            ("Status",     "json_extract_string(\"motivoPendencia\", '$.status')",     "mot_pend_sta"),
+            (
+                "Tipo",
+                "json_extract_string(\"motivoPendencia\", '$.tipo')",
+                "mot_pend_tipo",
+            ),
+            (
+                "Motivo",
+                "json_extract_string(\"motivoPendencia\", '$.motivo')",
+                "mot_pend_mot",
+            ),
+            (
+                "Descrição",
+                "json_extract_string(\"motivoPendencia\", '$.descricao')",
+                "mot_pend_desc",
+            ),
+            (
+                "Status",
+                "json_extract_string(\"motivoPendencia\", '$.status')",
+                "mot_pend_sta",
+            ),
         ]
         _where_for_pend = curr_where if curr_where.strip() else "1=1"
         _uc = get_use_case()
@@ -1644,9 +1721,7 @@ def main():
                     f"AND {_pf_expr} != '' "
                     f"ORDER BY 1"
                 )
-                _pf_raw = _uc.execute_custom_query(
-                    _pf_sql, None, st.session_state.user
-                )
+                _pf_raw = _uc.execute_custom_query(_pf_sql, None, st.session_state.user)
                 _pf_opts = _pf_raw["val"].dropna().tolist() if not _pf_raw.empty else []
             except Exception:
                 _pf_opts = []
@@ -1656,24 +1731,39 @@ def main():
 
             state_keys[cat].extend([f"{_pf_key}_in", f"{_pf_key}_ex"])
             st.caption(_pf_label)
-            _pf_c1, _pf_c2 = st.columns(2)
-            _pf_incl = _pf_c1.multiselect(
-                f"{_pf_label} ✅", sorted(set(str(o) for o in _pf_opts)),
-                key=f"{_pf_key}_in", label_visibility="collapsed", placeholder="✅ Incluir..."
+            _pf_incl = st.multiselect(
+                f"{_pf_label} ✅",
+                sorted(set(str(o) for o in _pf_opts)),
+                key=f"{_pf_key}_in",
+                label_visibility="collapsed",
+                placeholder=f"✅ Incluir {_pf_label}...",
             )
-            _pf_excl = _pf_c2.multiselect(
-                f"{_pf_label} ❌", sorted(set(str(o) for o in _pf_opts)),
-                key=f"{_pf_key}_ex", label_visibility="collapsed", placeholder="❌ Excluir..."
+            _pf_excl = st.multiselect(
+                f"{_pf_label} ❌",
+                sorted(set(str(o) for o in _pf_opts)),
+                key=f"{_pf_key}_ex",
+                label_visibility="collapsed",
+                placeholder=f"❌ Excluir {_pf_label}...",
             )
             if _pf_incl:
                 _pf_safe = "', '".join(v.replace("'", "''") for v in _pf_incl)
                 clauses.append(f"{_pf_expr} IN ('{_pf_safe}')")
-                ui_filters[cat].append({"text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}", "keys": [f"{_pf_key}_in"]})
+                ui_filters[cat].append(
+                    {
+                        "text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}",
+                        "keys": [f"{_pf_key}_in"],
+                    }
+                )
                 curr_where = " AND ".join(clauses)
             if _pf_excl:
                 _pf_safe_ex = "', '".join(v.replace("'", "''") for v in _pf_excl)
                 clauses.append(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
-                ui_filters[cat].append({"text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}", "keys": [f"{_pf_key}_ex"]})
+                ui_filters[cat].append(
+                    {
+                        "text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}",
+                        "keys": [f"{_pf_key}_ex"],
+                    }
+                )
                 curr_where = " AND ".join(clauses)
 
         st.markdown("---")
@@ -1818,7 +1908,7 @@ def main():
                 key="btn_clear_all",
                 on_click=clear_filter_state,
                 args=(all_keys,),
-                type="primary"
+                type="primary",
             )
 
         st.write(" ")  # Um micro-espaçamento logo antes dos KPIs para respirar
@@ -1851,6 +1941,7 @@ def main():
     # --- SRE FIX: DATA FRESHNESS SLA MONITOR ---
     if kpi_data.last_sync_at > 0:
         import time
+
         age_hours = (time.time() - kpi_data.last_sync_at) / 3600
         if age_hours > settings.DATA_SLA_THRESHOLD:
             # SOTA Alert: Digital Surgeon Aesthetic
@@ -1898,7 +1989,7 @@ def main():
     # ==========================================
     with t_kpi:
         st.markdown(
-            "<h4 style='font-size: 1rem; color: #4B5563;'>Painel de Desempenho (SLA e Carga)</h4>",
+            "<div class='sre-section-title'>Painel de Desempenho (SLA e Carga)</div>",
             unsafe_allow_html=True,
         )
 
@@ -1908,25 +1999,25 @@ def main():
             r1_c1,
             "🏢 Origens do Gercon",
             f"{origens:,}".replace(",", "."),
-            help_text="Quantidade de portas de entrada/sistemas de origem distintos."
+            help_text="Quantidade de portas de entrada/sistemas de origem distintos.",
         )
         render_kpi(
             r1_c2,
             "👥 Pacientes",
             f"{pacientes:,}".replace(",", "."),
-            help_text="Número total de pacientes únicos selecionados."
+            help_text="Número total de pacientes únicos selecionados.",
         )
         render_kpi(
             r1_c3,
             "📋 Evoluções",
             f"{eventos:,}".replace(",", "."),
-            help_text="Número total de eventos no histórico clínico."
+            help_text="Número total de eventos no histórico clínico.",
         )
         render_kpi(
             r1_c4,
             "📈 Evoluções/Paciente",
             f"{evo_por_paciente}".replace(".", ","),
-            help_text="Média de vezes que o paciente foi movimentado ou avaliado."
+            help_text="Média de vezes que o paciente foi movimentado ou avaliado.",
         )
 
         st.write(" ")
@@ -1937,19 +2028,19 @@ def main():
             r2_c1,
             "🏛️ Especialidades (Mãe)",
             f"{esp_mae:,}".replace(",", "."),
-            help_text="Grandes áreas clínicas abrangidas (Ex: CIRURGIA)."
+            help_text="Grandes áreas clínicas abrangidas (Ex: CIRURGIA).",
         )
         render_kpi(
             r2_c2,
             "🎯 Subespecialidades",
             f"{sub_esp:,}".replace(",", "."),
-            help_text="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO)."
+            help_text="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO).",
         )
         render_kpi(
             r2_c3,
             "🔀 Subs/Especialidade",
             f"{sub_por_esp}".replace(".", ","),
-            help_text="Média de ramificações por grande área clínica."
+            help_text="Média de ramificações por grande área clínica.",
         )
 
         lead_str = (
@@ -1961,7 +2052,7 @@ def main():
             r2_c4,
             "⏱️ Fila: Média | Pior",
             lead_str,
-            help_text="Tempo Médio vs Tempo do paciente mais antigo."
+            help_text="Tempo Médio vs Tempo do paciente mais antigo.",
         )
 
         st.write(" ")
@@ -1972,32 +2063,32 @@ def main():
             r3_c1,
             "👨⚕️ Médicos Solicitantes",
             f"{medicos:,}".replace(",", "."),
-            help_text="Total de médicos distintos que inseriram pacientes nesta fila."
+            help_text="Total de médicos distintos que inseriram pacientes nesta fila.",
         )
         render_kpi(
             r3_c2,
             "📅 Cadastros/Mês",
             f"{cad_por_mes}".replace(".", ","),
-            help_text="Média mensal histórica de novos pacientes inseridos na fila (baseado na janela filtrada)."
+            help_text="Média mensal histórica de novos pacientes inseridos na fila (baseado na janela filtrada).",
         )
         render_kpi(
             r3_c3,
             "🧠 Dispersão Diagnóstica",
             f"{cid_por_medico}".replace(".", ","),
-            help_text="Média de CIDs distintos usados por médico."
+            help_text="Média de CIDs distintos usados por médico.",
         )
         render_kpi(
             r3_c4,
             "⚙️ Carga/Médico",
             f"{evo_por_medico}".replace(".", ","),
-            help_text="Volume médio de evoluções administrativas geradas por cada médico."
+            help_text="Volume médio de evoluções administrativas geradas por cada médico.",
         )
 
         st.divider()
 
         # --- BLOCO 2 CONSOLIDADO: ANATOMIA COMPARATIVA E RISCO ---
         st.markdown(
-            "<h4 style='font-size: 1.1rem; font-weight: 600; color: #4B5563; margin-bottom: 0.2rem;'>Anatomia Comparativa: Dispersão e Escala de Espera</h4>",
+            "<div class='sre-section-title'>Anatomia Comparativa: Dispersão e Escala de Espera</div>",
             unsafe_allow_html=True,
         )
 
@@ -2133,9 +2224,7 @@ def main():
                 margin=dict(l=0, r=0, t=40, b=40),
             )
             fig_esq.update_xaxes(showgrid=True, gridwidth=1, gridcolor="#f1f5f9")
-            st.plotly_chart(
-                fig_esq, width="stretch", config={"displayModeBar": False}
-            )
+            st.plotly_chart(fig_esq, width="stretch", config={"displayModeBar": False})
 
             # --- RENDERIZAÇÃO: BOXPLOT CADASTRO (AZUL) ---
             df_render_fila = (
@@ -2167,9 +2256,7 @@ def main():
                 margin=dict(l=0, r=0, t=40, b=40),
             )
             fig_fila.update_xaxes(showgrid=True, gridwidth=1, gridcolor="#f1f5f9")
-            st.plotly_chart(
-                fig_fila, width="stretch", config={"displayModeBar": False}
-            )
+            st.plotly_chart(fig_fila, width="stretch", config={"displayModeBar": False})
 
             if len(df_dist) > len(df_plot_fila) or len(df_dist) > len(df_plot_esq):
                 st.caption(
@@ -2185,7 +2272,7 @@ def main():
                     g_p90_1,
                     label_with_icon="⏳ P90 Tempo Esquecido",
                     value=f"{p90_esquecido} dias",
-                    help_text="90% da rede não recebe atualizações clínicas há até este limite de dias."
+                    help_text="90% da rede não recebe atualizações clínicas há até este limite de dias.",
                 )
 
             with g_p90_2:
@@ -2193,7 +2280,7 @@ def main():
                     g_p90_2,
                     label_with_icon="⏱️ P90 Tempo de Fila",
                     value=f"{p90_lead_time} dias",
-                    help_text="90% da rede espera até este limite de dias desde o cadastro para o agendamento."
+                    help_text="90% da rede espera até este limite de dias desde o cadastro para o agendamento.",
                 )
 
             # 3. GAUGES (FINAL DA SEÇÃO)
@@ -2498,8 +2585,9 @@ def main():
 
     with t_clin:
         st.subheader("Inteligência Clínica & Perfil Demográfico")
-        
+
         import time
+
         try:
             from infrastructure.telemetry.metrics import RENDER_LATENCY, SILENT_ERRORS
         except ImportError:
@@ -2516,7 +2604,7 @@ def main():
                     spec=filters,
                     current_user=st.session_state.user,
                 )
-    
+
                 # --- SRE FIX: Prevenção contra Nós Folha Vazios no Plotly ---
                 if not df_mun.empty:
                     df_mun["usuarioSUS_bairro"] = (
@@ -2540,7 +2628,9 @@ def main():
                         config={"displayModeBar": False},
                     )
                 if RENDER_LATENCY:
-                    RENDER_LATENCY.labels(component="t_clin_treemap").observe(time.time() - start_treemap)
+                    RENDER_LATENCY.labels(component="t_clin_treemap").observe(
+                        time.time() - start_treemap
+                    )
             except Exception:
                 if SILENT_ERRORS:
                     SILENT_ERRORS.labels(component="t_clin_treemap").inc()
@@ -2567,7 +2657,7 @@ def main():
                     filters,
                     st.session_state.user,
                 )
-    
+
                 if not df_demo.empty:
                     fig_demo = px.histogram(
                         df_demo,
@@ -2575,7 +2665,10 @@ def main():
                         y="Vol",
                         color="usuarioSUS_sexo",
                         barmode="group",
-                        color_discrete_map={"Feminino": "#ec4899", "Masculino": "#3b82f6"},
+                        color_discrete_map={
+                            "Feminino": "#ec4899",
+                            "Masculino": "#3b82f6",
+                        },
                         title="Perfil Demográfico (Idade vs usuarioSUS_sexo)",
                         labels={
                             "Idade_Int": "Idade Aproximada",
@@ -2586,7 +2679,9 @@ def main():
                         fig_demo, width="stretch", config={"displayModeBar": False}
                     )
                 if RENDER_LATENCY:
-                    RENDER_LATENCY.labels(component="t_clin_demographics").observe(time.time() - start_hist)
+                    RENDER_LATENCY.labels(component="t_clin_demographics").observe(
+                        time.time() - start_hist
+                    )
             except Exception:
                 if SILENT_ERRORS:
                     SILENT_ERRORS.labels(component="t_clin_demographics").inc()
@@ -2616,23 +2711,23 @@ def main():
         # --- SELETORES DE DIMENSÃO ---
         # WHY: Hardcodar medicoSolicitante × CID limita a análise.
         # Com seletores livres o gestor pode parear qualquer eixo:
-        # "UBS × Especialidade Mãe" revela gargalos regionais; 
+        # "UBS × Especialidade Mãe" revela gargalos regionais;
         # "Médico × CID" mantém a auditoria individual original.
         _OPCOES_DIAGNOSTICO = {
-            "CID — Descrição":             "entidade_cidPrincipal_descricao",
-            "CID — Código":                "entidade_cidPrincipal_codigo",
-            "Especialidade Mãe":           "entidade_especialidade_especialidadeMae_descricao",
-            "Especialidade Fina":          "entidade_especialidade_descricao",
-            "CBO (Especialidade)":         "entidade_especialidade_cbo_descricao",
+            "CID — Descrição": "entidade_cidPrincipal_descricao",
+            "CID — Código": "entidade_cidPrincipal_codigo",
+            "Especialidade Mãe": "entidade_especialidade_especialidadeMae_descricao",
+            "Especialidade Fina": "entidade_especialidade_descricao",
+            "CBO (Especialidade)": "entidade_especialidade_cbo_descricao",
         }
         _OPCOES_ATOR = {
-            "Médico Solicitante":          "medicoSolicitante",
-            "Unidade Operadora (UBS)":     "entidade_unidadeOperador_nome",
+            "Médico Solicitante": "medicoSolicitante",
+            "Unidade Operadora (UBS)": "entidade_unidadeOperador_nome",
             "Unidade Operadora (Razão Social)": "entidade_unidadeOperador_razaoSocial",
-            "Tipo de Unidade":             "entidade_unidadeOperador_tipoUnidade_descricao",
-            "Central de Regulação":        "entidade_centralRegulacao_nome",
-            "Operador (Regulador)":        "operador_nome",
-            "Usuário Solicitante":         "usuarioSolicitante_nome",
+            "Tipo de Unidade": "entidade_unidadeOperador_tipoUnidade_descricao",
+            "Central de Regulação": "entidade_centralRegulacao_nome",
+            "Operador (Regulador)": "operador_nome",
+            "Usuário Solicitante": "usuarioSolicitante_nome",
         }
 
         c_dim1, c_dim2 = st.columns(2)
@@ -2729,7 +2824,11 @@ def main():
         # que podem falhar se o mock/query retornar DataFrame sem essas colunas ou com
         # dados insuficientes para o cálculo de desvio padrão. Degradação graciosa.
         try:
-            if not df_heatmap.empty and "_diag" in df_heatmap.columns and "_ator" in df_heatmap.columns:
+            if (
+                not df_heatmap.empty
+                and "_diag" in df_heatmap.columns
+                and "_ator" in df_heatmap.columns
+            ):
                 df_heatmap["_diag_curto"] = df_heatmap["_diag"].apply(
                     lambda x: x[:45] + "..." if len(str(x)) > 45 else x
                 )
@@ -2749,7 +2848,9 @@ def main():
                 if modo_heatmap == OPT_CID:
                     medias_linhas = df_math.mean(axis=1)
                     desvios_linhas = df_math.std(axis=1).replace(0, 1)
-                    df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
+                    df_math = df_math.sub(medias_linhas, axis=0).div(
+                        desvios_linhas, axis=0
+                    )
                 elif modo_heatmap == OPT_MED:
                     medias_colunas = df_math.mean(axis=0)
                     desvios_colunas = df_math.std(axis=0).replace(0, 1)
@@ -2767,9 +2868,7 @@ def main():
                     color_continuous_scale=paleta_heatmap,
                     color_continuous_midpoint=0,
                     title=f"Matriz de Desvios (Z-Score): Top {top_x_cid} {_label_diag} × Top {top_x_med} {_label_ator}",
-                    labels=dict(
-                        x=_label_ator, y=_label_diag, color="Z-Score"
-                    ),
+                    labels=dict(x=_label_ator, y=_label_diag, color="Z-Score"),
                 )
 
                 fig_heat.update_traces(
@@ -2781,13 +2880,17 @@ def main():
 
                 altura_dinamica = max(500, top_x_cid * 35)
                 fig_heat.update_layout(
-                    xaxis_tickangle=-45, height=altura_dinamica, margin=dict(l=250, b=120)
+                    xaxis_tickangle=-45,
+                    height=altura_dinamica,
+                    margin=dict(l=250, b=120),
                 )
                 st.plotly_chart(
                     fig_heat, width="stretch", config={"displayModeBar": False}
                 )
         except Exception:
-            st.warning("⚠️ Dados insuficientes para gerar o heatmap de auditoria clínica.")
+            st.warning(
+                "⚠️ Dados insuficientes para gerar o heatmap de auditoria clínica."
+            )
 
         # --- GRÁFICO 2: TREEMAP HIERÁRQUICO DE PERFIL (Ator ➔ Diagnóstico) ---
         df_perfil_med = use_case.execute_custom_query(
@@ -2804,9 +2907,17 @@ def main():
         )
 
         try:
-            if not df_perfil_med.empty and "_ator" in df_perfil_med.columns and "_diag" in df_perfil_med.columns:
-                df_perfil_med["_ator"] = df_perfil_med["_ator"].replace("", f"{_label_ator} Não Informado")
-                df_perfil_med["_diag"] = df_perfil_med["_diag"].replace("", f"{_label_diag} Não Informado")
+            if (
+                not df_perfil_med.empty
+                and "_ator" in df_perfil_med.columns
+                and "_diag" in df_perfil_med.columns
+            ):
+                df_perfil_med["_ator"] = df_perfil_med["_ator"].replace(
+                    "", f"{_label_ator} Não Informado"
+                )
+                df_perfil_med["_diag"] = df_perfil_med["_diag"].replace(
+                    "", f"{_label_diag} Não Informado"
+                )
                 fig_tree_med = px.treemap(
                     df_perfil_med,
                     path=["_ator", "_diag"],
@@ -2815,7 +2926,9 @@ def main():
                     color_continuous_scale="Teal",
                     title=f"Perfil: {_label_ator} ➔ {_label_diag} (Clique para expandir)",
                 )
-                fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
+                fig_tree_med.update_layout(
+                    height=500, margin=dict(t=40, l=10, r=10, b=10)
+                )
                 st.plotly_chart(
                     fig_tree_med, width="stretch", config={"displayModeBar": False}
                 )
@@ -2843,7 +2956,11 @@ def main():
                 st.session_state.user,
             )
             try:
-                if not df_outliers.empty and "DiasFila" in df_outliers.columns and "Pontos" in df_outliers.columns:
+                if (
+                    not df_outliers.empty
+                    and "DiasFila" in df_outliers.columns
+                    and "Pontos" in df_outliers.columns
+                ):
                     # 2. Prevenção de Nós Vazios
                     df_outliers["entidade_classificacaoRisco_cor"] = (
                         df_outliers["entidade_classificacaoRisco_cor"]
@@ -2871,7 +2988,9 @@ def main():
                     fig_out.add_hline(
                         y=40, line_dash="dot", annotation_text="Alta Gravidade"
                     )
-                    fig_out.add_vline(x=180, line_dash="dot", annotation_text="SLA 180 d")
+                    fig_out.add_vline(
+                        x=180, line_dash="dot", annotation_text="SLA 180 d"
+                    )
                     st.plotly_chart(
                         fig_out, width="stretch", config={"displayModeBar": False}
                     )
