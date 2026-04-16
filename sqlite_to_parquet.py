@@ -8,7 +8,9 @@ o resultado final otimizado em Parquet para o DuckDB/Analytics.
 
 import sqlite3
 import json
+
 import pandas as pd
+pd.set_option('future.no_silent_downcasting', True)
 import gc
 import sys
 import os
@@ -138,7 +140,7 @@ def run_conversion():
                 )
             ]
             for col in cols_bool:
-                df_chunk[col] = df_chunk[col].fillna(False).astype(bool)
+                df_chunk[col] = df_chunk[col].fillna(False).infer_objects(copy=False).astype(bool)
 
             # --- Type Safety Explicito para Métricas SLA ---
             float_cols = [
@@ -151,7 +153,7 @@ def run_conversion():
                     # Converte para float, valores inválidos viram NaN, depois preenche com 0.0
                     df_chunk[col] = pd.to_numeric(
                         df_chunk[col], errors="coerce"
-                    ).fillna(0.0)
+                    ).fillna(0.0).infer_objects(copy=False)
 
             if "SLA_Interacoes_Regulacao" in df_chunk.columns:
                 df_chunk["SLA_Interacoes_Regulacao"] = (

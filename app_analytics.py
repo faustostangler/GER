@@ -28,73 +28,13 @@ def setup_ui():
 
 
 def inject_custom_css():
-    st.markdown(
-        """
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        hr { margin-top: 1rem; margin-bottom: 1rem; }
-        .deep-search-bar { border-left: 4px solid #3b82f6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
-        .deep-search-bar { border-left: 4px solid #3b82f6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
-        .aggregate-search-bar { border-left: 4px solid #8b5cf6; padding-left: 0.75rem; margin-top: 0.5rem; margin-bottom: 0.5rem; color: #4B5563; font-size: 0.9rem;}
-
-        /* ========================================================
-           SRE FIX: ISOLAMENTO TOTAL DO FLEXBOX (PREVINE BUBBLING)
-           ======================================================== */
-           
-        /* 1. Título da Categoria: Comporta-se como um bloco normal (força nova linha) */
-        .cat-title {
-            font-weight: 700;
-            font-size: 0.75rem;
-            color: #94a3b8;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-top: 1.2rem;
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-
-        /* 2. Container dos filtros: Seleciona APENAS o bloco mais profundo (innermost) */
-        div[data-testid="stVerticalBlock"]:has(.filter-row-marker):not(:has(div[data-testid="stVerticalBlock"] .filter-row-marker)) {
-            display: flex !important;
-            flex-direction: row !important;
-            flex-wrap: wrap !important;
-            gap: 1.5rem !important;     /* Distância elegante entre filtros */
-            align-items: center !important;
-            margin-bottom: 0.5rem !important;
-        }
-
-        div[data-testid="stVerticalBlock"]:has(.filter-row-marker):not(:has(div[data-testid="stVerticalBlock"] .filter-row-marker)) > div {
-            width: fit-content !important;
-            flex: 0 1 auto !important;
-        }
-
-        /* 3. Botões Extremamente Discretos e Inquebráveis */
-        [data-testid="stExpanderDetails"] button {
-            background: transparent !important;
-            border: none !important;
-            box-shadow: none !important;
-            padding: 0 !important;
-            margin: 0 !important;
-            color: #64748b !important;
-            font-size: 0.85rem !important;
-            font-weight: 400 !important;
-            min-height: unset !important;
-            height: auto !important;
-            white-space: nowrap !important; /* Impede o X de cair para a linha de baixo */
-            transition: color 0.2s ease;
-        }
-
-        /* Hover: Vermelho e Riscado */
-        [data-testid="stExpanderDetails"] button:hover {
-            color: #ef4444 !important;
-            text-decoration: line-through !important;
-            background: transparent !important;
-        }
-    </style>
-    """,
-        unsafe_allow_html=True,
-    )
+    css_path = os.path.join("src", "presentation", "static", "custom_style.css")
+    if os.path.exists(css_path):
+        with open(css_path, "r") as f:
+            st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+    else:
+        # Fallback minimal style
+        st.markdown("<style>body { background-color: #020617; color: white; }</style>", unsafe_allow_html=True)
 
 
 # --- 2. INFRASTRUCTURE: USE CASE & DI ---
@@ -174,6 +114,33 @@ def clear_filter_state(keys_to_clear: list):
 
 
 # --- 4. UI COMPONENTS (DOMAIN FILTERS & TRACKING) ---
+def render_kpi(container, label_with_icon, value, help_text="", alert=False):
+    alert_class = "alert" if alert else ""
+    help_clean = str(help_text).replace('"', '&quot;')
+    
+    # Extração de ícone caso exista (ex: "⏱️ Fila" -> ("⏱️", "Fila"))
+    import re
+    icon_match = re.match(r"^([^\w\s]+)\s*(.*)$", label_with_icon)
+    if icon_match:
+        icon, label = icon_match.groups()
+        icon_html = f'<div class="kpi-icon">{icon}</div>'
+    else:
+        icon_html = ""
+        label = label_with_icon
+
+    html = f"""
+    <div class="kpi-card {alert_class}" title="{help_clean}">
+        <div class="kpi-card-header">
+            {icon_html}
+            <div class="kpi-label">{label}</div>
+        </div>
+        <div class="kpi-value-container">
+            <div class="kpi-value">{value}</div>
+        </div>
+    </div>
+    """
+    container.markdown(html, unsafe_allow_html=True)
+
 def render_include_exclude(
     label: str,
     column: str,
@@ -1006,7 +973,16 @@ def main():
     # ==========================================
     _render_user_widget(st.session_state.user)
 
-    st.title("🎯 Gercon SRE | Advanced Root Cause Analysis")
+    # --- DIGITAL SURGEON PREMIUM HEADER ---
+    st.markdown(
+        """
+        <div class="sre-header-container">
+            <h1 class="sre-title">GERCON SRE</h1>
+            <div class="sre-subtitle">Advanced Root Cause Analysis & Prediction</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # ==========================================
     # SRE FIX: DICIONÁRIO DE NOMENCLATURAS (UBIQUITOUS LANGUAGE)
@@ -1842,6 +1818,7 @@ def main():
                 key="btn_clear_all",
                 on_click=clear_filter_state,
                 args=(all_keys,),
+                type="primary"
             )
 
         st.write(" ")  # Um micro-espaçamento logo antes dos KPIs para respirar
@@ -1876,7 +1853,20 @@ def main():
         import time
         age_hours = (time.time() - kpi_data.last_sync_at) / 3600
         if age_hours > settings.DATA_SLA_THRESHOLD:
-            st.warning(f"⚠️ **Amber Alert:** Os dados exibidos estão com defasagem de {age_hours:.1f} horas. O Worker Scraper pode estar inativo ou ter falhado no último ciclo.")
+            # SOTA Alert: Digital Surgeon Aesthetic
+            alert_html = f"""
+            <div class="amber-alert-container">
+                <div class="amber-alert-icon">⚠️</div>
+                <div class="amber-alert-content">
+                    <div class="amber-alert-title">Amber Alert: Data Freshness SLA Violation</div>
+                    <div class="amber-alert-text">
+                        Os dados exibidos estão com defasagem de <b>{age_hours:.1f} horas</b>. 
+                        O Worker Scraper pode estar inativo ou ter falhado no último ciclo.
+                    </div>
+                </div>
+            </div>
+            """
+            st.markdown(alert_html, unsafe_allow_html=True)
 
     # --- Extração Segura das Variáveis Absolutas ---
     pacientes = kpi_data.pacientes
@@ -1914,45 +1904,52 @@ def main():
 
         # --- LINHA 1: Volume, Carga e Esforço ---
         r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
-        r1_c1.metric(
+        render_kpi(
+            r1_c1,
             "🏢 Origens do Gercon",
             f"{origens:,}".replace(",", "."),
-            help="Quantidade de portas de entrada/sistemas de origem distintos.",
+            help_text="Quantidade de portas de entrada/sistemas de origem distintos."
         )
-        r1_c2.metric(
+        render_kpi(
+            r1_c2,
             "👥 Pacientes",
             f"{pacientes:,}".replace(",", "."),
-            help="Número total de pacientes únicos selecionados.",
+            help_text="Número total de pacientes únicos selecionados."
         )
-        r1_c3.metric(
+        render_kpi(
+            r1_c3,
             "📋 Evoluções",
             f"{eventos:,}".replace(",", "."),
-            help="Número total de eventos no histórico clínico.",
+            help_text="Número total de eventos no histórico clínico."
         )
-        r1_c4.metric(
+        render_kpi(
+            r1_c4,
             "📈 Evoluções/Paciente",
             f"{evo_por_paciente}".replace(".", ","),
-            help="Média de vezes que o paciente foi movimentado ou avaliado.",
+            help_text="Média de vezes que o paciente foi movimentado ou avaliado."
         )
 
         st.write(" ")
 
         # --- LINHA 2: Complexidade Clínica e SLA ---
         r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-        r2_c1.metric(
+        render_kpi(
+            r2_c1,
             "🏛️ Especialidades (Mãe)",
             f"{esp_mae:,}".replace(",", "."),
-            help="Grandes áreas clínicas abrangidas (Ex: CIRURGIA).",
+            help_text="Grandes áreas clínicas abrangidas (Ex: CIRURGIA)."
         )
-        r2_c2.metric(
+        render_kpi(
+            r2_c2,
             "🎯 Subespecialidades",
             f"{sub_esp:,}".replace(",", "."),
-            help="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO).",
+            help_text="Especialidades finas abrangidas (Ex: CIRURGIA DA MÃO)."
         )
-        r2_c3.metric(
+        render_kpi(
+            r2_c3,
             "🔀 Subs/Especialidade",
             f"{sub_por_esp}".replace(".", ","),
-            help="Média de ramificações por grande área clínica.",
+            help_text="Média de ramificações por grande área clínica."
         )
 
         lead_str = (
@@ -1960,35 +1957,40 @@ def main():
             if pd.notna(lead_time)
             else "0 dias"
         )
-        r2_c4.metric(
+        render_kpi(
+            r2_c4,
             "⏱️ Fila: Média | Pior",
             lead_str,
-            help="Tempo Médio vs Tempo do paciente mais antigo.",
+            help_text="Tempo Médio vs Tempo do paciente mais antigo."
         )
 
         st.write(" ")
 
         # --- LINHA 3: Governança e Comportamento Médico ---
         r3_c1, r3_c2, r3_c3, r3_c4 = st.columns(4)
-        r3_c1.metric(
+        render_kpi(
+            r3_c1,
             "👨⚕️ Médicos Solicitantes",
             f"{medicos:,}".replace(",", "."),
-            help="Total de médicos distintos que inseriram pacientes nesta fila.",
+            help_text="Total de médicos distintos que inseriram pacientes nesta fila."
         )
-        r3_c2.metric(
+        render_kpi(
+            r3_c2,
             "📅 Cadastros/Mês",
             f"{cad_por_mes}".replace(".", ","),
-            help="Média mensal histórica de novos pacientes inseridos na fila (baseado na janela filtrada).",
+            help_text="Média mensal histórica de novos pacientes inseridos na fila (baseado na janela filtrada)."
         )
-        r3_c3.metric(
+        render_kpi(
+            r3_c3,
             "🧠 Dispersão Diagnóstica",
             f"{cid_por_medico}".replace(".", ","),
-            help="Média de CIDs distintos usados por médico.",
+            help_text="Média de CIDs distintos usados por médico."
         )
-        r3_c4.metric(
+        render_kpi(
+            r3_c4,
             "⚙️ Carga/Médico",
             f"{evo_por_medico}".replace(".", ","),
-            help="Volume médio de evoluções administrativas geradas por cada médico.",
+            help_text="Volume médio de evoluções administrativas geradas por cada médico."
         )
 
         st.divider()
@@ -2179,17 +2181,19 @@ def main():
             g_p90_1, g_p90_2 = st.columns(2)
 
             with g_p90_1:
-                st.metric(
-                    label="⏳ P90 Tempo Esquecido",
+                render_kpi(
+                    g_p90_1,
+                    label_with_icon="⏳ P90 Tempo Esquecido",
                     value=f"{p90_esquecido} dias",
-                    help="90% da rede não recebe atualizações clínicas há até este limite de dias.",
+                    help_text="90% da rede não recebe atualizações clínicas há até este limite de dias."
                 )
 
             with g_p90_2:
-                st.metric(
-                    label="⏱️ P90 Tempo de Fila",
+                render_kpi(
+                    g_p90_2,
+                    label_with_icon="⏱️ P90 Tempo de Fila",
                     value=f"{p90_lead_time} dias",
-                    help="90% da rede espera até este limite de dias desde o cadastro para o agendamento.",
+                    help_text="90% da rede espera até este limite de dias desde o cadastro para o agendamento."
                 )
 
             # 3. GAUGES (FINAL DA SEÇÃO)

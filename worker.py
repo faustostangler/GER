@@ -10,9 +10,11 @@ from src.infrastructure.telemetry.logger import (
     setup_structured_logger,
     correlation_id_var,
 )
-from src.infrastructure.telemetry.metrics import (
+
+from infrastructure.telemetry.metrics import (
     INGEST_PIPELINE_DURATION,
     PIPELINE_LAST_SUCCESS_TIMESTAMP,
+    init_prometheus
 )
 from src.infrastructure.telemetry.tracing import tracer
 
@@ -26,19 +28,8 @@ except ImportError:
 logger = setup_structured_logger("pipeline_worker")
 
 
-def init_prometheus():
-    """Inicia o servidor de telemetria lidando nativamente com Multi-process Workers"""
-    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
-    if multiproc_dir:
-        registry = CollectorRegistry()
-        multiprocess.MultiProcessCollector(registry)
-        start_http_server(8000, registry=registry)
-        logger.info(
-            f"🖥️ Prometheus Metrics Server (MultiProc Mode) exposto na porta 8000. Dir: {multiproc_dir}"
-        )
-    else:
-        start_http_server(8000)
-        logger.info("🖥️ Prometheus Metrics Server (SingleProc) exposto na porta 8000.")
+
+# --- SOTA PIPELINE ORCHESTRATOR ---
 
 
 @tracer.start_as_current_span("orchestrate_daily_pipeline")

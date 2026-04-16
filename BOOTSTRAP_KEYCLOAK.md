@@ -76,6 +76,19 @@ Para que o Analytics filtre os dados por médico, o Token JWT precisa carregar o
 
 ---
 
+
+---
+
+## ⚡ Observabilidade & Resiliência (Redis)
+
+Nossa malha de segurança utiliza **Redis** como `session_store`. 
+
+* **Por que?**: Tokens JWT do Keycloak podem exceder o limite de 4KB de headers HTTP (especialmente com muitos mappers/grupos).
+* **Como funciona**: O `oauth2-proxy` armazena o token real no Redis e envia apenas um `session_id` curto para o navegador via cookie.
+* **Monitoramento**: Em produção, verifique a saúde do serviço `redis-session` se houver falhas de login intermitentes ("Cookie too large").
+
+---
+
 ## 🚀 Finalizando o Setup
 Após qualquer configuração manual, você pode consolidar o estado executando:
 ```bash

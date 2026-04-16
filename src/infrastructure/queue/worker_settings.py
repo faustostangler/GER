@@ -1,4 +1,5 @@
 import os
+import sys
 import asyncio
 from arq import cron
 from arq.connections import RedisSettings
@@ -16,7 +17,7 @@ async def run_daily_sync(ctx):
         # Para efeito do plano MVP do Arq chamamos o processo como Subprocesso ou Function Call
         # Chamada assíncrona para não colidir o EventLoop nativo
         process = await asyncio.create_subprocess_exec(
-            "python", "worker.py", env={"HEADLESS": "True"}
+            sys.executable, "worker.py", env={"HEADLESS": "True"}
         )
         await process.communicate()
 
@@ -32,8 +33,16 @@ async def run_daily_sync(ctx):
     print("✅ Processamento finalizado com sucesso!")
 
 
+
+async def on_startup(ctx):
+    """Inicialização do Worker: Telemetria e Conexões"""
+    from infrastructure.telemetry.metrics import init_prometheus
+    init_prometheus(port=8000)
+
+
 class WorkerConfig:
     # Agendamento Ativo SOTA nativo sem dependência do Scheduler do Docker
+    on_startup = on_startup
     cron_jobs = [
         # Roda todo dia as 03:00 da manhã
         cron(run_daily_sync, hour=3, minute=0)

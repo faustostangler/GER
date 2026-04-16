@@ -50,7 +50,7 @@ ENV PYTHONPATH="/app/src"
 
 # Copia o código para dentro da imagem (Imutabilidade)
 COPY src/ /app/src/
-COPY app_analytics.py /app/app_analytics.py
+COPY app_analytics.py worker.py master_scraper.py data_processor.py dom_scraper.py sqlite_to_parquet.py /app/
 COPY infra/ /app/infra/
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/pw-browsers /app/pw-browsers

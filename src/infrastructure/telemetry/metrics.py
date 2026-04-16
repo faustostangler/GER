@@ -72,8 +72,27 @@ HIGH_RISK_PATIENTS_DETECTED = Gauge(
     "Pacientes de risco alto (Vermelho/Laranja/Amarelo) detectados na última consulta",
 )
 
-USER_DECISION_TIME_SECONDS = Histogram(
-    "gercon_user_decision_time_seconds",
-    "Tempo entre filtrar e exportar/auditar (eficiência UX do médico)",
-    buckets=[5.0, 15.0, 30.0, 60.0, 120.0, 300.0, 600.0],
-)
+
+def init_prometheus(port: int = 8000):
+    """
+    Iniciador centralizado de telemetria Prometheus.
+    Suporta Multi-process mode via PROMETHEUS_MULTIPROC_DIR.
+    """
+    import os
+    from prometheus_client import start_http_server, CollectorRegistry, multiprocess
+    from infrastructure.telemetry.logger import setup_structured_logger
+    
+    logger = setup_structured_logger("prometheus_init")
+    multiproc_dir = os.environ.get("PROMETHEUS_MULTIPROC_DIR")
+    
+    try:
+        if multiproc_dir:
+            registry = CollectorRegistry()
+            multiprocess.MultiProcessCollector(registry)
+            start_http_server(port, registry=registry)
+            logger.info(f"🖥️ Prometheus (MultiProc) em :{port}. Dir: {multiproc_dir}")
+        else:
+            start_http_server(port)
+            logger.info(f"🖥️ Prometheus (SingleProc) em :{port}")
+    except Exception as e:
+        logger.error(f"❌ Falha ao iniciar Prometheus Server em :{port}: {e}")
