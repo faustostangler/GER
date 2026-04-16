@@ -85,6 +85,10 @@ restart:
 	$(DOCKER_COMPOSE) restart
 	@echo "♻️ System restarted."
 
+refresh:
+	docker exec ger_analytics touch /app/app_analytics.py
+	@echo "🚀 Streamlit live-reloaded (via Polling/Touch)!"
+
 # --- SRE: Verificação de Segurança RDE (Fail-Fast) ---
 check-rde:
 	$(eval RDE_ACCESS_TOKEN := $(shell grep -E "^RDE_ACCESS_TOKEN=" env/creds.env | cut -d '=' -f2 | tr -d '"' | tr -d "'"))
