@@ -1930,11 +1930,13 @@ def main():
     # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
     # ==========================================
     FINAL_WHERE = " AND ".join(clauses)
+    # WHY: A sidebar gera predicados SQL brutos em `clauses`. Durante a migração
+    # incremental para campos semânticos (FiltroAvancadoSpecBuilder), eles são
+    # carregados de forma opaca em `clauses_legado`. O domain NÃO os interpreta —
+    # apenas o DuckDBCriteriaTranslator (infra) os injeta no SQL como predicados.
     # TODO(#ADR-004): Migrar cada widget da sidebar para popular FiltroAvancadoSpecBuilder
-    # com campos semânticos (com_inclusao, com_faixa_numerica, etc.) ao invés de 'clauses'.
-    # Por enquanto, FiltroAvancadoSpec() vazio passa '1=1' para o translator;
-    # os filtros da sidebar continuam sendo aplicados via FINAL_WHERE na camada de infra.
-    filters = FiltroAvancadoSpec()
+    # com campos semânticos (com_inclusao, com_faixa_numerica, etc.) e remover clauses_legado.
+    filters = FiltroAvancadoSpec(clauses_legado=tuple(clauses))
     use_case = get_use_case()
 
     with st.spinner(

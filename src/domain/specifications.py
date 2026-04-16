@@ -139,6 +139,16 @@ class FiltroAvancadoSpec(BaseModel, Specification):
         default_factory=dict,
         description="Colunas com valor booleano exato exigido",
     )
+    clauses_legado: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description=(
+            "Shim de migração: predicados opacos gerados pela sidebar enquanto a"
+            " migração para campos semânticos não está completa. O domain NÃO"
+            " interpreta o conteúdo — é consumido exclusivamente pelo"
+            " DuckDBCriteriaTranslator na camada de infraestrutura."
+            " TODO(#ADR-004): Remover após migrar todos os widgets da sidebar."
+        ),
+    )
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         """Avalia o candidato contra todos os critérios semânticos em memória.

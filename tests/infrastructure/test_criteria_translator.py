@@ -172,3 +172,59 @@ class TestTranslateSpecificationComposites:
 
         result = DuckDBCriteriaTranslator.translate(UnknownSpec())
         assert result == "1=1"
+
+
+class TestClausesLegadoRegressao:
+    """Regression tests for the sidebar filter bug introduced in commit 5951ff7.
+
+    WHY: The refactoring from FilterCriteria → FiltroAvancadoSpec incorrectly
+    used FiltroAvancadoSpec() (empty) which translated to '1=1' (no filter),
+    causing sidebar filters to be silently ignored. The `clauses_legado` shim
+    restores the full filter flow until the incremental semantic migration is complete.
+    """
+
+    def test_clauses_legado_single_clause_is_emitted(self):
+        """A single raw SQL clause must be passed through to the WHERE predicate."""
+        spec = FiltroAvancadoSpec(
+            clauses_legado=("origem_lista = 'LISTA_ESPERA'",)
+        )
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert "origem_lista = 'LISTA_ESPERA'" in result
+
+    def test_clauses_legado_multiple_clauses_combined_with_and(self):
+        """Multiple raw clauses must be joined with AND preserving all predicates."""
+        spec = FiltroAvancadoSpec(
+            clauses_legado=(
+                "origem_lista = 'LISTA_ESPERA'",
+                "situacao = 'AGUARDANDO'",
+            )
+        )
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert "origem_lista = 'LISTA_ESPERA'" in result
+        assert "situacao = 'AGUARDANDO'" in result
+        assert " AND " in result
+
+    def test_empty_clauses_legado_returns_universe(self):
+        """Empty clauses_legado must produce the universe clause '1=1'."""
+        spec = FiltroAvancadoSpec(clauses_legado=())
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert result == "1=1"
+
+    def test_clauses_legado_combined_with_semantic_fields(self):
+        """Legacy clauses and semantic fields must be combined with AND."""
+        spec = FiltroAvancadoSpec(
+            colunas_inclusao={"entidade_complexidade": ["MEDIA"]},
+            clauses_legado=("origem_lista = 'LISTA_ESPERA'",),
+        )
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert '"entidade_complexidade" IN' in result
+        assert "origem_lista = 'LISTA_ESPERA'" in result
+        assert " AND " in result
+
+    def test_blank_clauses_legado_entries_are_filtered_out(self):
+        """Blank or whitespace entries must be ignored and not produce empty predicates."""
+        spec = FiltroAvancadoSpec(clauses_legado=("   ", "", "situacao = 'AGUARDANDO'"))
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert "situacao = 'AGUARDANDO'" in result
+        # Must not have orphan AND from blank entries
+        assert " AND  AND " not in result

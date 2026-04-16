@@ -139,4 +139,13 @@ class DuckDBCriteriaTranslator:
                 termo_safe = termo.replace("'", "''")
                 parts.append(f'"{coluna}" ILIKE \'%{termo_safe}%\'')
 
+        # --- Clauses legado (shim de migração): predicados SQL opacos da sidebar ---
+        # WHY: Durante a migração incremental, a sidebar gera predicados SQL brutos
+        # que não foram migrados para campos semânticos ainda. O translator os injeta
+        # diretamente aqui — única camada que conhece o dialeto SQL.
+        # TODO(#ADR-004): Remover após migrar todos os widgets da sidebar.
+        for clause in spec.clauses_legado:
+            if clause and clause.strip():
+                parts.append(clause)
+
         return " AND ".join(parts) if parts else "1=1"
