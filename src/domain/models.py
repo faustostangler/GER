@@ -1,7 +1,6 @@
 from pydantic import BaseModel, Field
 from enum import Enum
-from typing import Any
-from domain.specifications import Specification
+from domain.specifications import FiltroAvancadoSpec
 
 
 class IngestionStatus(str, Enum):
@@ -24,12 +23,12 @@ class IngestionLogEntry(BaseModel):
     error_message: str = Field(default="", description="Mensagem de erro se status != SUCCESS")
 
 
-class FilterCriteria(BaseModel, Specification):
-    clauses: list[str] = Field(default_factory=list, description="Lista de cláusulas SQL injetadas de forma segura")
-
-    def is_satisfied_by(self, candidate: Any) -> bool:
-        # FilterCriteria é principalmente para tradução SQL, mas podemos implementar para memória
-        return True
+# WHY: FilterCriteria foi refatorado para FiltroAvancadoSpec (domain/specifications.py).
+# O SQL leak (list[str] clauses) foi removido do Core Domain. Este alias garante
+# compatibilidade retroativa com app_analytics.py durante a migração gradual.
+# TODO(#ADR-004): Remover este alias após migração completa da camada de apresentação.
+# DEPRECATED: Use FiltroAvancadoSpec em vez de FilterCriteria.
+FilterCriteria = FiltroAvancadoSpec
 
 
 class AnalyticKPIs(BaseModel):

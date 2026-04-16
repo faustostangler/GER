@@ -33,8 +33,10 @@ WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/pw-browsers
 ENV UV_HTTP_TIMEOUT=120
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project --no-dev
-RUN .venv/bin/python -m playwright install chromium
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project --no-dev
+RUN --mount=type=cache,target=/root/.cache/uv \
+    .venv/bin/python -m playwright install chromium
 
 # Stage 3: Runtime Imutável (Sem Bind Mounts)
 FROM base AS runtime

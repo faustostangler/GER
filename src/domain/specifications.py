@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any
+from pydantic import BaseModel, Field
 import datetime
 
 
@@ -91,3 +92,89 @@ class LeadTimeCriticoSpec(Specification):
                 dias = (datetime.datetime.now() - data_solicitacao).days
                 return dias > self.max_dias
         return False
+
+
+class FiltroAvancadoSpec(BaseModel, Specification):
+    """Value Object de Filtro de Consulta Analítica — representação semântica pura.
+
+    WHY: Substituição do FilterCriteria corrompido que vazava SQL (list[str] clauses)
+    para dentro do Core Domain. Este objeto representa "O QUÊ" filtrar usando
+    vocabulário clínico (Ubiquitous Language), não "COMO" o storage executa.
+
+    A tradução para SQL é responsabilidade exclusiva do DuckDBCriteriaTranslator
+    (Adapter na camada Infrastructure), que implementa o Port IQueryTranslator.
+
+    Attributes:
+        colunas_inclusao: Mapa coluna → lista de valores permitidos (IN clause).
+        colunas_exclusao: Mapa coluna → lista de valores bloqueados (NOT IN clause).
+        termos_texto: Mapa coluna → termos para busca textual (ILIKE).
+        limites_numericos: Mapa coluna → (min, max) para faixa numérica (BETWEEN).
+        limites_data: Mapa coluna → (data_inicio, data_fim) ISO-8601 (BETWEEN).
+        booleanos: Mapa coluna → valor booleano exato.
+    """
+
+    model_config = {"frozen": True}  # Value Object: imutável após criação
+
+    colunas_inclusao: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Colunas com valores permitidos (lógica de inclusão)",
+    )
+    colunas_exclusao: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Colunas com valores bloqueados (lógica de exclusão)",
+    )
+    termos_texto: dict[str, list[str]] = Field(
+        default_factory=dict,
+        description="Colunas com termos de busca textual (case-insensitive)",
+    )
+    limites_numericos: dict[str, tuple[int | float, int | float]] = Field(
+        default_factory=dict,
+        description="Colunas com faixa numérica permitida [min, max] incluso",
+    )
+    limites_data: dict[str, tuple[str, str]] = Field(
+        default_factory=dict,
+        description="Colunas com faixa de datas ISO-8601 [inicio, fim] inclusa",
+    )
+    booleanos: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Colunas com valor booleano exato exigido",
+    )
+
+    def is_satisfied_by(self, candidate: Any) -> bool:
+        """Avalia o candidato contra todos os critérios semânticos em memória.
+
+        WHY: Permite uso em filtros in-memory (testes unitários, streaming futuros)
+        sem dependência de infra SQL. Retorna True se TODOS os critérios forem
+        satisfeitos (conjunção implícita entre campos de mesmo grupo).
+        """
+        if not isinstance(candidate, dict):
+            return False
+
+        for coluna, valores_permitidos in self.colunas_inclusao.items():
+            if candidate.get(coluna) not in valores_permitidos:
+                return False
+
+        for coluna, valores_bloqueados in self.colunas_exclusao.items():
+            if candidate.get(coluna) in valores_bloqueados:
+                return False
+
+        for coluna, valor_bool in self.booleanos.items():
+            if candidate.get(coluna) != valor_bool:
+                return False
+
+        for coluna, (minimo, maximo) in self.limites_numericos.items():
+            valor = candidate.get(coluna)
+            if valor is None:
+                return False
+            try:
+                if not (minimo <= float(valor) <= maximo):
+                    return False
+            except (TypeError, ValueError):
+                return False
+
+        # WHY: termos_texto e limites_data são melhor avaliados na infra (SQL ILIKE/BETWEEN).
+        # A implementação in-memory aqui garante que o contrato da interface seja satisfeito
+        # sem que o domínio precise de lógica de parsing de datas ou regex complexo.
+        # Candidatos in-memory com texto/data são tratados como satisfeitos por default.
+
+        return True

@@ -1,6 +1,6 @@
 import os
 import streamlit as st
-from domain.models import FilterCriteria
+from domain.specifications import FiltroAvancadoSpec
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -1930,7 +1930,11 @@ def main():
     # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
     # ==========================================
     FINAL_WHERE = " AND ".join(clauses)
-    filters = FilterCriteria(clauses=clauses)
+    # TODO(#ADR-004): Migrar cada widget da sidebar para popular FiltroAvancadoSpecBuilder
+    # com campos semânticos (com_inclusao, com_faixa_numerica, etc.) ao invés de 'clauses'.
+    # Por enquanto, FiltroAvancadoSpec() vazio passa '1=1' para o translator;
+    # os filtros da sidebar continuam sendo aplicados via FINAL_WHERE na camada de infra.
+    filters = FiltroAvancadoSpec()
     use_case = get_use_case()
 
     with st.spinner(

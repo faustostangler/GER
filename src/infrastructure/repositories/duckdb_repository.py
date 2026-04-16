@@ -4,44 +4,19 @@ import pandas as pd
 import re
 from typing import List, Tuple, Any
 from application.use_cases.interfaces import IAnalyticsRepository
-from domain.models import AnalyticKPIs, FilterCriteria
+from domain.models import AnalyticKPIs
 from domain.specifications import (
     Specification,
-    AndSpecification,
-    OrSpecification,
-    NotSpecification,
-    PacienteUrgenteSpec,
-    PacienteVencidoSpec,
-    LeadTimeCriticoSpec,
 )
 from infrastructure.auth.token_acl import ValidatedUserToken
 from infrastructure.config import settings
+from infrastructure.repositories.criteria_translator import DuckDBCriteriaTranslator
 
-
-class DuckDBSpecificationTranslator:
-    @staticmethod
-    def translate(spec: Specification) -> str:
-        if spec is None:
-            return "1=1"
-        match spec:
-            case AndSpecification():
-                return f"({DuckDBSpecificationTranslator.translate(spec.left)} AND {DuckDBSpecificationTranslator.translate(spec.right)})"
-            case OrSpecification():
-                return f"({DuckDBSpecificationTranslator.translate(spec.left)} OR {DuckDBSpecificationTranslator.translate(spec.right)})"
-            case NotSpecification():
-                return f"NOT ({DuckDBSpecificationTranslator.translate(spec.spec)})"
-            case PacienteUrgenteSpec():
-                cores_str = ", ".join(f"'{c}'" for c in spec.cores_urgencia)
-                return f"entidade_classificacaoRisco_cor IN ({cores_str})"
-            case PacienteVencidoSpec():
-                return f"DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > {spec.dias_vencimento}"
-            case LeadTimeCriticoSpec():
-                return f"DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > {spec.max_dias}"
-            case FilterCriteria():
-                return " AND ".join(spec.clauses) if spec.clauses else "1=1"
-            case _:
-                return "1=1"
-
+# WHY: Alias de retro-compatibilidade para não quebrar chamadas legadas em
+# tests/infrastructure/test_specification_translator.py enquanto a migração
+# total para DuckDBCriteriaTranslator não é concluída.
+# TODO(#ADR-004): Remover este alias após atualização de test_specification_translator.py
+DuckDBSpecificationTranslator = DuckDBCriteriaTranslator
 
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
@@ -159,9 +134,9 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
                 pac_urgentes=0, pac_vencidos=0, p90_lead_time=0.0, p90_esquecido=0.0,
                 last_sync_at=0.0,
             )
-        final_where = DuckDBSpecificationTranslator.translate(spec)
-        urgentes_where = DuckDBSpecificationTranslator.translate(spec_urgentes)
-        vencidos_where = DuckDBSpecificationTranslator.translate(spec_vencidos)
+        final_where = DuckDBCriteriaTranslator.translate(spec)
+        urgentes_where = DuckDBCriteriaTranslator.translate(spec_urgentes)
+        vencidos_where = DuckDBCriteriaTranslator.translate(spec_vencidos)
         cte = self._get_rls_cte(user)
 
         kpis_df = self._query(f"""
@@ -240,7 +215,7 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         # WHY: Modo sem dados — retorna DataFrame vazio para os gráficos renderizarem sem crash
         if self._no_data:
             return pd.DataFrame(columns=["dias_fila", "dias_esquecido"])
-        final_where = DuckDBSpecificationTranslator.translate(spec)
+        final_where = DuckDBCriteriaTranslator.translate(spec)
         cte = self._get_rls_cte(user)
         return self._query(f"""
             {cte}
@@ -283,8 +258,8 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             return pd.DataFrame()
         cte = self._get_rls_cte(user)
         
-        # 0. Tradução do Specification/FilterCriteria se existir
-        final_where = DuckDBSpecificationTranslator.translate(spec) if spec else "1=1"
+        # 0. Tradução semântica do Specification via DuckDBCriteriaTranslator
+        final_where = DuckDBCriteriaTranslator.translate(spec) if spec else "1=1"
         
         # SRE FIX: Injeção Segura do WHERE dinâmico na query customizada
         sql_final_where = sql.replace("{FINAL_WHERE}", final_where)
