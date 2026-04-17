@@ -18,6 +18,12 @@ def mock_analytics_use_case():
         instance = MagicMock()
         instance.get_global_bounds.return_value = (1, 100)
         instance.get_dynamic_options.return_value = ["Opção A", "Opção B"]
+        
+        # SRE FIX: mock da política de negócio usada pela presentation
+        mock_policy = MagicMock()
+        mock_policy.idade_min = 0
+        mock_policy.idade_max = 120
+        instance._policy = mock_policy
 
         mock_kpis = AnalyticKPIs(
             pacientes=100,
@@ -128,8 +134,8 @@ def test_app_ui_loads_and_updates_state(mock_duckdb_repo, mock_analytics_use_cas
                 pytest.fail(f"Streamlit AppTest Exception: {at.exception}")
 
             # 2. Verificar se a tela inicial e o Título carregaram corretamente
-            assert len(at.title) > 0, "Nenhum título foi renderizado"
-            assert "🎯 Gercon SRE | Advanced Root Cause Analysis" in at.title[0].value
+            assert len(at.markdown) > 0, "Nenhum markdown de header foi renderizado"
+            assert any("GERCON SRE" in md.value for md in at.markdown), "O header customizado GERCON SRE não foi encontrado"
 
             # 3. Simular interação com a aplicação e verificar mutação do estado de Tracker SRE
             if len(at.toggle) > 0:

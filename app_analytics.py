@@ -681,200 +681,55 @@ def render_advanced_text_search(
 
 
 # --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
+# WHY: Toda a lógica de IAM foi extraída para o adapter especializado.
+# Este arquivo (apresentação) deve apenas renderizar — não decidir sobre identidade.
+# Ref: ADR-006 — IAM Adapter Isolation (Fase 3).
+from presentation.adapters.streamlit_auth import (
+    is_cloud_run as _is_cloud_run,
+    resolve_authenticated_user,
+    build_logout_url,
+)
 
 
-def _is_cloud_run() -> bool:
-    """Detecta se o runtime é Google Cloud Run via variável injetada automaticamente."""
-    return bool(os.getenv("K_SERVICE"))
-
-
-def _is_dev_mock_allowed() -> bool:
-    """
-    Guarda de Segurança Dupla para bypass de autenticação em desenvolvimento.
-    WHY: Usar ENVIRONMENT=='dev' sozinho é fraco demais - qualquer deploy acidental com
-    ENVIRONMENT=dev (como ocorreu no Cloud Run) habilita acesso sem login.
-    Requer explicitamente ALLOW_UNAUTHENTICATED_DEV=true como segundo fator de opt-in.
-    Cloud Run e prod NUNCA devem ter esta variável setada.
-    """
-    environment = os.getenv("ENVIRONMENT", "production").lower()
-    allow_dev = os.getenv("ALLOW_UNAUTHENTICATED_DEV", "false").lower() == "true"
-    return environment in ("local", "dev") and allow_dev
-
-
-def _cloud_run_login_gate():
-    """
-    ADR-004 Phase 1: Login gate para Cloud Run via senha compartilhada.
-    WHY: Cloud Run serverless não executa Keycloak/oauth2-proxy como sidecar.
-    Usa CLOUD_RUN_AUTH_PASSWORD (injetado via Cloud Run secrets) como gate temporário
-    enquanto Firebase Auth (Phase 2) não é implementado.
-    Retorna True se o usuário já está autenticado na session, False caso contrário.
-    """
-    import hashlib
-
-    # Já autenticou nesta sessão Streamlit
-    if st.session_state.get("cloud_run_authenticated"):
-        return True
-
-    expected_hash = os.getenv("CLOUD_RUN_AUTH_PASSWORD_HASH", "")
-    expected_plain = os.getenv("CLOUD_RUN_AUTH_PASSWORD", "")
-
-    # Fail-fast: Nenhuma senha configurada no Cloud Run
-    if not expected_hash and not expected_plain:
-        st.error(
-            "🚨 **Configuração Ausente.** "
-            "`CLOUD_RUN_AUTH_PASSWORD` não está definido no Cloud Run. "
-            "Contate o administrador."
-        )
-        st.stop()
-        return False  # pragma: no cover
-
-    st.markdown(
-        """
-        <div style="text-align: center; margin-top: 100px; padding: 2rem;">
-            <div style="display: inline-block; padding: 1.5rem; background: rgba(173, 198, 255, 0.05); border-radius: 50%; margin-bottom: 2rem;">
-                <span style="font-size: 3rem;">🎯</span>
-            </div>
-            <h1 style="font-family: 'Inter', sans-serif; font-weight: 900; color: #fff; font-size: 3.5rem; letter-spacing: -0.05em; margin-bottom: 0.5rem;">Gercon Analytics</h1>
-            <p style="color: #adc6ff; font-size: 1rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.3em; opacity: 0.8;">Sistema de Regulação Clínica</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    col_left, col_center, col_right = st.columns([1, 2, 1])
-    with col_center:
-        with st.form("cloud_run_login", clear_on_submit=True):
-            st.subheader("🔐 Login")
-            password = st.text_input("Senha de Acesso", type="password", key="cr_pwd")
-            submitted = st.form_submit_button(
-                "Entrar", use_container_width=True, type="primary"
-            )
-
-        if submitted and password:
-            # Validação: compara hash SHA-256 ou fallback para texto plano
-            pwd_sha256 = hashlib.sha256(password.encode()).hexdigest()
-
-            is_valid = False
-            if expected_hash:
-                is_valid = pwd_sha256 == expected_hash.lower()
-            elif expected_plain:
-                is_valid = password == expected_plain
-
-            if is_valid:
-                st.session_state["cloud_run_authenticated"] = True
-                st.rerun()
-            else:
-                st.error("❌ Senha incorreta.")
-
-    st.stop()
-    return False  # pragma: no cover
-
-
+# Alias para compatibilidade com o bloco main() existente
 def get_authenticated_user():
+    """Facade de compatibilidade: delega ao IAM Adapter.
+
+    WHY: Mantém a assinatura pública existente usada em main() enquanto
+    toda a lógica real vive em presentation.adapters.streamlit_auth.
+    Ref: ADR-006.
     """
-    SRE BFF Pattern: Estratégia de autenticação adaptável por runtime.
-    - Cloud Run: Password gate (ADR-004) → Mock user com perfil clínico.
-    - Docker Compose (RDE): IAP Proxy headers → JWT Keycloak.
-    - Local Dev: Mock dupla-guarda (ENVIRONMENT + ALLOW_UNAUTHENTICATED_DEV).
-    """
-    import time
-    from infrastructure.auth.token_acl import ValidatedUserToken
-
-    # === PATH 1: Desenvolvimento Local sem IAP Proxy ===
-    # WHY: Guarda dupla — não basta ENVIRONMENT=dev; exige ALLOW_UNAUTHENTICATED_DEV=true.
-    if _is_dev_mock_allowed():
-        mock_user = ValidatedUserToken(
-            sub="dev-id-123",
-            email="dev@gercon.com",
-            preferred_username="dev_user",
-            roles=["diretor_medico"],
-            crm_numero="99999",
-            crm_uf="RS",
-            exp=int(time.time() + 86400),
-        )
-        return mock_user, "mock-jwt-token"
-
-    # === PATH 2: Cloud Run Serverless (sem Keycloak/oauth2-proxy) ===
-    # ADR-004: Password gate → cria sessão com perfil clínico default.
-    # TODO(ADR-004/Phase2): Substituir por Firebase Auth com Firestore user profiles.
-    if _is_cloud_run():
-        _cloud_run_login_gate()  # Bloqueia com st.stop() se não autenticado
-        cloud_user = ValidatedUserToken(
-            sub="cloud-run-user",
-            email=os.getenv("CLOUD_RUN_DEFAULT_EMAIL", "clinico@gercon.com"),
-            preferred_username=os.getenv("CLOUD_RUN_DEFAULT_USER", "clinico"),
-            roles=[os.getenv("CLOUD_RUN_DEFAULT_ROLE", "diretor_medico")],
-            crm_numero=os.getenv("CLOUD_RUN_CRM_NUMERO"),
-            crm_uf=os.getenv("CLOUD_RUN_CRM_UF"),
-            exp=int(time.time() + 86400),
-        )
-        return cloud_user, "cloud-run-session"
-
-    # === PATH 3: Docker Compose / K8s com OAuth2-Proxy (Prod original) ===
-    # Extração do Header injetado pelo OAuth2-Proxy (Streamlit 1.37+)
-    auth_header = (
-        st.context.headers.get("x-forwarded-access-token")
-        or st.context.headers.get("x-auth-request-access-token")
-        or st.context.headers.get("authorization", "").replace("Bearer ", "")
-    )
-
-    if not auth_header:
-        raise ValueError("Missing Authentication Headers (IAP Proxy)")
-
-    from infrastructure.auth.jwt_validator import verify_token
-
-    user = verify_token(auth_header)
-    return user, auth_header
+    return resolve_authenticated_user(headers=dict(st.context.headers))
 
 
 # --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP / Cloud Run) ---
 def _render_user_widget(user) -> None:
-    """
-    Renderiza o card de identidade do usuário no topo da sidebar.
-    WHY: Adapta o logout conforme o runtime:
-    - Cloud Run: Limpa session_state e recarrega (sem proxy/Keycloak).
-    - Docker Compose: Destroi sessão Redis do OAuth2-Proxy + SSO Keycloak.
+    """Renderiza o card de identidade do usuário no topo da sidebar.
+
+    WHY: Adapta o logout conforme o runtime usando build_logout_url() do
+    IAM Adapter — sem duplicar lógica de detecção de runtime aqui.
+    Ref: ADR-006 — IAM Adapter Isolation.
     """
     username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
     display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
 
-    if _is_cloud_run():
-        # Cloud Run: Logout simples — limpa session_state do Streamlit
-        st.sidebar.markdown(
-            f"👤 **{display_name}**",
-        )
-        if st.sidebar.button(
-            "🚪 Logout",
-            use_container_width=True,
-            key="cloud_run_logout",
-        ):
+    logout_url = build_logout_url(is_cloud_run_runtime=_is_cloud_run())
+
+    if logout_url is None:
+        # Cloud Run: Logout simples — limpa session_state do Streamlit (sem proxy/Keycloak)
+        st.sidebar.markdown(f"👤 **{display_name}**")
+        if st.sidebar.button("🚪 Logout", use_container_width=True, key="cloud_run_logout"):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()
     else:
         # Docker Compose / K8s: Logout com cadeia de redirects OAuth2-Proxy → Keycloak
         # WHY: Logout exige dois passos — limpar cookie do OAuth2-Proxy E destruir SSO Keycloak.
-        from urllib.parse import quote
-
-        keycloak_base = os.getenv(
-            "KEYCLOAK_SERVER_URL", "http://iam.127.0.0.1.nip.io:8080"
-        )
-        realm = os.getenv("KEYCLOAK_REALM", "gercon-realm")
-        client_id = os.getenv("KEYCLOAK_CLIENT_ID", "gercon-analytics")
-        post_logout_uri = (
-            f"http://{os.getenv('EXTERNAL_DOMAIN', '127.0.0.1.nip.io')}/dashboard/"
-        )
-
-        keycloak_logout = (
-            f"{keycloak_base}/realms/{realm}/protocol/openid-connect/logout"
-            f"?client_id={client_id}"
-            f"&post_logout_redirect_uri={quote(post_logout_uri, safe='')}"
-        )
-
+        # build_logout_url() já monta a cadeia completa com post_logout_redirect_uri.
         st.sidebar.markdown(
             f"""
-            <form action="/oauth2/sign_out" method="GET" style="margin: 10px 0;">
-                <input type="hidden" name="rd" value="{keycloak_logout}" />
+            <form action="{logout_url.split('?')[0]}" method="GET" style="margin: 10px 0;">
+                <input type="hidden" name="rd" value="{logout_url.split('rd=', 1)[1] if 'rd=' in logout_url else ''}" />
                 <button type="submit" style="
                     display: block;
                     width: 100%;
@@ -933,11 +788,9 @@ def main():
                 st.rerun()
         else:
             # Docker Compose: Redireciona para cadeia OAuth2-Proxy → Keycloak
-            st.link_button(
-                "🔄 Renovar Login",
-                "/oauth2/sign_out?rd=/dashboard/",
-                type="primary",
-            )
+            # WHY: build_logout_url() do IAM Adapter monta a URL completa com post_logout_redirect_uri.
+            renewal_url = build_logout_url(is_cloud_run_runtime=False) or "/oauth2/sign_out?rd=/dashboard/"
+            st.link_button("🔄 Renovar Login", renewal_url, type="primary")
         st.stop()
 
     else:
