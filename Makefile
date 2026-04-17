@@ -6,10 +6,11 @@
 ENV_FLAGS = --env-file env/creds.env --env-file env/config.env
 DOCKER_COMPOSE = docker compose $(ENV_FLAGS)
 
-.PHONY: bootstrap sync update help up dev check-rde rde-url down up-iam restart logs logs-proxy logs-worker logs-keycloak ps shell shell-worker db-cli cache-cli clean clean-volumes
+.PHONY: bootstrap sync update help env up dev check-rde rde-url down up-iam restart logs logs-proxy logs-worker logs-keycloak ps shell shell-worker db-cli cache-cli clean clean-volumes
 
 help:
 	@echo "GER Orchestration Commands:"
+	@echo "  make env     - Gera o .env raiz a partir de env/compose.env (pré-requisito para docker compose)"
 	@echo "  make sync    - Pull code from GitHub and rebuild containers (Slow/Full)"
 	@echo "  make update  - Fast pull from GitHub only (No rebuild)"
 	@echo "  make logs    - Stream analytics system logs"
@@ -34,13 +35,23 @@ help:
 	@echo "  make db-cli       - Enter Keycloak PostgreSQL CLI"
 	@echo "  make cache-cli    - Enter Redis (ArQ Queue) CLI"
 
+# SRE: Gera o .env raiz a partir de env/compose.env (Single Source of Truth para interpolação YAML)
+# WHY: Docker Compose lê o .env raiz durante o parsing do YAML (ports:, command:, aliases:).
+# env_file: só injeta vars nos containers em runtime — NÃO serve para interpolação YAML.
+# FLUXO: edite env/compose.env → execute `make env` → execute `make up-iam`
+env:
+	@cp env/compose.env .env
+	@echo "✅ .env gerado a partir de env/compose.env (EXTERNAL_DOMAIN=$$(grep ^EXTERNAL_DOMAIN env/compose.env | cut -d= -f2))"
+
 # SRE: Inicia apenas a base da identidade para permitir a configuração manual inicial
 bootstrap:
 	@echo "🛠️  Iniciando infraestrutura básica de Identidade (Bootstrap)..."
 	$(DOCKER_COMPOSE) --profile iam up -d postgres-keycloak keycloak --wait
 	@echo "----------------------------------------------------------"
 	@echo "✅ Keycloak está ONLINE e pronto para configuração!"
-	@echo "🔗 URL Administrador: http://127.0.0.1.nip.io:8080"
+	@IAM=$$(grep ^IAM_SUBDOMAIN env/compose.env | cut -d= -f2); \
+	 port=$$(grep ^KEYCLOAK_EXTERNAL_PORT env/compose.env | cut -d= -f2); \
+	 echo "🔗 URL Administrador: http://$$IAM:$$port"
 	@echo "📖 Documentação de Setup: BOOTSTRAP_KEYCLOAK.md"
 	@echo "----------------------------------------------------------"
 	@echo "🚀 Após configurar e atualizar o Secret no creds.env, execute: make up-iam"

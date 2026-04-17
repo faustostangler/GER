@@ -270,16 +270,15 @@ def build_logout_url(is_cloud_run_runtime: bool) -> Optional[str]:
         # Cloud Run: sem proxy/Keycloak — logout é via limpeza de session_state
         return None
 
-    keycloak_base = os.getenv("KEYCLOAK_SERVER_URL", "http://iam.127.0.0.1.nip.io:8080")
-    realm = os.getenv("KEYCLOAK_REALM", "gercon-realm")
-    client_id = os.getenv("KEYCLOAK_CLIENT_ID", "gercon-analytics")
-    external_domain = os.getenv("EXTERNAL_DOMAIN", "127.0.0.1.nip.io")
-    post_logout_uri = f"http://{external_domain}/dashboard/"
+    # WHY: Usa settings.* do config.py em vez de os.getenv() com defaults hardcoded.
+    # Isso garante que o contexto local (127.0.0.1.nip.io) e remoto (qualquer domínio)
+    # sejam resolvidos automaticamente via EXTERNAL_DOMAIN + PROTOCOL + KEYCLOAK_SERVER_URL.
+    from infrastructure.config import settings  # ACL: import local
 
     keycloak_logout_url = (
-        f"{keycloak_base}/realms/{realm}/protocol/openid-connect/logout"
-        f"?client_id={client_id}"
-        f"&post_logout_redirect_uri={quote(post_logout_uri, safe='')}"
+        f"{settings.keycloak_issuer}/protocol/openid-connect/logout"
+        f"?client_id={settings.KEYCLOAK_CLIENT_ID}"
+        f"&post_logout_redirect_uri={quote(f'{settings.base_url}/dashboard/', safe='')}"
     )
 
     # OAuth2-Proxy: limpa cookie E redireciona para logout do Keycloak

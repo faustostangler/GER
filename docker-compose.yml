@@ -92,7 +92,7 @@ services:
       OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
 
       OAUTH2_PROXY_EMAIL_DOMAINS: "${OAUTH2_PROXY_EMAIL_DOMAINS:-*}"  # SRE: Configurável via env/config.env
-      OAUTH2_PROXY_REDIRECT_URL: "http://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}/oauth2/callback"
+      OAUTH2_PROXY_REDIRECT_URL: "${PROTOCOL}://${EXTERNAL_DOMAIN}/oauth2/callback"
       # SRE: Compatibilidade com Keycloak defaults
       OAUTH2_PROXY_INSECURE_OIDC_SKIP_ISSUER_VERIFICATION: "true"
       OAUTH2_PROXY_INSECURE_OIDC_ALLOW_UNVERIFIED_EMAIL: "true"
@@ -107,7 +107,9 @@ services:
       OAUTH2_PROXY_COOKIE_REFRESH: "0h"
     command:
       - --cookie-domain=${PROJECT_DOMAIN}
-      - --oidc-issuer-url=http://keycloak:8080/realms/${KEYCLOAK_REALM:-gercon-realm}
+      # WHY (Split-Horizon): issuer-url usa hostname interno Docker (KEYCLOAK_INTERNAL_SERVICE)
+      # para que o oauth2-proxy consiga resolver o endpoint de discovery via mesh interno.
+      - --oidc-issuer-url=http://${KEYCLOAK_INTERNAL_SERVICE}:${KEYCLOAK_INTERNAL_PORT}/realms/${KEYCLOAK_REALM}
       - --whitelist-domain=.${PROJECT_DOMAIN}
       - --cookie-expire=24h0m0s
       - --cookie-refresh=0h
@@ -143,7 +145,7 @@ services:
       - --reserve-memory 0M
       - --overprovisioned
       - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
-      - --advertise-kafka-addr internal://redpanda-0:9092,external://${EXTERNAL_DOMAIN:-127.0.0.1.nip.io}:19092
+      - --advertise-kafka-addr internal://redpanda-0:9092,external://${EXTERNAL_DOMAIN}:19092
     logging: *default-logging
     deploy:
       resources:
@@ -261,14 +263,19 @@ services:
     networks:
       iap-mesh:
         aliases:
-          - iam.127.0.0.1.nip.io # SRE: Hack de DNS Interno para Analytics e Proxy acharem o IdP
+          # WHY (Split-Horizon DNS): o oauth2-proxy e o analytics resolvem o Keycloak
+          # via IAM_SUBDOMAIN (ex: iam.127.0.0.1.nip.io local, iam.exemplo.com remoto).
+          # Deve ser idêntico ao KC_HOSTNAME_URL e ao KEYCLOAK_SERVER_URL.
+          - ${IAM_SUBDOMAIN}
     logging: *default-logging
     deploy:
       resources:
         limits:
           memory: '${KEYCLOAK_MEM_LIMIT:-2G}'
     healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080 && echo -e \"GET /health/live HTTP/1.1\r\nhost: 127.0.0.1.nip.io\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
+      # WHY: Healthcheck usa host interno 127.0.0.1 (loopback do container) — não o hostname externo.
+      # O header 'host' usa IAM_SUBDOMAIN para que o Keycloak valide o virtual host corretamente.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/${KEYCLOAK_INTERNAL_PORT} && echo -e \"GET /health/live HTTP/1.1\r\nhost: ${IAM_SUBDOMAIN}\r\nConnection: close\r\n\r\n\" >&3 && cat <&3 | grep -q '\"status\": \"UP\"'"]
       interval: 2s
       timeout: 2s
       retries: 60

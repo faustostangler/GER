@@ -46,11 +46,13 @@ next-env.d.ts
 *.pyc
 __pycache__/
 
-# Environment
+# Environment — Virtual Envs (ignorar) e Configurações (versionadas)
 .venv/
 venv/
 ENV/
-env/
+# env/ INTEIRA não ignorada: env/config.env e env/compose.env são versionados.
+# Apenas env/creds.env (secrets) é ignorado.
+env/creds.env
 .envrc
 .env/
 .venv-linux/
@@ -162,7 +164,8 @@ mutants/
 # Parquet files
 gercon_consolidado.parquet.new
 
-# Root .env — Docker Compose host variable interpolation (secrets + local config)
-# WHY: Contém literais de domínio e configurações locais que NÃO devem ser versionados.
-# Use env/config.env (versionado) para defaults e env/creds.env (ignorado) para secrets.
+# Root .env — gerado por `make env` a partir de env/compose.env
+# WHY: Derivado, não editado manualmente. env/compose.env é a Fonte de Verdade.
+# env/creds.env é ignorado pois contém secrets.
+# env/config.env e env/compose.env são versionados (defaults sem secrets).
 /.env

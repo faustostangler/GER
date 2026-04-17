@@ -63,18 +63,39 @@ class AppSettings(BaseSettings):
     # Infrastructure & IO
     OUTPUT_FILE: str = Field(default="gercon_consolidado.parquet")
     KAFKA_URL: str = Field(default="redpanda-0:9092")
+
+    # Rede & Domínio — valores refletem env/config.env; mudam por contexto (local/remoto)
     EXTERNAL_DOMAIN: str = Field(default="127.0.0.1.nip.io")
+    PROTOCOL: str = Field(default="http")
 
     # Observability & Error Tracking
     SENTRY_DSN: Optional[str] = Field(default=None, description="Sentry DSN for production error tracking")
     GIT_SHA: str = Field(default="local-dev", description="Git commit SHA injected at build time for release tracking")
 
-    # Keycloak OIDC Settings
-    # SOTA: Fallback para as variáveis do oauth2-proxy se não estiverem explicitamente definidas
-    KEYCLOAK_SERVER_URL: Optional[HttpUrl] = Field(default=None)
+    # Keycloak OIDC Settings — hostname público (browser-facing)
+    # WHY: KEYCLOAK_SERVER_URL e KEYCLOAK_REALM definem o 'iss' claim dos JWTs
+    # e a URL de redirect para o browser. Mudam por contexto (local/remoto).
+    KEYCLOAK_SERVER_URL: Optional[HttpUrl] = Field(
+        default=None,
+        description="URL pública do Keycloak (browser-facing). Ex: http://iam.127.0.0.1.nip.io:8080",
+    )
     KEYCLOAK_REALM: str = Field(default="gercon-realm")
     KEYCLOAK_CLIENT_ID: str = Field(default="gercon-analytics")
     KEYCLOAK_CLIENT_SECRET: SecretStr = Field(default="change-me")
+
+    # Split-Horizon DNS — acesso interno Docker ao Keycloak
+    # WHY (ADR-003 / Split-Horizon): Containers não conseguem resolver o hostname público
+    # do Keycloak (IAM_SUBDOMAIN). Usam o service name do Docker Compose via mesh interno.
+    # KEYCLOAK_INTERNAL_SERVICE = nome do serviço no docker-compose.yml (canônico: 'keycloak').
+    # Mude APENAS se o service name mudar — não muda entre contextos local/remoto.
+    KEYCLOAK_INTERNAL_SERVICE: str = Field(
+        default="keycloak",
+        description="Service name Docker do Keycloak (Split-Horizon DNS, mesh interno).",
+    )
+    KEYCLOAK_INTERNAL_PORT: int = Field(
+        default=8080,
+        description="Porta interna do Keycloak no mesh Docker (Split-Horizon DNS).",
+    )
 
     # Infrastructure Overrides → ClinicaPolicy (domain.policies)
     # WHY (ADR-005): Estas vars permitem sobrescrever os defaults do domínio via .env
@@ -110,15 +131,18 @@ class AppSettings(BaseSettings):
         """Issuer claim conforme emitido pelo Keycloak (hostname público KC_HOSTNAME_URL).
 
         WHY (Split-Horizon DNS): O Keycloak emite JWTs com o claim ``iss`` igual ao
-        KC_HOSTNAME_URL — o hostname público (ex: iam.127.0.0.1.nip.io:8080).
+        KC_HOSTNAME_URL — o hostname público configurado via KEYCLOAK_SERVER_URL.
         O PyJWT valida o claim ``iss`` do token contra este valor.
-        Deve corresponder exatamente ao claim emitido pelo Keycloak.
+        Deve corresponder exatamente ao que o Keycloak emite.
+
+        Contexto local : http://iam.127.0.0.1.nip.io:8080/realms/gercon-realm
+        Contexto remoto: https://iam.exemplo.com/realms/gercon-realm
         """
         if self.KEYCLOAK_SERVER_URL:
             url_str = str(self.KEYCLOAK_SERVER_URL).rstrip("/")
             return f"{url_str}/realms/{self.KEYCLOAK_REALM}"
-        # Fallback para o domínio externo se o server_url não estiver setado
-        return f"http://{self.EXTERNAL_DOMAIN}:8080/realms/{self.KEYCLOAK_REALM}"
+        # Fallback derivado do domínio externo (porta 8080 convencional do Keycloak)
+        return f"{self.PROTOCOL}://{self.EXTERNAL_DOMAIN}:8080/realms/{self.KEYCLOAK_REALM}"
 
     @computed_field
     @property
@@ -126,12 +150,13 @@ class AppSettings(BaseSettings):
         """Base URL interna Docker para o Keycloak (mesh-internal, sem passar pelo proxy).
 
         WHY (Split-Horizon DNS): O JWKS endpoint (certs) deve ser buscado via
-        hostname interno Docker (``keycloak:8080``) para que o container do Streamlit
-        consiga resolver o DNS. O hostname público (iam.127.0.0.1.nip.io) é resolvível
-        apenas pelo browser do cliente, não de dentro da rede Docker interna.
-        Nome fixo 'keycloak' é o service name canônico do docker-compose.yml.
+        service name Docker interno para que containers consigam resolver o DNS.
+        O hostname público (IAM_SUBDOMAIN) só é resolvível pelo browser do cliente.
+
+        Usa KEYCLOAK_INTERNAL_SERVICE e KEYCLOAK_INTERNAL_PORT do config para
+        eliminar o hardcode 'keycloak:8080' e permitir parametrização.
         """
-        return f"http://keycloak:8080/realms/{self.KEYCLOAK_REALM}"
+        return f"http://{self.KEYCLOAK_INTERNAL_SERVICE}:{self.KEYCLOAK_INTERNAL_PORT}/realms/{self.KEYCLOAK_REALM}"
 
     @computed_field
     @property
@@ -140,9 +165,20 @@ class AppSettings(BaseSettings):
 
         WHY: A PyJWKClient faz um HTTP GET para buscar as chaves públicas do Keycloak.
         Esta requisição parte de *dentro* do container — deve usar o hostname Docker
-        interno ('keycloak:8080'), não o hostname público inacessível internamente.
+        interno, não o hostname público inacessível internamente.
         """
         return f"{self.keycloak_internal_base}/protocol/openid-connect/certs"
+
+    @computed_field
+    @property
+    def base_url(self) -> str:
+        """URL base pública da aplicação (sem trailing slash).
+
+        WHY: Utilizada para construir URLs de redirect (ex: logout post_redirect_uri).
+        Derivada automaticamente de PROTOCOL e EXTERNAL_DOMAIN para suportar
+        tanto contexto local (http://127.0.0.1.nip.io) quanto remoto (https://exemplo.com).
+        """
+        return f"{self.PROTOCOL}://{self.EXTERNAL_DOMAIN}"
 
 
 class Settings(AppSettings):
