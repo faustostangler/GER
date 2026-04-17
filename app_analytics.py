@@ -686,20 +686,9 @@ def render_advanced_text_search(
 # Ref: ADR-006 — IAM Adapter Isolation (Fase 3).
 from presentation.adapters.streamlit_auth import (
     is_cloud_run as _is_cloud_run,
-    resolve_authenticated_user,
     build_logout_url,
+    require_authentication,
 )
-
-
-# Alias para compatibilidade com o bloco main() existente
-def get_authenticated_user():
-    """Facade de compatibilidade: delega ao IAM Adapter.
-
-    WHY: Mantém a assinatura pública existente usada em main() enquanto
-    toda a lógica real vive em presentation.adapters.streamlit_auth.
-    Ref: ADR-006.
-    """
-    return resolve_authenticated_user(headers=dict(st.context.headers))
 
 
 # --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP / Cloud Run) ---
@@ -757,109 +746,30 @@ def _render_user_widget(user) -> None:
 
 # --- 5. MAIN APP ---
 def main():
+    """Entry point da aplicação Streamlit.
+
+    WHY: Segue o padrão canônico da Fase 3 — três responsabilidades únicas:
+    1. setup_ui()             — Boot Infra/DX (CSS, Sentry, config page)
+    2. require_authentication() — Gatekeeper de Identidade (IAM Adapter, ADR-006)
+    3. render_dashboard(user) — Execução do Domínio (renderização clínica)
+
+    Nenhuma lógica de IAM vive aqui. Toda decisão de identidade está no
+    adapter streamlit_auth.py (Facade + Humble Object + Strategy implícita).
+    Ref: ADR-006 — IAM Adapter Isolation.
+    """
+    # 1. Boot Infra/DX
+    # WHY: cache_resource.clear() removido do loop — destruía conexão DuckDB
+    # a cada rerun, cascadeando falhas de sessão expirada. Cache gerenciado
+    # pelos decoradores @st.cache_resource/@st.cache_data.
     setup_ui()
-    # WHY: cache_resource.clear() + cache_data.clear() removidos do loop de rerun.
-    # Esses calls destruíiam a conexão DuckDB e o use_case a cada interação do usuário,
-    # cascãideando falhas transitórias que disparavam o alerta de sessão expirada.
-    # O cache é válido e gerenciado pelos decoradores @st.cache_resource/@st.cache_data.
 
-    import time
+    # 2. Gatekeeper de Identidade (IAM Adapter)
+    # WHY: Facade único — toda lógica de sessão, expiração e resolução de
+    # identidade vive em presentation.adapters.streamlit_auth.require_authentication().
+    # Se não autenticado ou expirado, chama st.stop() internamente.
+    user = require_authentication()
 
-    # === CAMADA 1: Sessão já ativa e válida — zero fricção ===
-    _user_already_in_state = "user" in st.session_state
-    _token_exp = st.session_state.get("token_exp", 0)
-    _token_still_valid = _token_exp > time.time()
-
-    if _user_already_in_state and _token_still_valid:
-        # Caminho feliz: usuário ativo, sem nenhuma verificação adicional neste rerun
-        pass
-
-    elif _user_already_in_state and not _token_still_valid:
-        # === CAMADA 2: Token venceu — apresenta CTA de renovar ===
-        st.warning(
-            "⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.",
-            icon="🔒",
-        )
-        if _is_cloud_run():
-            # Cloud Run: Limpa session e recarrega (sem oauth2-proxy)
-            if st.button("🔄 Renovar Login", type="primary"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
-                st.rerun()
-        else:
-            # Docker Compose: Redireciona para cadeia OAuth2-Proxy → Keycloak
-            # WHY: build_logout_url() do IAM Adapter monta a URL completa com post_logout_redirect_uri.
-            renewal_url = build_logout_url(is_cloud_run_runtime=False) or "/oauth2/sign_out?rd=/dashboard/"
-            st.link_button("🔄 Renovar Login", renewal_url, type="primary")
-        st.stop()
-
-    else:
-        # === CAMADA 3: Primeira carga — autentica e popula session_state ===
-        try:
-            user_domain, jwt_str = get_authenticated_user()
-            st.session_state.user = user_domain
-            st.session_state.raw_jwt = jwt_str
-            # SRE: Sessão de 24h alinhada com a política de sessão clínica
-            st.session_state.token_exp = (
-                user_domain.exp if user_domain.exp else (time.time() + 86400)
-            )
-            # Força o rerun já com a sessão populada para injetar o CSS e carregar o app
-            st.rerun()
-        except Exception as _auth_err:
-            # Falha real de autenticação (ex: header IAP ausente, token inválido)
-            if _is_cloud_run():
-                # Cloud Run: O password gate já tratou tudo via st.stop() dentro
-                # de _cloud_run_login_gate(). Se chegou aqui, é um bug.
-                st.error(
-                    "🚨 **Erro inesperado de autenticação no Cloud Run.** "
-                    "Recarregue a página."
-                )
-            else:
-                # Docker Compose: Mostra botão de login via OAuth2-Proxy
-                st.error(
-                    "🚨 **Acesso não autorizado.** "
-                    "Não foi possível verificar a sua identidade."
-                )
-                st.markdown(
-                    """
-                    <div style="display: flex; justify-content: center; margin-top: 20px;">
-                        <form action="/oauth2/start" method="GET">
-                            <input type="hidden" name="rd" value="/dashboard/" />
-                            <button type="submit" style="
-                                background-color: #ef4444;
-                                color: white;
-                                padding: 12px 32px;
-                                border-radius: 12px;
-                                font-weight: 600;
-                                font-size: 1.1rem;
-                                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-                                border: 2px solid #ef4444;
-                                cursor: pointer;
-                                font-family: 'Source Sans Pro', sans-serif;
-                                transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-                            ">
-                                🔑 Realizar Login (Keycloak)
-                            </button>
-                        </form>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,
-                )
-
-            # Debug (Opcional): Remova em prod se não quiser expor headers
-            if os.getenv("APP__DEBUG", "false").lower() == "true":
-                with st.expander("🛠️ Debug Identity (Headers detectados)"):
-                    st.write("Headers detectados via st.context.headers:")
-                    st.json(
-                        {
-                            k: v
-                            for k, v in st.context.headers.items()
-                            if k.lower().startswith("x-")
-                        }
-                    )
-
-            st.stop()
-
+    # 3. Execução do Domínio
     inject_custom_css()
     # WHY: os.path.exists() returns True for directories too — when Docker bind-mounts
     # a non-existent host path, it auto-creates an empty dir. isfile() is the correct
@@ -874,7 +784,7 @@ def main():
     # ==========================================
     # SIDEBAR: USER IDENTITY WIDGET (IAP / Keycloak)
     # ==========================================
-    _render_user_widget(st.session_state.user)
+    _render_user_widget(user)
 
     # --- DIGITAL SURGEON PREMIUM HEADER ---
     st.markdown(

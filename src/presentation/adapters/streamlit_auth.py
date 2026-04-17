@@ -284,3 +284,150 @@ def build_logout_url(is_cloud_run_runtime: bool) -> Optional[str]:
 
     # OAuth2-Proxy: limpa cookie E redireciona para logout do Keycloak
     return f"/oauth2/sign_out?rd={quote(keycloak_logout_url, safe='')}"
+
+
+# ---------------------------------------------------------------------------
+# 6. require_authentication — Facade Único para main() (Session Lifecycle)
+# ---------------------------------------------------------------------------
+
+
+def require_authentication() -> ValidatedUserToken:
+    """Facade principal de IAM: gere o ciclo de vida completo da sessão.
+
+    Deve ser a ÚNICA chamada de autenticação em ``main()``. Encapsula:
+
+    - **Camada 1 — Sessão ativa e válida**: retorno imediato sem I/O.
+    - **Camada 2 — Token expirado**: renderiza CTA de renovação e para.
+    - **Camada 3 — Primeira carga**: executa resolução de identidade (Dev Mock /
+      Cloud Run Gate / IAP Header), persiste na session e redesenha.
+
+    Returns:
+        ``ValidatedUserToken`` com identidade clínica verificada.
+
+    Note:
+        Chama ``st.stop()`` nas Camadas 2 e 3 quando o usuário ainda não está
+        autenticado ou o token expirou — o Streamlit não continua renderizando
+        além do ``st.stop()``. O retorno de valor ocorre APENAS na Camada 1
+        (rerun posterior com sessão já populada).
+
+    Ref: ADR-006 — IAM Adapter Isolation (Fase 3).
+    """
+    import streamlit as st  # ACL: import local — evita erro fora do runtime Streamlit
+
+    # === CAMADA 1: Sessão ativa e válida — zero fricção ===
+    _user_in_state = "user" in st.session_state
+    _token_exp = st.session_state.get("token_exp", 0)
+    _token_valid = _token_exp > time.time()
+
+    if _user_in_state and _token_valid:
+        # Happy path: retorna o usuário já validado sem nenhuma verificação adicional
+        return st.session_state.user  # type: ignore[return-value]
+
+    # === CAMADA 2: Token expirado — CTA de renovação ===
+    if _user_in_state and not _token_valid:
+        st.warning(
+            "⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.",
+            icon="🔒",
+        )
+        # WHY: build_logout_url() retorna None para Cloud Run (limpeza de sessão)
+        # e URL completa de cadeia OAuth2-Proxy → Keycloak para Docker Compose.
+        if is_cloud_run():
+            if st.button("🔄 Renovar Login", type="primary"):
+                for key in list(st.session_state.keys()):
+                    del st.session_state[key]
+                st.rerun()
+        else:
+            renewal_url = build_logout_url(is_cloud_run_runtime=False) or "/oauth2/sign_out?rd=/dashboard/"
+            st.link_button("🔄 Renovar Login", renewal_url, type="primary")
+        st.stop()
+
+    # === CAMADA 3: Primeira carga — resolução de identidade ===
+    try:
+        import streamlit as st  # noqa: F811 — re-import para escopo local
+        user_domain, jwt_str = resolve_authenticated_user(headers=dict(st.context.headers))
+        st.session_state.user = user_domain
+        st.session_state.raw_jwt = jwt_str
+        # SRE: Sessão de 24h alinhada com a política de sessão clínica do domínio
+        st.session_state.token_exp = (
+            user_domain.exp if user_domain.exp else (time.time() + 86400)
+        )
+        st.rerun()  # Redesenha com sessão populada → entra na Camada 1 no próximo ciclo
+    except Exception as _auth_err:
+        # WHY: Falha real de autenticação — exibe UI de erro e para.
+        # Cloud Run: gate já tratou via st.stop() em cloud_run_login_gate().
+        # Docker Compose: ausência de headers IAP → infra mal configurada.
+        _render_auth_error(is_cloud_run_runtime=is_cloud_run())
+        if os.getenv("APP__DEBUG", "false").lower() == "true":
+            _render_debug_headers()
+        st.stop()
+
+    # Nunca chegará aqui — st.rerun() e st.stop() interrompem o fluxo Streamlit.
+    # Linha de segurança para satisfazer type-checkers.
+    raise RuntimeError("require_authentication: fluxo inesperado pós-stop/rerun.")  # pragma: no cover
+
+
+# ---------------------------------------------------------------------------
+# 7. Helpers de UI de Erro (Humble Object — testáveis via injeção)
+# ---------------------------------------------------------------------------
+
+
+def _render_auth_error(is_cloud_run_runtime: bool) -> None:
+    """Renderiza a UI de erro de autenticação conforme o runtime.
+
+    WHY: Extraído como função pura de UI para facilitar testes (Humble Object).
+    Não chama ``st.stop()`` — responsabilidade do chamador.
+    """
+    import streamlit as st  # ACL: import local
+
+    if is_cloud_run_runtime:
+        st.error(
+            "🚨 **Erro inesperado de autenticação no Cloud Run.** Recarregue a página."
+        )
+    else:
+        st.error(
+            "🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade."
+        )
+        st.markdown(
+            """
+            <div style="display: flex; justify-content: center; margin-top: 20px;">
+                <form action="/oauth2/start" method="GET">
+                    <input type="hidden" name="rd" value="/dashboard/" />
+                    <button type="submit" style="
+                        background-color: #ef4444;
+                        color: white;
+                        padding: 12px 32px;
+                        border-radius: 12px;
+                        font-weight: 600;
+                        font-size: 1.1rem;
+                        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+                        border: 2px solid #ef4444;
+                        cursor: pointer;
+                        font-family: 'Source Sans Pro', sans-serif;
+                        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+                    ">
+                        🔑 Realizar Login (Keycloak)
+                    </button>
+                </form>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_debug_headers() -> None:
+    """Renderiza painel de debug de headers IAP (apenas quando APP__DEBUG=true).
+
+    WHY: Isolado para evitar vazamento de headers em produção. O caller
+    é responsável por checar a env var antes de invocar.
+    """
+    import streamlit as st  # ACL: import local
+
+    with st.expander("🛠️ Debug Identity (Headers detectados)"):
+        st.write("Headers detectados via st.context.headers:")
+        st.json(
+            {
+                k: v
+                for k, v in st.context.headers.items()
+                if k.lower().startswith("x-")
+            }
+        )
