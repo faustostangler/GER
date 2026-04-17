@@ -1,97 +1,94 @@
-# 🔐 Guia de Bootstrap: Identidade Keycloak (SOTA)
+# 🔐 Bootstrap Guide: Keycloak Identity (SOTA)
 
-Este guia detalha as duas formas de configurar o Keycloak para habilitar a malha de segurança Zero-Trust do projeto GER.
+This guide details the two ways to configure Keycloak to enable the project's Zero-Trust security mesh for the GER system.
 
 ---
 
-## 🛠️ Opção 1: Configuração Automática (Recomendada / IaC)
+## 🛠️ Option 1: Automatic Configuration (Recommended / IaC)
 
-Nossa arquitetura utiliza a filosofia de **Infraestrutura como Código (IaC)**. O estado do Realm, Clients e Redirect URIs já está declarado em `infra/identity/gercon-realm-export.json`.
+Our architecture follows the **Infrastructure as Code (IaC)** philosophy. The state of the Realm, Clients, and Redirect URIs is already declared in `infra/identity/gercon-realm-export.json`.
 
-1. **Inicie o Sistema Completo**:
+1. **Start the FULL Stack**:
    ```bash
    make up-iam
    ```
-2. **O que acontece**: O Docker injeta o JSON em `/opt/keycloak/data/import/` e a flag `--import-realm` aplica as configurações automaticamente no boot.
-3. **Ponto de Entrada**: Acesse [http://127.0.0.1.nip.io](http://127.0.0.1.nip.io) para testar o Analytics já protegido.
+2. **What happens**: Docker injects the JSON into `/opt/keycloak/data/import/` and the `--import-realm` flag automatically applies the configurations at boot.
+3. **Entry Point**: Access [http://127.0.0.1.nip.io](http://127.0.0.1.nip.io) to test the protected Analytics dashboard.
 
 ---
 
-## 🖱️ Opção 2: Configuração Manual (Passo a Passo)
+## 🖱️ Option 2: Manual Configuration (Step-by-Step)
 
-Use esta opção se desejar configurar o ambiente do zero ou entender os componentes internos.
+Use this option if you want to configure the environment from scratch or understand the internal components.
 
-### 0. Inicie apenas o Identity Provider
+### 0. Start ONLY the Identity Provider
 ```bash
 make bootstrap
 ```
-Acesse: [http://127.0.0.1.nip.io:8080](http://127.0.0.1.nip.io:8080) e faça login com as credenciais `admin_stangler` / `pass_stangler` (definidas no seu `env/creds.env`).
+Access: [http://127.0.0.1.nip.io:8080](http://127.0.0.1.nip.io:8080) and log in with the credentials `admin_stangler` / `pass_stangler` (defined in your `env/creds.env`).
 
-### 1. Criar o Realm (O Domínio do App)
-O realm `master` é apenas para administração global. Vamos criar um espaço isolado.
-1. No canto superior esquerdo, clique em **Master** ➔ **Create Realm**.
+### 1. Create the Realm (App Domain)
+The `master` realm is for global administration only. Let's create an isolated space.
+1. In the upper left corner, click **Master** ➔ **Create Realm**.
 2. **Realm name**: `gercon-realm`.
-3. Clique em **Create**.
+3. Click **Create**.
 
-### 2. Criar o Client (O "RG" do Proxy)
-O `oauth2-proxy` precisa de um cadastro para se identificar.
-1. No menu lateral, clique em **Clients** ➔ **Create client**.
+### 2. Create the Client (Proxy ID)
+The `oauth2-proxy` needs a registration to identify itself.
+1. In the side menu, click **Clients** ➔ **Create client**.
 2. **Client ID**: `gercon-analytics`.
-3. Clique em **Next**.
+3. Click **Next**.
 4. **Capability config**:
-   - **Client authentication**: Mude para **ON** (Ativa o Segredo/Secret).
-   - Mantenha **Standard flow** e **Direct access grants** ativados.
-5. Clique em **Next**.
+   - **Client authentication**: Switch to **ON** (Enables the Secret).
+   - Keep **Standard flow** and **Direct access grants** enabled.
+5. Click **Next**.
 6. **Login settings**:
-   - **Valid redirect URIs**: `http://localhost/*` e `http://127.0.0.1.nip.io/*`.
+   - **Valid redirect URIs**: `http://localhost/*` and `http://127.0.0.1.nip.io/*`.
    - **Web Origins**: `*`.
-7. Clique em **Save**.
+7. Click **Save**.
 
-### 3. Capturar o Client Secret
-1. No client `gercon-analytics`, clique na aba **Credentials**.
-2. Copie o valor de **Client Secret**.
-3. **Ação no Código**: Abra o seu arquivo `env/creds.env` e atualize `OAUTH2_PROXY_CLIENT_SECRET` e `KEYCLOAK_CLIENT_SECRET` com este código.
+### 3. Capture the Client Secret
+1. In the `gercon-analytics` client, click the **Credentials** tab.
+2. Copy the **Client Secret** value.
+3. **Code Action**: Open your `env/creds.env` file and update `OAUTH2_PROXY_CLIENT_SECRET` and `KEYCLOAK_CLIENT_SECRET` with this code.
 
-### 4. Configurar os Atributos de CRM (Zero Trust Data)
-Para que o Analytics filtre os dados por médico, o Token JWT precisa carregar o CRM.
+### 4. Configure CRM Attributes (Zero Trust Data)
+For the Analytics dashboard to filter data by physician, the JWT Token must carry the CRM (Medical ID).
 
-**Passo A: Definir o Perfil do Usuário**
-1. Vá em **Realm settings** ➔ Aba **User profile** ➔ **Attributes** ➔ **Create attribute**.
-2. Crie `crm_numero` e `crm_uf`. Marque **View** e **Edit** para o usuário e clique em **Save**.
+**Step A: Define User Profile**
+1. Go to **Realm settings** ➔ **User profile** tab ➔ **Attributes** ➔ **Create attribute**.
+2. Create `crm_numero` and `crm_uf`. Check **View** and **Edit** for the user and click **Save**.
 
-**Passo B: Mapear para o Token**
-1. Vá em **Clients** ➔ **gercon-analytics** ➔ Aba **Client scopes** ➔ Link **gercon-analytics-dedicated**.
-2. Clique em **Add mapper** ➔ **By configuration** ➔ **User Attribute**.
-3. Configure `crm_numero` e `crm_uf` (Name, User Attribute e Claim Name iguais). Salve.
+**Step B: Map to the Token**
+1. Go to **Clients** ➔ **gercon-analytics** ➔ **Client scopes** tab ➔ **gercon-analytics-dedicated** link.
+2. Click **Add mapper** ➔ **By configuration** ➔ **User Attribute**.
+3. Configure `crm_numero` and `crm_uf` (Name, User Attribute, and Claim Name should be identical). Save.
 
-**Passo C: OIDC Audience Mapper**
-1. Na mesma aba **Client scopes** ➔ **gercon-analytics-dedicated** ➔ **Add mapper** ➔ **By configuration** ➔ **Audience**.
-2. **Included Client Audience**: Selecione `gercon-analytics`. Ligue `Add to access token`. Salve.
+**Step C: OIDC Audience Mapper**
+1. In the same **Client scopes** ➔ **gercon-analytics-dedicated** tab ➔ **Add mapper** ➔ **By configuration** ➔ **Audience**.
+2. **Included Client Audience**: Select `gercon-analytics`. Enable `Add to access token`. Save.
 
-### 5. Provisionar a Primeira Identidade
-1. Certifique-se de estar no **gercon-realm**.
-2. Clique em **Users** ➔ **Create new user**.
-3. Preencha os campos (Username, Email, etc). Clique em **Create**.
-4. Aba **Credentials** ➔ **Set password**. **DESLIGUE** a chave **Temporary** para agilizar seus testes. Clique em **Save**.
-
----
-
+### 5. Provision the First Identity
+1. Ensure you are in the **gercon-realm**.
+2. Click **Users** ➔ **Create new user**.
+3. Fill in the fields (Username, Email, etc.). Click **Create**.
+4. **Credentials** tab ➔ **Set password**. **TURN OFF** the **Temporary** switch to speed up your testing. Click **Save**.
 
 ---
 
-## ⚡ Observabilidade & Resiliência (Redis)
+## ⚡ Observability & Resilience (Redis)
 
-Nossa malha de segurança utiliza **Redis** como `session_store`. 
+Our security mesh uses **Redis** as the `session_store`.
 
-* **Por que?**: Tokens JWT do Keycloak podem exceder o limite de 4KB de headers HTTP (especialmente com muitos mappers/grupos).
-* **Como funciona**: O `oauth2-proxy` armazena o token real no Redis e envia apenas um `session_id` curto para o navegador via cookie.
-* **Monitoramento**: Em produção, verifique a saúde do serviço `redis-session` se houver falhas de login intermitentes ("Cookie too large").
+* **Why?**: Keycloak JWT tokens can exceed the 4KB HTTP header limit (especially with many mappers/groups).
+* **How it works**: `oauth2-proxy` stores the actual token in Redis and sends only a short `session_id` to the browser via a cookie.
+* **Monitoring**: In production, check the health of the `redis-session` service if you encounter intermittent login failures ("Cookie too large").
 
 ---
 
-## 🚀 Finalizando o Setup
-Após qualquer configuração manual, você pode consolidar o estado executando:
+## 🚀 Finishing the Setup
+After any manual configuration, you can consolidate the state by running:
 ```bash
 make up-iam
 ```
-👉 Acesse a aplicação em: **http://127.0.0.1.nip.io**
+👉 Access the application at: **http://127.0.0.1.nip.io**

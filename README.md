@@ -1,2 +1,2 @@
 # GER
-Repositório principal do sistema.
+Main system repository.
