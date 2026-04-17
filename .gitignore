@@ -161,3 +161,8 @@ mutants/
 
 # Parquet files
 gercon_consolidado.parquet.new
+
+# Root .env — Docker Compose host variable interpolation (secrets + local config)
+# WHY: Contém literais de domínio e configurações locais que NÃO devem ser versionados.
+# Use env/config.env (versionado) para defaults e env/creds.env (ignorado) para secrets.
+/.env

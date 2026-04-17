@@ -107,6 +107,13 @@ class AppSettings(BaseSettings):
     @computed_field
     @property
     def keycloak_issuer(self) -> str:
+        """Issuer claim conforme emitido pelo Keycloak (hostname público KC_HOSTNAME_URL).
+
+        WHY (Split-Horizon DNS): O Keycloak emite JWTs com o claim ``iss`` igual ao
+        KC_HOSTNAME_URL — o hostname público (ex: iam.127.0.0.1.nip.io:8080).
+        O PyJWT valida o claim ``iss`` do token contra este valor.
+        Deve corresponder exatamente ao claim emitido pelo Keycloak.
+        """
         if self.KEYCLOAK_SERVER_URL:
             url_str = str(self.KEYCLOAK_SERVER_URL).rstrip("/")
             return f"{url_str}/realms/{self.KEYCLOAK_REALM}"
@@ -115,8 +122,27 @@ class AppSettings(BaseSettings):
 
     @computed_field
     @property
+    def keycloak_internal_base(self) -> str:
+        """Base URL interna Docker para o Keycloak (mesh-internal, sem passar pelo proxy).
+
+        WHY (Split-Horizon DNS): O JWKS endpoint (certs) deve ser buscado via
+        hostname interno Docker (``keycloak:8080``) para que o container do Streamlit
+        consiga resolver o DNS. O hostname público (iam.127.0.0.1.nip.io) é resolvível
+        apenas pelo browser do cliente, não de dentro da rede Docker interna.
+        Nome fixo 'keycloak' é o service name canônico do docker-compose.yml.
+        """
+        return f"http://keycloak:8080/realms/{self.KEYCLOAK_REALM}"
+
+    @computed_field
+    @property
     def jwks_url(self) -> str:
-        return f"{self.keycloak_issuer}/protocol/openid-connect/certs"
+        """URL interna para busca de chaves JWKS (Split-Horizon: usa mesh interno).
+
+        WHY: A PyJWKClient faz um HTTP GET para buscar as chaves públicas do Keycloak.
+        Esta requisição parte de *dentro* do container — deve usar o hostname Docker
+        interno ('keycloak:8080'), não o hostname público inacessível internamente.
+        """
+        return f"{self.keycloak_internal_base}/protocol/openid-connect/certs"
 
 
 class Settings(AppSettings):

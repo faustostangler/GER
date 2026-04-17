@@ -344,7 +344,14 @@ def require_authentication() -> ValidatedUserToken:
     # === CAMADA 3: Primeira carga — resolução de identidade ===
     try:
         import streamlit as st  # noqa: F811 — re-import para escopo local
-        user_domain, jwt_str = resolve_authenticated_user(headers=dict(st.context.headers))
+        user_domain, jwt_str = resolve_authenticated_user(
+            # WHY (RFC 7230): HTTP headers são case-insensitive, mas Python dict.get()
+            # é case-sensitive. O oauth2-proxy injeta headers em PascalCase
+            # (ex: X-Forwarded-Access-Token). Normalizamos para lowercase aqui
+            # para garantir compatibilidade independente do proxy upstream.
+            headers={k.lower(): v for k, v in st.context.headers.items()}
+        )
+
         st.session_state.user = user_domain
         st.session_state.raw_jwt = jwt_str
         # SRE: Sessão de 24h alinhada com a política de sessão clínica do domínio
@@ -358,7 +365,7 @@ def require_authentication() -> ValidatedUserToken:
         # Docker Compose: ausência de headers IAP → infra mal configurada.
         _render_auth_error(is_cloud_run_runtime=is_cloud_run())
         if os.getenv("APP__DEBUG", "false").lower() == "true":
-            _render_debug_headers()
+            _render_debug_headers(auth_error=_auth_err)
         st.stop()
 
     # Nunca chegará aqui — st.rerun() e st.stop() interrompem o fluxo Streamlit.
@@ -414,7 +421,7 @@ def _render_auth_error(is_cloud_run_runtime: bool) -> None:
         )
 
 
-def _render_debug_headers() -> None:
+def _render_debug_headers(auth_error: Optional[Exception] = None) -> None:
     """Renderiza painel de debug de headers IAP (apenas quando APP__DEBUG=true).
 
     WHY: Isolado para evitar vazamento de headers em produção. O caller
@@ -431,3 +438,5 @@ def _render_debug_headers() -> None:
                 if k.lower().startswith("x-")
             }
         )
+        if auth_error is not None:
+            st.error(f"❌ Erro de autenticação: {type(auth_error).__name__}: {auth_error}")
