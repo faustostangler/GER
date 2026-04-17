@@ -1,42 +1,62 @@
-# Rule 004: IAM Architecture & Adapter Isolation
+# Rule 004: State-of-the-Art (SOTA) IAM & Session Lifecycle Architecture
 
-## 1. Context & Objective
-The Identity & Access Management (IAM) logic was previously tightly coupled within the `app_analytics.py` entry point. This created a high-risk area where security, infrastructure detection, and UI rendering were interleaved. The objective was to isolate IAM into a dedicated, testable adapter following **Hexagonal Architecture** and **Clean Architecture** principles.
+## 1. Architectural Strategy: IAM Adapter Isolation
+The Identity & Access Management (IAM) logic has been fully decoupled from the presentation entry point (`app_analytics.py`). Security and identity resolution now live exclusively in a specialized adapter: `src/presentation/adapters/streamlit_auth.py`.
 
-## 2. The IAM Adapter (`streamlit_auth.py`)
-Authentication logic is now encapsulated in `src/presentation/adapters/streamlit_auth.py`. This adapter acts as a **Facade**, shielding the business application from the complexities of different runtime environments.
+### Principles Applied:
+- **Facade Pattern**: Exposing a single `require_authentication()` gatekeeper.
+- **Middleware Orchestration**: Managing the session lifecycle automatically.
+- **Humble Object Pattern**: Decoupling pure logic from UI side-effects to enable 100% test coverage.
+- **Fail-Secure Architecture**: Defaulting to "Deny All" if environment detection or identity resolution is ambiguous.
 
-### Supported Authentication Modes:
-*   **OIDC/IAP (Production)**: Validates `x-forwarded-access-token` headers (from Keycloak/OAuth2-Proxy).
-*   **Cloud Run Password Gate**: A lightweight security layer for serverless deployments using SHA-256 password hashing.
-*   **Dev Mock**: A secure local bypass for rapid development.
+## 2. The 3-Layer Authentication Lifecycle
+The `require_authentication()` facade implements a strict 3-layered strategy for session management:
 
-## 3. Key Design Patterns
-*   **Facade Pattern**: The application calls `resolve_authenticated_user()`, a single entry point that manages all environment detection and identity resolution.
-*   **Humble Object Pattern**: Logic interacting with the global `st.session_state` or execution flow (`st.stop()`) is isolated from pure identity resolution logic, allowing for granular unit testing.
-*   **Anti-Corruption Layer (ACL)**: External JWT headers are mapped directly to the internal `ValidatedUserToken` domain model using `token_acl.py`.
+1. **Layer 1: Active & Valid Session**:
+   - Checks `st.session_state` for an existing `user` and a non-expired `token_exp`.
+   - Returns the user immediately (Zero I/O overhead on interaction reruns).
+2. **Layer 2: Expired Token**:
+   - Detects if a session exists but the 24h token window has closed.
+   - Renders a **Renewal CTA** (Redirection to OAuth2-Proxy or session clear for Cloud Run).
+   - Invokes `st.stop()` to prevent any data exposure.
+3. **Layer 3: First-Time Load / Authentication**:
+   - Detects environment (Dev Mock / Cloud Run Gate / IAP Proxy).
+   - Resolves identity, populates session state, and triggers `st.rerun()`.
 
-## 4. Security Enforcement Policies
-### Double-Guard Dev Mock
-To prevent accidental security bypasses in production-like environments, the Dev Mock is only activated if:
-1.  `ENVIRONMENT == "dev"`
-2.  `ALLOW_UNAUTHENTICATED_DEV == "true"` (Explicit opt-in)
+## 3. Canonical Application Structure
+The application entry point follows the **"1-2-3 Rule"** for architectural purity:
 
-### Cloud Run Password Gate
-In serverless environments without an IAP proxy, a password gate is enforced.
-*   Uses `CLOUD_RUN_AUTH_PASSWORD_HASH` for validation.
-*   Prevents rendering any clinical data until the password challenge is solved.
+```python
+def main():
+    # 1. Boot Infra & DX
+    setup_ui() # Injects CSS, Sentry, and basic config
+    
+    # 2. Identity Gatekeeper
+    user = require_authentication() # Single point of entry for security
+    
+    # 3. Domain Execution
+    render_dashboard(user) # User-driven clinical logic
+```
 
-### Dynamic Logout Resolution
-Logout URLs are built dynamically based on the runtime:
-*   **Keycloak**: Includes `post_logout_redirect_uri` for proper redirection.
-*   **Cloud Run**: Clears the session state to reset the password gate.
+## 4. Multi-Runtime Security Guards
+### Double-Guard Dev Mock:
+- Activated ONLY if `ENVIRONMENT == "dev"` AND `ALLOW_UNAUTHENTICATED_DEV == "true"`.
+- Prevents accidental bypass in production via environment variable leaks.
 
-## 5. Testing & Quality Gates
-*   **100% Logic Coverage**: The adapter is covered by 18+ test cases in `tests/presentation/test_streamlit_auth.py`.
-*   **TDD First**: Every authentication path (Token valid, Token expired, Password wrong, ENV mismatch) was defined by a failing test before implementation.
-*   **Humble Test Strategy**: Uses `AppTest` from Streamlit to simulate UI rendering of the login gate while ensuring the Core Domain remains purely mocked.
+### Cloud Run Password Gate:
+- Uses `CLOUD_RUN_AUTH_PASSWORD_HASH` (SHA-256) as the primary validator.
+- Graceful fallback to plain text only in local development environments.
 
-## 6. SRE & Observability Integration
-*   **Sentry Release Tagging**: The IAM resolution process serves as the hook to finalize Sentry initialization with the correct `GIT_SHA` and user context (with PII redacted).
-*   **Fail-Secure Default**: If authentication resolution fails or is ambiguous, the system defaults to a "Deny All" state, stopping the Streamlit script execution.
+### Redirection Integrity:
+- `build_logout_url()` dynamically constructs redirection chains: `OAuth2-Proxy -> Keycloak -> post_logout_redirect_uri`.
+- Ensures users are correctly redirected back to the dashboard after clearing OIDC sessions.
+
+## 5. UI & Humble Components
+UI-dependent error messages and debug panels were extracted into internal helpers:
+- `_render_auth_error()`: Visual feedback for missing headers or configuration errors.
+- `_render_debug_headers()`: Protected by `APP__DEBUG`, allowing developers to audit IAP headers without exposing them to end-users.
+
+## 6. Testing & Quality Gates
+- **Total Tests**: 128 passing across domain, application, and presentation layers.
+- **Identity Mocking**: Presentation tests must mock `_policy` and `ClinicaPolicy` to prevent `StreamlitMixedNumericTypesError`.
+- **Assertion Migration**: UI tests must assert against `at.markdown` values for custom HTML/CSS headers instead of native `at.title` elements.
