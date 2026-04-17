@@ -43,10 +43,16 @@ def inject_custom_css():
 # --- 2. INFRASTRUCTURE: USE CASE & DI ---
 @st.cache_resource
 def get_use_case():
+    """WHY: Constrói ClinicaPolicy a partir de AppSettings aqui (apresentação/infra),
+    injetando-a no AnalyticsUseCase via DI. O Use Case e o Domain permanecem
+    agnósticos de settings — apenas a camada de composição (esta função) conhece ambos.
+    Ref: ADR-005 — Business Policy Extraction.
+    """
     from infrastructure.repositories.duckdb_repository import (
         DuckDBAnalyticsRepository,
     )
     from application.use_cases.analytics_use_case import AnalyticsUseCase
+    from domain.policies import ClinicaPolicy
 
     try:
         from infrastructure.telemetry.metrics import init_telemetry
@@ -55,13 +61,24 @@ def get_use_case():
     except (ImportError, AttributeError):
         pass
 
+    # WHY: Wire-up da política de negócio a partir dos settings configuráveis.
+    # O Domain tem defaults seguros; o .env apenas sobrescreve se necessário.
+    policy = ClinicaPolicy(
+        idade_min=settings.AGE_MIN,
+        idade_max=settings.AGE_MAX,
+        sla_dias_vencimento=settings.SLA_DIAS_VENCIMENTO,
+        mes_comercial_dias=settings.MES_COMERCIAL_DIAS,
+        data_sla_threshold_horas=settings.DATA_SLA_THRESHOLD,
+        cores_urgencia=settings.CORES_URGENCIA,
+    )
+
     try:
         repo = DuckDBAnalyticsRepository(settings.OUTPUT_FILE)
     except ValueError as e:
         st.error(f"🔌 **Circuit Breaker Acionado:** {e}")
         st.stop()
 
-    return AnalyticsUseCase(repo)
+    return AnalyticsUseCase(repo, policy=policy)
 
 
 def get_dynamic_options(column: str, current_where: str, current_user) -> list:
@@ -366,7 +383,10 @@ def render_age_slider(
 ):
     """Componente de Domínio para Idade: Converte Faixa Etária visível para DATEDIFF no SQL OLAP."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
-    vmin_val, vmax_val = settings.AGE_MIN, settings.AGE_MAX
+    # WHY: Lê faixa etária da ClinicaPolicy via use case — não mais de settings direto.
+    # Ref: ADR-005.
+    _policy = get_use_case()._policy
+    vmin_val, vmax_val = _policy.idade_min, _policy.idade_max
 
     if f"{key}_min" not in st.session_state:
         st.session_state[f"{key}_min"] = vmin_val
@@ -1949,7 +1969,10 @@ def main():
         import time
 
         age_hours = (time.time() - kpi_data.last_sync_at) / 3600
-        if age_hours > settings.DATA_SLA_THRESHOLD:
+        # WHY: Limiar de frescor dos dados é invariante de domínio (ClinicaPolicy),
+        # não configuração de infra. Ref: ADR-005.
+        _policy = get_use_case()._policy
+        if age_hours > _policy.data_sla_threshold_horas:
             # SOTA Alert: Digital Surgeon Aesthetic
             alert_html = f"""
             <div class="amber-alert-container">

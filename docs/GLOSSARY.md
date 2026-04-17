@@ -50,3 +50,14 @@
 | **Cloud Run Auth Adapter** | Adaptador de autenticação para runtime serverless (ADR-004). Usa password gate temporário enquanto Firebase Auth não é configurado. Detectado via `K_SERVICE`. |
 | **Password Gate** | Mecanismo de autenticação temporário para Cloud Run via `CLOUD_RUN_AUTH_PASSWORD`. Substitui Keycloak/oauth2-proxy em ambientes sem sidecar de identidade. |
 | **Firebase Auth (Phase 2)** | Provedor de identidade gerenciado pelo GCP para substituir o Password Gate. Suporta email/senha, SSO Google e custom claims (CRM, roles). |
+
+## Política de Negócio (Business Policy)
+
+| Termo | Código | Definição |
+|---|---|---|
+| **Política Clínica** | `ClinicaPolicy` | Value Object imutável no Core Domain que encapsula as invariantes de negócio do domínio hospitalar: faixa etária válida, SLA de vencimento, cores de urgência, mês comercial e limiar de frescor dos dados. Fonte de verdade das regras de negócio. Ref: ADR-005. |
+| **SLA de Vencimento** | `sla_dias_vencimento` | Número de dias após a data de solicitação que caracteriza um paciente como "vencido" (sem atendimento no prazo). Default: 180 dias. Critério para `PacienteVencidoSpec`. |
+| **Limiar de Frescor** | `data_sla_threshold_horas` | Máximo de horas sem atualização do arquivo Parquet antes de o sistema acionar o Amber Alert na UI indicando dados potencialmente desatualizados. Default: 2h. |
+| **Mês Comercial** | `mes_comercial_dias` | Duração padronizada do mês para normalização de KPIs temporais (ex: Cadastros/Mês). Default: 30.416 dias (365/12). |
+| **Faixa Etária Clínica** | `idade_min / idade_max` | Limites de idade válidos para pacientes na fila de espera. Invariante do domínio: `idade_min` < `idade_max`, 0 ≤ `idade_min`, `idade_max` ≤ 150. |
+| **Cores de Urgência** | `cores_urgencia` | Conjunto de classificações de risco clínico que qualificam um paciente como urgente (`VERMELHO`, `LARANJA`, `AMARELO`). Critério para `PacienteUrgenteSpec`. |

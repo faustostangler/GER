@@ -76,13 +76,18 @@ class AppSettings(BaseSettings):
     KEYCLOAK_CLIENT_ID: str = Field(default="gercon-analytics")
     KEYCLOAK_CLIENT_SECRET: SecretStr = Field(default="change-me")
 
-    # Business Rules
-    AGE_MIN: int = Field(default=0)
-    AGE_MAX: int = Field(default=120)
-    SLA_DIAS_VENCIMENTO: int = Field(default=180)
-    DATA_SLA_THRESHOLD: float = Field(default=2.0, description="Freshness threshold in hours")
-    MES_COMERCIAL_DIAS: float = Field(default=30.416)
-    CORES_URGENCIA: list[str] = Field(default=["VERMELHO", "LARANJA", "AMARELO"])
+    # Infrastructure Overrides → ClinicaPolicy (domain.policies)
+    # WHY (ADR-005): Estas vars permitem sobrescrever os defaults do domínio via .env
+    # para ambientes específicos (ex: staging, testes de carga). O Domain (ClinicaPolicy)
+    # É sempre a fonte de verdade dos defaults; .env é apenas um mecanismo de override.
+    # A camada de composição (get_use_case em app_analytics.py) é responsável por
+    # construir ClinicaPolicy com esses valores.
+    AGE_MIN: int = Field(default=0, description="Override: ClinicaPolicy.idade_min")
+    AGE_MAX: int = Field(default=120, description="Override: ClinicaPolicy.idade_max")
+    SLA_DIAS_VENCIMENTO: int = Field(default=180, description="Override: ClinicaPolicy.sla_dias_vencimento")
+    DATA_SLA_THRESHOLD: float = Field(default=2.0, description="Override: ClinicaPolicy.data_sla_threshold_horas")
+    MES_COMERCIAL_DIAS: float = Field(default=30.416, description="Override: ClinicaPolicy.mes_comercial_dias")
+    CORES_URGENCIA: list[str] = Field(default=["VERMELHO", "LARANJA", "AMARELO"], description="Override: ClinicaPolicy.cores_urgencia")
     GERCON_URL: HttpUrl = Field(default="https://gercon.procempa.com.br/gerconweb/")
 
     @field_validator("CORES_URGENCIA", mode="before")
