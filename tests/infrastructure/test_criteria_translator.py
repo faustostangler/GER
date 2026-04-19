@@ -9,6 +9,7 @@ Related: SQL Leak refactoring from FilterCriteria → FiltroAvancadoSpec + DuckD
 """
 import pytest
 from domain.specifications import (
+    AdvancedSearchCriteria,
     FiltroAvancadoSpec,
     PacienteUrgenteSpec,
     PacienteVencidoSpec,
@@ -68,6 +69,26 @@ class TestTranslateFiltroAvancadoSpec:
         result = DuckDBCriteriaTranslator.translate(spec)
         assert '"SLA_Marco_Autorizada" = FALSE' in result
 
+    def test_booleano_nullable_true(self):
+        spec = FiltroAvancadoSpec(booleanos_nullable={"colX": True})
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert '"colX" = TRUE' in result
+
+    def test_booleano_nullable_false(self):
+        spec = FiltroAvancadoSpec(booleanos_nullable={"colY": False})
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert '("colY" = FALSE OR "colY" IS NULL)' in result
+
+    def test_presenca_campos_true(self):
+        spec = FiltroAvancadoSpec(presenca_campos={"dataLiberacao": True})
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert '("dataLiberacao" IS NOT NULL AND "dataLiberacao" != \'\')' in result
+
+    def test_presenca_campos_false(self):
+        spec = FiltroAvancadoSpec(presenca_campos={"dataLiberacao": False})
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert '("dataLiberacao" IS NULL OR "dataLiberacao" = \'\')' in result
+
     def test_limite_numerico_range(self):
         spec = FiltroAvancadoSpec(
             limites_numericos={"SLA_Lead_Time_Total_Dias": (10, 90)}
@@ -80,7 +101,7 @@ class TestTranslateFiltroAvancadoSpec:
             limites_data={"dataSolicitacao": ("2023-01-01", "2024-12-31")}
         )
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert "CAST(dataSolicitacao AS DATE) BETWEEN" in result
+        assert 'CAST("dataSolicitacao" AS DATE) BETWEEN' in result
         assert "'2023-01-01'" in result
         assert "'2024-12-31'" in result
 
@@ -92,6 +113,30 @@ class TestTranslateFiltroAvancadoSpec:
         result = DuckDBCriteriaTranslator.translate(spec)
         assert "ILIKE" in result
         assert "%urgente%" in result
+
+    def test_busca_avancada_row_search(self):
+        crit = AdvancedSearchCriteria(
+            column="historico",
+            or_terms=["dor", "febre"],
+            and_terms=["aguda"],
+            not_terms=["leve"]
+        )
+        spec = FiltroAvancadoSpec(busca_avancada=[crit])
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert "strip_accents(\"historico\") ILIKE strip_accents('%dor%')" in result
+        assert " OR " in result
+        assert "strip_accents(\"historico\") ILIKE strip_accents('%aguda%')" in result
+        assert "strip_accents(\"historico\") NOT ILIKE strip_accents('%leve%')" in result
+
+    def test_busca_avancada_aggregate_search(self):
+        crit = AdvancedSearchCriteria(
+            column="evolucoes",
+            or_terms=["alta"],
+            aggregate_by="numeroCMCE"
+        )
+        spec = FiltroAvancadoSpec(busca_avancada=[crit])
+        result = DuckDBCriteriaTranslator.translate(spec)
+        assert '"numeroCMCE" IN (SELECT "numeroCMCE" FROM BaseRLS GROUP BY "numeroCMCE" HAVING (bool_or(strip_accents("evolucoes") ILIKE strip_accents(\'%alta%\'))))' in result
 
     def test_multiple_fields_all_combined_with_and(self):
         spec = FiltroAvancadoSpec(

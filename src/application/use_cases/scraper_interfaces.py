@@ -94,3 +94,19 @@ class IIngestionLogRepository(ABC):
     @abstractmethod
     def get_last_entries(self, limit: int = 10) -> list:
         pass
+
+
+class IDLQRepository(ABC):
+    """Porta Driven para persistência de registros que falharam no contrato de domínio (Poison Pills)."""
+
+    @abstractmethod
+    def init_dlq_table(self) -> None:
+        """Inicializa o armazenamento persistente (ex: CREATE TABLE)."""
+        pass
+
+    @abstractmethod
+    def push_poison_pill(
+        self, payload: Dict[str, Any], error_message: str, target_list: str
+    ) -> None:
+        """Persiste um registro que falhou para posterior inspeção ou retentativa."""
+        pass

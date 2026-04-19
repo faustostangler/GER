@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 
 from src.infrastructure.adapters.playwright_scraper import PlaywrightGerconAdapter
-from src.infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository
+from src.infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository, SQLiteDLQRepository
 from src.infrastructure.repositories.parquet_data_repository import (
     ParquetDataRepository,
 )
@@ -44,6 +44,7 @@ def main():
         username=user, password=pwd, url=url, headless=headless
     )
     raw_repo = SQLiteRawRepository(db_file="gercon_raw_data.db")
+    dlq_repo = SQLiteDLQRepository(db_file="gercon_raw_data.db")
 
     s3_path = os.getenv("S3_LAKE_PATH", None)
     parquet_repo = ParquetDataRepository(s3_bucket=s3_path)
@@ -54,6 +55,7 @@ def main():
         raw_repo=raw_repo,
         csv_repo=parquet_repo,  # Mantendo a porta IProcessedDataRepository
         listas_alvo=LISTAS_ALVO,
+        dlq_repo=dlq_repo,
         page_size=page_size,
     )
 

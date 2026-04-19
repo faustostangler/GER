@@ -1,6 +1,7 @@
 import os
 import streamlit as st
-from domain.specifications import FiltroAvancadoSpec
+from domain.specifications import FiltroAvancadoSpec, FiltroAvancadoSpecBuilder
+from infrastructure.repositories.criteria_translator import DuckDBCriteriaTranslator
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -171,7 +172,7 @@ def render_kpi(container, label_with_icon, value, help_text="", alert=False):
 def render_include_exclude(
     label: str,
     column: str,
-    clauses: list,
+    builder: FiltroAvancadoSpecBuilder,
     current_where: str,
     key: str,
     ui_tracker: list,
@@ -221,8 +222,8 @@ def render_include_exclude(
                 "keys": [f"{key}_in"],
             }
         )
-        sanitized_incl = [f"'{sanitize(v)}'" for v in incl]
-        clauses.append(f'"{column}" IN ({", ".join(sanitized_incl)})')
+        sanitized_incl = [str(v) for v in incl]
+        builder.add_inclusao(column, sanitized_incl)
 
     if excl:
         # STATE ARCHITECTURE: Now we store the Visual Text and Associated Keys
@@ -232,14 +233,14 @@ def render_include_exclude(
                 "keys": [f"{key}_ex"],
             }
         )
-        sanitized_excl = [f"'{sanitize(v)}'" for v in excl]
-        clauses.append(f'"{column}" NOT IN ({", ".join(sanitized_excl)})')
+        sanitized_excl = [str(v) for v in excl]
+        builder.add_exclusao(column, sanitized_excl)
 
-    return " AND ".join(clauses)
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 def render_boolean_radio(
-    label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list
+    label: str, column: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
 ):
     """SRE Component for boolean fields (True/False/Null)"""
     cat_keys.append(f"{key}_radio")
@@ -261,17 +262,17 @@ def render_boolean_radio(
 
     if val == "Yes":
         ui_tracker.append({"text": f"{label}: Yes", "keys": [f"{key}_radio"]})
-        clauses.append(f'"{column}" = true')
+        builder.add_booleano(column, True)
     elif val == "No":
         ui_tracker.append({"text": f"{label}: No", "keys": [f"{key}_radio"]})
         # Safe handling for False or Nulls
-        clauses.append(f'("{column}" = false OR "{column}" IS NULL)')
+        builder.add_booleano_nullable(column, False)
 
-    return " AND ".join(clauses)
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 def render_presence_radio(
-    label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list
+    label: str, column: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
 ):
     """SRE Component for text/ID fields where value presence validates true flag."""
     cat_keys.append(f"{key}_radio")
@@ -293,16 +294,16 @@ def render_presence_radio(
 
     if val == "Yes":
         ui_tracker.append({"text": f"{label}: Yes", "keys": [f"{key}_radio"]})
-        clauses.append(f'("{column}" IS NOT NULL AND "{column}" != \'\')')
+        builder.add_presenca(column, True)
     elif val == "No":
         ui_tracker.append({"text": f"{label}: No", "keys": [f"{key}_radio"]})
-        clauses.append(f'("{column}" IS NULL OR "{column}" = \'\')')
+        builder.add_presenca(column, False)
 
-    return " AND ".join(clauses)
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 def render_dual_slider(
-    label: str, column: str, clauses: list, key: str, ui_tracker: list, cat_keys: list
+    label: str, column: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
 ):
     """SRE UX FIX: Bidirectional slider synchronized with numeric inputs for surgical precision."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
@@ -374,15 +375,13 @@ def render_dual_slider(
                     "keys": [f"{key}_sld", f"{key}_min", f"{key}_max"],
                 }
             )
-            clauses.append(
-                f'TRY_CAST("{column}" AS INTEGER) BETWEEN {val[0]} AND {val[1]}'
-            )
+            builder.add_limite_numerico(column, val[0], val[1])
 
-    return " AND ".join(clauses)
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 def render_age_slider(
-    label: str, clauses: list, key: str, ui_tracker: list, cat_keys: list
+    label: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
 ):
     """Domain Component for Age: Converts visible Age Range to DATEDIFF in OLAP SQL."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
@@ -447,17 +446,15 @@ def render_age_slider(
             }
         )
         # SRE FIX: Uses precalculated column entidade_idade_idadeInteiro from Parquet
-        # WHY: DATEDIFF calculated in runtime is slower and doesn't leverage the consolidated value.
-        clauses.append(
-            f'TRY_CAST("entidade_idade_idadeInteiro" AS INTEGER) BETWEEN {val[0]} AND {val[1]}'
-        )
-    return " AND ".join(clauses)
+        builder.add_limite_numerico("entidade_idade_idadeInteiro", val[0], val[1])
+
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 def render_smart_date_range(
     label: str,
     column: str,
-    clauses: list,
+    builder: FiltroAvancadoSpecBuilder,
     key: str,
     ui_tracker: list,
     cat_keys: list,
@@ -490,15 +487,15 @@ def render_smart_date_range(
                 "keys": [key],
             }
         )
-        clauses.append(f"CAST(\"{column}\" AS DATE) BETWEEN '{val[0]}' AND '{val[1]}'")
+        builder.add_limite_data(column, val[0].strftime('%Y-%m-%d'), val[1].strftime('%Y-%m-%d'))
 
-    return " AND ".join(clauses)
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 def render_advanced_text_search(
     label: str,
     column: str,
-    clauses: list,
+    builder: FiltroAvancadoSpecBuilder,
     key: str,
     ui_tracker: list,
     cat_keys: list,
@@ -571,180 +568,36 @@ def render_advanced_text_search(
             # --- LEXICAL PARSER EXTRACTED TO ADAPTER ---
             from presentation.adapters.parsers import parse_term
 
-            # --- SOTA SQL BUILDER (With strip_accents) ---
             if and_terms or or_terms or not_terms:
-                # OLAP STRATEGY: ENTITY AGGREGATION (PATIENT)
-                if aggregate_by:
-                    having_conds = []
-                    if or_terms:
-                        ui_tracker.append(
-                            {
-                                "text": f"✅ {label}: {or_terms}",
-                                "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"],
-                            }
-                        )
-                        words = [w for w in or_terms.split(",") if w.strip()]
-                        if words:
-                            or_expr = [
-                                f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}'))"
-                                for w in words
-                            ]
-                            having_conds.append(f"({' OR '.join(or_expr)})")
+                _or = [w for w in or_terms.split(",") if w.strip()] if or_terms else []
+                _and = [w for w in and_terms.split(",") if w.strip()] if and_terms else []
+                _not = [w for w in not_terms.split(",") if w.strip()] if not_terms else []
 
-                    if and_terms:
-                        ui_tracker.append(
-                            {
-                                "text": f"⚠️ AND {label}: {and_terms}",
-                                "keys": [
-                                    f"{key}_and_val",
-                                    f"{key}_and",
-                                    f"{key}_toggle",
-                                ],
-                            }
-                        )
-                        for w in [w for w in and_terms.split(",") if w.strip()]:
-                            p_term = parse_term(w)
-                            having_conds.append(
-                                f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}'))"
-                            )
+                if _or:
+                    ui_tracker.append({"text": f"✅ {label}: {or_terms}", "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"]})
+                if _and:
+                    ui_tracker.append({"text": f"⚠️ AND {label}: {and_terms}", "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"]})
+                if _not:
+                    ui_tracker.append({"text": f"❌ {label}: {not_terms}", "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"]})
 
-                    if not_terms:
-                        ui_tracker.append(
-                            {
-                                "text": f"❌ {label}: {not_terms}",
-                                "keys": [
-                                    f"{key}_not_val",
-                                    f"{key}_not",
-                                    f"{key}_toggle",
-                                ],
-                            }
-                        )
-                        for w in [w for w in not_terms.split(",") if w.strip()]:
-                            p_term = parse_term(w)
-                            having_conds.append(
-                                f"bool_or(strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')) = FALSE"
-                            )
+                builder.add_busca_avancada(
+                    column=column,
+                    or_terms=_or,
+                    and_terms=_and,
+                    not_terms=_not,
+                    aggregate_by=aggregate_by if aggregate_by else None
+                )
 
-                    if having_conds:
-                        subquery = f'SELECT "{aggregate_by}" FROM gercon GROUP BY "{aggregate_by}" HAVING {" AND ".join(having_conds)}'
-                        clauses.append(f'"{aggregate_by}" IN ({subquery})')
-
-                # NORMAL STRATEGY: ROW/EVENT FILTERING
-                else:
-                    if or_terms:
-                        ui_tracker.append(
-                            {
-                                "text": f"✅ {label}: {or_terms}",
-                                "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"],
-                            }
-                        )
-                        words = [w for w in or_terms.split(",") if w.strip()]
-                        if words:
-                            or_expr = [
-                                f"strip_accents(\"{column}\") ILIKE strip_accents('{parse_term(w)}')"
-                                for w in words
-                            ]
-                            clauses.append(f"({' OR '.join(or_expr)})")
-
-                    if and_terms:
-                        ui_tracker.append(
-                            {
-                                "text": f"⚠️ AND {label}: {and_terms}",
-                                "keys": [
-                                    f"{key}_and_val",
-                                    f"{key}_and",
-                                    f"{key}_toggle",
-                                ],
-                            }
-                        )
-                        for w in [w for w in and_terms.split(",") if w.strip()]:
-                            p_term = parse_term(w)
-                            clauses.append(
-                                f"strip_accents(\"{column}\") ILIKE strip_accents('{p_term}')"
-                            )
-
-                    if not_terms:
-                        ui_tracker.append(
-                            {
-                                "text": f"❌ {label}: {not_terms}",
-                                "keys": [
-                                    f"{key}_not_val",
-                                    f"{key}_not",
-                                    f"{key}_toggle",
-                                ],
-                            }
-                        )
-                        for w in [w for w in not_terms.split(",") if w.strip()]:
-                            p_term = parse_term(w)
-                            clauses.append(
-                                f"strip_accents(\"{column}\") NOT ILIKE strip_accents('{p_term}')"
-                            )
-
-    return " AND ".join(clauses)
+    return DuckDBCriteriaTranslator.translate(builder.build())
 
 
 # --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
-# WHY: All IAM logic was extracted to the specialized adapter.
-# This file (presentation) must only render — not decide on identity.
-# Ref: ADR-006 — IAM Adapter Isolation (Phase 3).
-from presentation.adapters.streamlit_auth import (
-    is_cloud_run as _is_cloud_run,
-    build_logout_url,
-    require_authentication,
-)
-
-
-# --- 4.6 SIDEBAR: USER IDENTITY WIDGET (Keycloak / IAP / Cloud Run) ---
-def _render_user_widget(user) -> None:
-    """Renders the user identity card at the top of the sidebar.
-
-    WHY: Adapts logout depending on the runtime using build_logout_url() from
-    the IAM Adapter — without duplicating runtime detection logic here.
-    Ref: ADR-006 — IAM Adapter Isolation.
-    """
-    username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
-    display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
-
-    logout_url = build_logout_url(is_cloud_run_runtime=_is_cloud_run())
-
-    if logout_url is None:
-        # Cloud Run: Simple logout — clears Streamlit session_state (no proxy/Keycloak)
-        st.sidebar.markdown(f"👤 **{display_name}**")
-        if st.sidebar.button("🚪 Logout", use_container_width=True, key="cloud_run_logout"):
-            for key in list(st.session_state.keys()):
-                del st.session_state[key]
-            st.rerun()
-    else:
-        # Docker Compose / K8s: Logout with OAuth2-Proxy → Keycloak redirect chain
-        # WHY: Logout Requires two steps — clear OAuth2-Proxy cookie AND destroy Keycloak SSO.
-        # build_logout_url() already builds the complete chain with post_logout_redirect_uri.
-        st.sidebar.markdown(
-            f"""
-            <form action="{logout_url.split('?')[0]}" method="GET" style="margin: 10px 0;">
-                <input type="hidden" name="rd" value="{logout_url.split('rd=', 1)[1] if 'rd=' in logout_url else ''}" />
-                <button type="submit" style="
-                    display: block;
-                    width: 100%;
-                    text-align: center;
-                    background-color: transparent;
-                    color: #ef4444;
-                    text-decoration: none;
-                    padding: 8px 12px;
-                    border-radius: 8px;
-                    font-weight: 500;
-                    font-size: 0.9rem;
-                    border: 1px solid #ef4444;
-                    cursor: pointer;
-                    font-family: 'Source Sans Pro', sans-serif;
-                    transition: all 0.2s ease-in-out;
-                ">
-                    🚨 Logout &mdash; {display_name}
-                </button>
-            </form>
-            """,
-            unsafe_allow_html=True,
-        )
-    st.sidebar.divider()
+# WHY: All IAM logic lives in the specialised adapter (streamlit_auth.py).
+# The user identity widget rendering is the middleware's responsibility.
+# This file (presentation entry point) must only compose — not decide.
+# Ref: ADR-006 — IAM Adapter Isolation (Phase 3 / SRP extraction).
+from presentation.adapters.streamlit_auth import require_authentication  # noqa: E402
+from presentation.middlewares.auth_middleware import render_user_widget  # noqa: E402
 
 
 # --- 5. MAIN APP ---
@@ -787,7 +640,7 @@ def main():
     # ==========================================
     # SIDEBAR: USER IDENTITY WIDGET (IAP / Keycloak)
     # ==========================================
-    _render_user_widget(user)
+    render_user_widget(user)
 
     # --- DIGITAL SURGEON PREMIUM HEADER ---
     st.markdown(
@@ -848,7 +701,7 @@ def main():
         "Não Informado": "#9ca3af",
     }
 
-    clauses = ["1=1"]
+    builder = FiltroAvancadoSpecBuilder()
     curr_where = "1=1"
 
     # ==========================================
@@ -873,8 +726,7 @@ def main():
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude(
             "Parent Specialty",
-            "entidade_especialidade_especialidadeMae_descricao",
-            clauses,
+            "entidade_especialidade_especialidadeMae_descricao", builder,
             curr_where,
             "espm",
             ui_filters[cat],
@@ -883,8 +735,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Fine Specialty",
-            "entidade_especialidade_descricao",
-            clauses,
+            "entidade_especialidade_descricao", builder,
             curr_where,
             "espf",
             ui_filters[cat],
@@ -893,8 +744,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "CBO Specialty",
-            "entidade_especialidade_cbo_descricao",
-            clauses,
+            "entidade_especialidade_cbo_descricao", builder,
             curr_where,
             "esp_cbo",
             ui_filters[cat],
@@ -903,8 +753,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Auxiliary Description",
-            "entidade_especialidade_descricaoAuxiliar",
-            clauses,
+            "entidade_especialidade_descricaoAuxiliar", builder,
             curr_where,
             "esp_aux",
             ui_filters[cat],
@@ -914,8 +763,7 @@ def main():
         st.markdown("---")
         curr_where = render_include_exclude(
             "Requesting Doctor",
-            "medicoSolicitante",
-            clauses,
+            "medicoSolicitante", builder,
             curr_where,
             "med_sol",
             ui_filters[cat],
@@ -924,8 +772,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Operating Unit",
-            "entidade_unidadeOperador_nome",
-            clauses,
+            "entidade_unidadeOperador_nome", builder,
             curr_where,
             "usol",
             ui_filters[cat],
@@ -935,8 +782,7 @@ def main():
         st.markdown("---")
         curr_where = render_include_exclude(
             "Main ICD (Code)",
-            "entidade_cidPrincipal_codigo",
-            clauses,
+            "entidade_cidPrincipal_codigo", builder,
             curr_where,
             "cid_cod",
             ui_filters[cat],
@@ -945,8 +791,7 @@ def main():
         )
         curr_where = render_advanced_text_search(
             "Main ICD (Description)",
-            "entidade_cidPrincipal_descricao",
-            clauses,
+            "entidade_cidPrincipal_descricao", builder,
             "txt_cid_desc",
             ui_filters[cat],
             state_keys[cat],
@@ -955,30 +800,27 @@ def main():
         st.markdown("---")
         curr_where = render_advanced_text_search(
             "Patient Evolutions",
-            "historico_quadro_clinico",
-            clauses,
+            "historico_quadro_clinico", builder,
             "txt_evo",
             ui_filters[cat],
             state_keys[cat],
             aggregate_by="numeroCMCE",
         )
-        curr_where = " AND ".join(clauses)
+        curr_where = DuckDBCriteriaTranslator.translate(builder.build())
 
     cat = "🏛️ Governance & Actors"
     with st.sidebar.expander(cat, expanded=False):
         # Actors moved from the old Evolutions tab
         curr_where = render_advanced_text_search(
             "Information Type",
-            "historico_evolucoes_completo",
-            clauses,
+            "historico_evolucoes_completo", builder,
             "txt_tinf",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_advanced_text_search(
             "Information Source",
-            "evolucoes_json",
-            clauses,
+            "evolucoes_json", builder,
             "txt_orig_inf",
             ui_filters[cat],
             state_keys[cat],
@@ -987,8 +829,7 @@ def main():
 
         curr_where = render_include_exclude(
             "Source (List)",
-            "origem_lista",
-            clauses,
+            "origem_lista", builder,
             curr_where,
             "lst",
             ui_filters[cat],
@@ -998,8 +839,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Current Situation",
-            "situacao",
-            clauses,
+            "situacao", builder,
             curr_where,
             "sit",
             ui_filters[cat],
@@ -1008,8 +848,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Regulation Type",
-            "entidade_especialidade_tipoRegulacao",
-            clauses,
+            "entidade_especialidade_tipoRegulacao", builder,
             curr_where,
             "treg",
             ui_filters[cat],
@@ -1018,8 +857,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Active Specialty",
-            "entidade_especialidade_ativa",
-            clauses,
+            "entidade_especialidade_ativa", builder,
             curr_where,
             "stesp",
             ui_filters[cat],
@@ -1030,8 +868,7 @@ def main():
         st.markdown("---")
         curr_where = render_presence_radio(
             "Injunction / Court Order",
-            "liminarOrdemJudicial",
-            clauses,
+            "liminarOrdemJudicial", builder,
             "oj",
             ui_filters[cat],
             state_keys[cat],
@@ -1040,8 +877,7 @@ def main():
         st.markdown("---")
         curr_where = render_include_exclude(
             "Operator",
-            "operador_nome",
-            clauses,
+            "operador_nome", builder,
             curr_where,
             "op_nome",
             ui_filters[cat],
@@ -1050,8 +886,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Requesting User",
-            "usuarioSolicitante_nome",
-            clauses,
+            "usuarioSolicitante_nome", builder,
             curr_where,
             "usu_sol_nome",
             ui_filters[cat],
@@ -1062,8 +897,7 @@ def main():
         st.markdown("---")
         curr_where = render_include_exclude(
             "Regulation Center",
-            "entidade_centralRegulacao_nome",
-            clauses,
+            "entidade_centralRegulacao_nome", builder,
             curr_where,
             "cent_reg",
             ui_filters[cat],
@@ -1072,8 +906,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Operating Unit Reg. Center",
-            "entidade_unidadeOperador_centralRegulacao_nome",
-            clauses,
+            "entidade_unidadeOperador_centralRegulacao_nome", builder,
             curr_where,
             "uni_op_cent",
             ui_filters[cat],
@@ -1082,8 +915,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Reference Unit",
-            "entidade_unidadeReferencia_nome",
-            clauses,
+            "entidade_unidadeReferencia_nome", builder,
             curr_where,
             "uni_ref",
             ui_filters[cat],
@@ -1094,61 +926,54 @@ def main():
         st.markdown("---")
         curr_where = render_boolean_radio(
             "Has DITA",
-            "entidade_possuiDita",
-            clauses,
+            "entidade_possuiDita", builder,
             "dita",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Outside Regionalization",
-            "entidade_foraDaRegionalizacao",
-            clauses,
+            "entidade_foraDaRegionalizacao", builder,
             "freg",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Access Regularization",
-            "regularizacaoAcesso",
-            clauses,
+            "regularizacaoAcesso", builder,
             "reg_acc",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Accepts Teleconsultation",
-            "entidade_especialidade_teleconsulta",
-            clauses,
+            "entidade_especialidade_teleconsulta", builder,
             "tele",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Matrix Support",
-            "entidade_especialidade_matriciamento",
-            clauses,
+            "entidade_especialidade_matriciamento", builder,
             "matri",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Unclassified",
-            "entidade_semClassificacao",
-            clauses,
+            "entidade_semClassificacao", builder,
             "sem_class",
             ui_filters[cat],
             state_keys[cat],
         )
 
-        curr_where = " AND ".join(clauses)
+        curr_where = DuckDBCriteriaTranslator.translate(builder.build())
 
     cat = "📅 Lifecycle (Dates)"
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_smart_date_range(
             "Request Date",
-            "dataSolicitacao",
-            clauses,
+            "dataSolicitacao", builder,
             "dt_solic",
             ui_filters[cat],
             state_keys[cat],
@@ -1156,8 +981,7 @@ def main():
         st.write(" ")
         curr_where = render_smart_date_range(
             "Registration Date",
-            "dataCadastro",
-            clauses,
+            "dataCadastro", builder,
             "dt_cad",
             ui_filters[cat],
             state_keys[cat],
@@ -1165,8 +989,7 @@ def main():
         st.write(" ")
         curr_where = render_smart_date_range(
             "Evolution Date",
-            "dataCadastro",
-            clauses,
+            "dataCadastro", builder,
             "dt_evo",
             ui_filters[cat],
             state_keys[cat],
@@ -1174,8 +997,7 @@ def main():
         st.write(" ")
         curr_where = render_smart_date_range(
             "First Appointment",
-            "dataPrimeiroAgendamento",
-            clauses,
+            "dataPrimeiroAgendamento", builder,
             "dt_pagend",
             ui_filters[cat],
             state_keys[cat],
@@ -1183,8 +1005,7 @@ def main():
         st.write(" ")
         curr_where = render_smart_date_range(
             "First Authorization",
-            "dataPrimeiraAutorizacao",
-            clauses,
+            "dataPrimeiraAutorizacao", builder,
             "dt_paut",
             ui_filters[cat],
             state_keys[cat],
@@ -1194,19 +1015,17 @@ def main():
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_advanced_text_search(
             "Search: Patient Name",
-            "usuarioSUS_nomeCompleto",
-            clauses,
+            "usuarioSUS_nomeCompleto", builder,
             "txt_pac_nome",
             ui_filters[cat],
             state_keys[cat],
         )
-        curr_where = " AND ".join(clauses)
+        curr_where = DuckDBCriteriaTranslator.translate(builder.build())
         st.markdown("---")
 
         curr_where = render_include_exclude(
             "Municipality of Residence",
-            "usuarioSUS_municipioResidencia_nome",
-            clauses,
+            "usuarioSUS_municipioResidencia_nome", builder,
             curr_where,
             "mun",
             ui_filters[cat],
@@ -1215,8 +1034,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Neighborhood",
-            "usuarioSUS_bairro",
-            clauses,
+            "usuarioSUS_bairro", builder,
             curr_where,
             "bai",
             ui_filters[cat],
@@ -1227,8 +1045,7 @@ def main():
         # Logradouro with conditional injecting numbering inside Deep Search
         curr_where = render_advanced_text_search(
             "Street",
-            "usuarioSUS_logradouro",
-            clauses,
+            "usuarioSUS_logradouro", builder,
             "txt_logr",
             ui_filters[cat],
             state_keys[cat],
@@ -1268,18 +1085,17 @@ def main():
                         "keys": ["num_min", "num_max"],
                     }
                 )
-                clauses.append(
+                builder.add_clausula_legado(
                     f'TRY_CAST("usuarioSUS_numero" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}'
                 )
             st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()  # --- Visual Separator for Personal Identification ---
 
-        curr_where = " AND ".join(clauses)
+        curr_where = DuckDBCriteriaTranslator.translate(builder.build())
         curr_where = render_include_exclude(
             "Sex",
-            "usuarioSUS_sexo",
-            clauses,
+            "usuarioSUS_sexo", builder,
             curr_where,
             "sex",
             ui_filters[cat],
@@ -1289,13 +1105,12 @@ def main():
 
         # Component that injects entidade_idade_idadeInteiro (with Dual Slider)
         curr_where = render_age_slider(
-            "Age Group (Age)", clauses, "f_idade", ui_filters[cat], state_keys[cat]
+            "Age Group (Age)", builder, "f_idade", ui_filters[cat], state_keys[cat]
         )
 
         curr_where = render_include_exclude(
             "Race/Color",
-            "usuarioSUS_racaCor",
-            clauses,
+            "usuarioSUS_racaCor", builder,
             curr_where,
             "cor",
             ui_filters[cat],
@@ -1304,8 +1119,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Nationality",
-            "usuarioSUS_nacionalidade",
-            clauses,
+            "usuarioSUS_nacionalidade", builder,
             curr_where,
             "nac",
             ui_filters[cat],
@@ -1317,8 +1131,7 @@ def main():
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_include_exclude(
             "Complexity",
-            "entidade_complexidade",
-            clauses,
+            "entidade_complexidade", builder,
             curr_where,
             "cpx",
             ui_filters[cat],
@@ -1327,8 +1140,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Risk Color (Current)",
-            "entidade_classificacaoRisco_cor",
-            clauses,
+            "entidade_classificacaoRisco_cor", builder,
             curr_where,
             "r_cor",
             ui_filters[cat],
@@ -1337,8 +1149,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Regulator Color",
-            "corRegulador",
-            clauses,
+            "corRegulador", builder,
             curr_where,
             "c_reg",
             ui_filters[cat],
@@ -1349,8 +1160,7 @@ def main():
         st.markdown("---")
         curr_where = render_boolean_radio(
             "Reclassified by Requester",
-            "entidade_classificacaoRisco_reclassificadaSolicitante",
-            clauses,
+            "entidade_classificacaoRisco_reclassificadaSolicitante", builder,
             "r_recl",
             ui_filters[cat],
             state_keys[cat],
@@ -1359,24 +1169,21 @@ def main():
         st.markdown("---")
         curr_where = render_dual_slider(
             "Gravity Points",
-            "entidade_classificacaoRisco_pontosGravidade",
-            clauses,
+            "entidade_classificacaoRisco_pontosGravidade", builder,
             "pt_grav",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_dual_slider(
             "Time Points",
-            "entidade_classificacaoRisco_pontosTempo",
-            clauses,
+            "entidade_classificacaoRisco_pontosTempo", builder,
             "pt_tmp",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_dual_slider(
             "Total Points",
-            "entidade_classificacaoRisco_totalPontos",
-            clauses,
+            "entidade_classificacaoRisco_totalPontos", builder,
             "pt_tot",
             ui_filters[cat],
             state_keys[cat],
@@ -1430,8 +1237,8 @@ def main():
             else:
                 _safe = "', '".join(v.replace("'", "''") for v in _sla_incl)
                 _parts.append(f"\"SLA_Tipo_Desfecho\" IN ('{_safe}')")
-            clauses.append(f"({' OR '.join(_parts)})")
-            curr_where = " AND ".join(clauses)
+            builder.add_clausula_legado(f"({' OR '.join(_parts)})")
+            curr_where = DuckDBCriteriaTranslator.translate(builder.build())
         if _sla_excl:
             ui_filters[cat].append(
                 {
@@ -1451,13 +1258,12 @@ def main():
             else:
                 _safe_ex = "', '".join(v.replace("'", "''") for v in _sla_excl)
                 _parts_ex.append(f"\"SLA_Tipo_Desfecho\" NOT IN ('{_safe_ex}')")
-            clauses.append(f"({' AND '.join(_parts_ex)})")
-            curr_where = " AND ".join(clauses)
+            builder.add_clausula_legado(f"({' AND '.join(_parts_ex)})")
+            curr_where = DuckDBCriteriaTranslator.translate(builder.build())
 
         curr_where = render_include_exclude(
             "Provisional Status",
-            "statusProvisorio",
-            clauses,
+            "statusProvisorio", builder,
             curr_where,
             "st_prov",
             ui_filters[cat],
@@ -1533,30 +1339,29 @@ def main():
             )
             if _pf_incl:
                 _pf_safe = "', '".join(v.replace("'", "''") for v in _pf_incl)
-                clauses.append(f"{_pf_expr} IN ('{_pf_safe}')")
+                builder.add_clausula_legado(f"{_pf_expr} IN ('{_pf_safe}')")
                 ui_filters[cat].append(
                     {
                         "text": f"✅ Pendência {_pf_label}: {', '.join(_pf_incl)}",
                         "keys": [f"{_pf_key}_in"],
                     }
                 )
-                curr_where = " AND ".join(clauses)
+                curr_where = DuckDBCriteriaTranslator.translate(builder.build())
             if _pf_excl:
                 _pf_safe_ex = "', '".join(v.replace("'", "''") for v in _pf_excl)
-                clauses.append(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
+                builder.add_clausula_legado(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
                 ui_filters[cat].append(
                     {
                         "text": f"❌ Pendência {_pf_label}: {', '.join(_pf_excl)}",
                         "keys": [f"{_pf_key}_ex"],
                     }
                 )
-                curr_where = " AND ".join(clauses)
+                curr_where = DuckDBCriteriaTranslator.translate(builder.build())
 
         st.markdown("---")
         curr_where = render_include_exclude(
             "Cancellation Reason",
-            "motivoCancelamento",
-            clauses,
+            "motivoCancelamento", builder,
             curr_where,
             "mot_canc",
             ui_filters[cat],
@@ -1565,8 +1370,7 @@ def main():
         )
         curr_where = render_include_exclude(
             "Closure Reason",
-            "motivoEncerramento",
-            clauses,
+            "motivoEncerramento", builder,
             curr_where,
             "mot_enc",
             ui_filters[cat],
@@ -1578,8 +1382,7 @@ def main():
         # 2. Textos de Justificativa (Deep Search)  (Keep comments largely in English if desired, but focus on the UI strings)
         curr_where = render_advanced_text_search(
             "Return Justification",
-            "justificativaRetorno",
-            clauses,
+            "justificativaRetorno", builder,
             "txt_retorno",
             ui_filters[cat],
             state_keys[cat],
@@ -1589,32 +1392,28 @@ def main():
         # 3. Marcos de Sucesso (Booleans)
         curr_where = render_boolean_radio(
             "1. Was Authorized?",
-            "SLA_Marco_Autorizada",
-            clauses,
+            "SLA_Marco_Autorizada", builder,
             "m_aut",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "2. Was Scheduled?",
-            "SLA_Marco_Agendada",
-            clauses,
+            "SLA_Marco_Agendada", builder,
             "m_agd",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "3. Was Accomplished?",
-            "SLA_Marco_Realizada",
-            clauses,
+            "SLA_Marco_Realizada", builder,
             "m_rea",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Queue Finished? (Timer Stopped)",
-            "SLA_Desfecho_Atingido",
-            clauses,
+            "SLA_Desfecho_Atingido", builder,
             "m_fim",
             ui_filters[cat],
             state_keys[cat],
@@ -1624,32 +1423,28 @@ def main():
         # 4. Sliders de SLA (Métricas calculadas em dias e interações)
         curr_where = render_dual_slider(
             "Total Lead Time (Days)",
-            "SLA_Lead_Time_Total_Dias",
-            clauses,
+            "SLA_Lead_Time_Total_Dias", builder,
             "sla_tot",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_dual_slider(
             "Time with Regulator (Days)",
-            "SLA_Tempo_Regulador_Dias",
-            clauses,
+            "SLA_Tempo_Regulador_Dias", builder,
             "sla_reg",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_dual_slider(
             "Time with Requester (Days)",
-            "SLA_Tempo_Solicitante_Dias",
-            clauses,
+            "SLA_Tempo_Solicitante_Dias", builder,
             "sla_sol",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_dual_slider(
             "Interaction Volume (Ping-Pong)",
-            "SLA_Interacoes_Regulacao",
-            clauses,
+            "SLA_Interacoes_Regulacao", builder,
             "sla_int",
             ui_filters[cat],
             state_keys[cat],
@@ -1715,14 +1510,14 @@ def main():
     # ==========================================
     # CLÁUSULA FINAL E PROCESSAMENTO (KPIs)
     # ==========================================
-    FINAL_WHERE = " AND ".join(clauses)
-    # WHY: A sidebar gera predicados SQL brutos em `clauses`. Durante a migração
-    # incremental para campos semânticos (FiltroAvancadoSpecBuilder), eles são
-    # carregados de forma opaca em `clauses_legado`. O domain NÃO os interpreta —
-    # apenas o DuckDBCriteriaTranslator (infra) os injeta no SQL como predicados.
-    # TODO(#ADR-004): Migrar cada widget da sidebar para popular FiltroAvancadoSpecBuilder
-    # com campos semânticos (com_inclusao, com_faixa_numerica, etc.) e remover clauses_legado.
-    filters = FiltroAvancadoSpec(clauses_legado=tuple(clauses))
+    # WHY: `builder` (FiltroAvancadoSpecBuilder) accumulates all semantic filter specs
+    # as the sidebar renders each widget. builder.build() produces the FiltroAvancadoSpec
+    # that the DuckDBCriteriaTranslator converts to SQL inside get_kpis().
+    # FINAL_WHERE (string) is kept for raw-SQL tab queries that bypass the use case.
+    # The old `clauses` list was removed during the builder migration — filters now
+    # flow exclusively through the semantic Specification pattern (ADR-004).
+    filters = builder.build()
+    FINAL_WHERE = DuckDBCriteriaTranslator.translate(filters)
     use_case = get_use_case()
 
     with st.spinner(

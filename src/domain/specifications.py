@@ -1,7 +1,8 @@
+import datetime
 from abc import ABC, abstractmethod
 from typing import Any
+
 from pydantic import BaseModel, Field
-import datetime
 
 
 class Specification(ABC):
@@ -94,6 +95,18 @@ class LeadTimeCriticoSpec(Specification):
         return False
 
 
+class AdvancedSearchCriteria(BaseModel):
+    """Value Object para busca textual avançada (strip_accents, wildcards, agregação)."""
+
+    model_config = {"frozen": True}
+
+    column: str
+    or_terms: list[str] = Field(default_factory=list)
+    and_terms: list[str] = Field(default_factory=list)
+    not_terms: list[str] = Field(default_factory=list)
+    aggregate_by: str | None = None
+
+
 class FiltroAvancadoSpec(BaseModel, Specification):
     """Value Object de Filtro de Consulta Analítica — representação semântica pura.
 
@@ -139,6 +152,18 @@ class FiltroAvancadoSpec(BaseModel, Specification):
         default_factory=dict,
         description="Colunas com valor booleano exato exigido",
     )
+    booleanos_nullable: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Trata o valor False como 'FALSE OU IS NULL' (necessário p/ UI No radios)",
+    )
+    presenca_campos: dict[str, bool] = Field(
+        default_factory=dict,
+        description="Colunas que devem estar presentes (!= null e != vazio) ou ausentes",
+    )
+    busca_avancada: list[AdvancedSearchCriteria] = Field(
+        default_factory=list,
+        description="Critérios complexos de busca textual tolerante a acentos",
+    )
     clauses_legado: tuple[str, ...] = Field(
         default_factory=tuple,
         description=(
@@ -182,9 +207,104 @@ class FiltroAvancadoSpec(BaseModel, Specification):
             except (TypeError, ValueError):
                 return False
 
-        # WHY: termos_texto e limites_data são melhor avaliados na infra (SQL ILIKE/BETWEEN).
-        # A implementação in-memory aqui garante que o contrato da interface seja satisfeito
-        # sem que o domínio precise de lógica de parsing de datas ou regex complexo.
-        # Candidatos in-memory com texto/data são tratados como satisfeitos por default.
+        # WHY: terms for busca_avancada, booleanos_nullable, and presenca_campos 
+        # are deferred to infrastructure (SQL) evaluation.
 
         return True
+
+
+class FiltroAvancadoSpecBuilder:
+    """Builder mutável para montagem progressiva da especificação imutável.
+    
+    WHY: Permite que os widgets da UI adicionem predicados progressivamente
+    (ex: render_include_exclude, render_age_slider) preenchendo os dicionários,
+    sem precisarem gerenciar tuplas imutáveis ou vazar listas SQL.
+    """
+
+    def __init__(self):
+        self._colunas_inclusao: dict[str, list[str]] = {}
+        self._colunas_exclusao: dict[str, list[str]] = {}
+        self._termos_texto: dict[str, list[str]] = {}
+        self._limites_numericos: dict[str, tuple[int | float, int | float]] = {}
+        self._limites_data: dict[str, tuple[str, str]] = {}
+        self._booleanos: dict[str, bool] = {}
+        self._booleanos_nullable: dict[str, bool] = {}
+        self._presenca_campos: dict[str, bool] = {}
+        self._busca_avancada: list[AdvancedSearchCriteria] = []
+        self._clauses_legado: list[str] = []
+
+    def add_clausula_legado(self, clausula: str) -> "FiltroAvancadoSpecBuilder":
+        if clausula:
+            self._clauses_legado.append(clausula)
+        return self
+
+    def add_inclusao(self, column: str, values: list[str]) -> "FiltroAvancadoSpecBuilder":
+        if values:
+            self._colunas_inclusao[column] = values
+        return self
+
+    def add_exclusao(self, column: str, values: list[str]) -> "FiltroAvancadoSpecBuilder":
+        if values:
+            self._colunas_exclusao[column] = values
+        return self
+
+    def add_booleano(self, column: str, value: bool) -> "FiltroAvancadoSpecBuilder":
+        self._booleanos[column] = value
+        return self
+
+    def add_booleano_nullable(self, column: str, value: bool) -> "FiltroAvancadoSpecBuilder":
+        self._booleanos_nullable[column] = value
+        return self
+
+    def add_presenca(self, column: str, value: bool) -> "FiltroAvancadoSpecBuilder":
+        self._presenca_campos[column] = value
+        return self
+
+    def add_limite_numerico(self, column: str, vmin: int | float, vmax: int | float) -> "FiltroAvancadoSpecBuilder":
+        self._limites_numericos[column] = (vmin, vmax)
+        return self
+
+    def add_limite_data(self, column: str, data_inicio: str, data_fim: str) -> "FiltroAvancadoSpecBuilder":
+        self._limites_data[column] = (data_inicio, data_fim)
+        return self
+
+    def add_texto(self, column: str, termos: list[str]) -> "FiltroAvancadoSpecBuilder":
+        if termos:
+            self._termos_texto[column] = termos
+        return self
+
+    def add_busca_avancada(
+        self,
+        column: str,
+        or_terms: list[str] = None,
+        and_terms: list[str] = None,
+        not_terms: list[str] = None,
+        aggregate_by: str | None = None,
+    ) -> "FiltroAvancadoSpecBuilder":
+        if not (or_terms or and_terms or not_terms):
+            return self
+        
+        crit = AdvancedSearchCriteria(
+            column=column,
+            or_terms=or_terms or [],
+            and_terms=and_terms or [],
+            not_terms=not_terms or [],
+            aggregate_by=aggregate_by,
+        )
+        self._busca_avancada.append(crit)
+        return self
+
+    def build(self) -> FiltroAvancadoSpec:
+        """Produz o Value Object imutável."""
+        return FiltroAvancadoSpec(
+            colunas_inclusao=self._colunas_inclusao.copy(),
+            colunas_exclusao=self._colunas_exclusao.copy(),
+            termos_texto=self._termos_texto.copy(),
+            limites_numericos=self._limites_numericos.copy(),
+            limites_data=self._limites_data.copy(),
+            booleanos=self._booleanos.copy(),
+            booleanos_nullable=self._booleanos_nullable.copy(),
+            presenca_campos=self._presenca_campos.copy(),
+            busca_avancada=list(self._busca_avancada),
+            clauses_legado=tuple(self._clauses_legado),
+        )

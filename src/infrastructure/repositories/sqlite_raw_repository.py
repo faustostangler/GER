@@ -3,8 +3,9 @@ import json
 import time
 import logging
 from typing import List, Dict, Any
-from application.use_cases.scraper_interfaces import IRawDataRepository, IIngestionLogRepository
+from application.use_cases.scraper_interfaces import IRawDataRepository, IIngestionLogRepository, IDLQRepository
 from domain.models import IngestionLogEntry
+from infrastructure.telemetry.metrics import SCRAPER_ERRORS_TOTAL
 
 logger = logging.getLogger(__name__)
 
@@ -146,3 +147,45 @@ class SQLiteRawRepository(IRawDataRepository, IIngestionLogRepository):
             }
             for r in rows
         ]
+
+
+class SQLiteDLQRepository(IDLQRepository):
+    def __init__(self, db_file: str = "gercon_raw_data.db"):
+        self.db_file = db_file
+
+    def init_dlq_table(self) -> None:
+        """Inicializa a tabela de Dead Letter Queue para persistência de poison pills."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS dead_letter_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                target_list TEXT,
+                payload TEXT,
+                error_message TEXT
+            )
+        """)
+        conn.commit()
+        conn.close()
+
+    def push_poison_pill(
+        self, payload: Dict[str, Any], error_message: str, target_list: str
+    ) -> None:
+        """Carga pílula envenenada no SQLite e incrementa métrica SRE."""
+        conn = sqlite3.connect(self.db_file)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO dead_letter_queue (target_list, payload, error_message)
+            VALUES (?, ?, ?)
+        """,
+            (target_list, json.dumps(payload, ensure_ascii=False), error_message),
+        )
+        conn.commit()
+        conn.close()
+
+        # Update SRE Metric as per specification
+        SCRAPER_ERRORS_TOTAL.labels(
+            error_type="DLQ_PERSISTED", target_list=target_list
+        ).inc()

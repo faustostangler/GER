@@ -308,7 +308,14 @@ class TestLogoutUrlBuilder:
 
 
 class TestModuleContract:
-    """Consumer-Driven Contract: valida que o módulo exporta a API esperada."""
+    """Consumer-Driven Contract: valida que o módulo exporta a API esperada.
+
+    WHY: Two consumers depend on this adapter's public surface:
+    1. ``app_analytics.py`` → ``require_authentication`` (session lifecycle facade)
+    2. ``auth_middleware.py`` → ``build_logout_url``, ``is_cloud_run`` (widget rendering)
+
+    Any symbol removal is a breaking change that must be caught before deployment.
+    """
 
     def test_all_public_symbols_are_importable(self):
         """WHY: O app_analytics.py importa símbolos específicos deste adapter.
@@ -320,3 +327,19 @@ class TestModuleContract:
         assert callable(getattr(auth_mod, "resolve_authenticated_user", None)), "resolve_authenticated_user missing"
         assert callable(getattr(auth_mod, "verify_cloud_run_password", None)), "verify_cloud_run_password missing"
         assert callable(getattr(auth_mod, "build_logout_url", None)), "build_logout_url missing"
+        assert callable(getattr(auth_mod, "require_authentication", None)), "require_authentication missing"
+
+    def test_render_user_widget_lives_in_middleware_not_adapter(self):
+        """WHY: SRP boundary guard — render_user_widget was extracted FROM app_analytics.py
+        INTO auth_middleware.py. It must NOT live in streamlit_auth (that adapter
+        handles identity resolution only, not widget rendering).
+        Ref: ADR-006 Phase 3 / SRP extraction."""
+        import presentation.adapters.streamlit_auth as auth_mod
+        from presentation.middlewares.auth_middleware import render_user_widget
+
+        # Correct home: middleware
+        assert callable(render_user_widget)
+        # Wrong home: adapter (would violate SRP boundary)
+        assert not hasattr(auth_mod, "render_user_widget"), (
+            "render_user_widget leaked into streamlit_auth — SRP violated"
+        )

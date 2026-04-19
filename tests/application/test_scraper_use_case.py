@@ -4,7 +4,8 @@ from application.use_cases.scraper_interfaces import (
     IScraperClient,
     IRawDataRepository,
     IProcessedDataRepository,
-    IIngestionLogRepository
+    IIngestionLogRepository,
+    IDLQRepository
 )
 from domain.models import IngestionStatus
 
@@ -25,6 +26,7 @@ def test_scraper_use_case_successful_execution(mock_contract):
     mock_sqlite = MagicMock(spec=IRawDataRepository)
     mock_csv = MagicMock(spec=IProcessedDataRepository)
     mock_logger = MagicMock(spec=IIngestionLogRepository)
+    mock_dlq = MagicMock(spec=IDLQRepository)
 
     mock_scraper.login.return_value = True
 
@@ -46,6 +48,7 @@ def test_scraper_use_case_successful_execution(mock_contract):
         raw_repo=mock_sqlite,
         csv_repo=mock_csv,
         listas_alvo=listas_alvo,
+        dlq_repo=mock_dlq,
         page_size=10,
         ingestion_log=mock_logger
     )
@@ -75,6 +78,7 @@ def test_scraper_use_case_circuit_breaker_and_dlq():
     mock_sqlite = MagicMock(spec=IRawDataRepository)
     mock_csv = MagicMock(spec=IProcessedDataRepository)
     mock_logger = MagicMock(spec=IIngestionLogRepository)
+    mock_dlq = MagicMock(spec=IDLQRepository)
 
     # 2. Injeta o Veneno (A API vai estourar um Timeout)
     mock_scraper.login.return_value = True
@@ -85,6 +89,7 @@ def test_scraper_use_case_circuit_breaker_and_dlq():
         raw_repo=mock_sqlite,
         csv_repo=mock_csv,
         listas_alvo=[{"chave": "fila_teste", "nome": "Fila Teste"}],
+        dlq_repo=mock_dlq,
         page_size=10,
         ingestion_log=mock_logger
     )
@@ -96,3 +101,40 @@ def test_scraper_use_case_circuit_breaker_and_dlq():
     log_call_args = mock_logger.log_execution.call_args[0][0]
     assert log_call_args.status == IngestionStatus.FAILURE
     assert "API HTTP 504" in log_call_args.error_message
+
+
+def test_scraper_dlq_persistence():
+    """Valida se poison pills são enviadas para o repositório persistente (SQLite)."""
+    from pydantic import ValidationError
+    
+    mock_scraper = MagicMock(spec=IScraperClient)
+    mock_sqlite = MagicMock(spec=IRawDataRepository)
+    mock_csv = MagicMock(spec=IProcessedDataRepository)
+    mock_dlq = MagicMock(spec=IDLQRepository)
+    
+    mock_scraper.login.return_value = True
+    poison_pill = {"numeroCMCE": "POISON-001", "situacao": "INVALIDA"}
+    
+    # 1. Faz o primeiro fetch retornar uma pílula envenenada
+    mock_scraper.fetch_batch.side_effect = [
+        {"jsons": [poison_pill], "totalDados": 1, "bytesDownload": 100},
+        {"jsons": [], "totalDados": 1, "bytesDownload": 0}
+    ]
+    
+    use_case = ScraperUseCase(
+        scraper_client=mock_scraper,
+        raw_repo=mock_sqlite,
+        csv_repo=mock_csv,
+        listas_alvo=[{"chave": "fila_poison", "nome": "Fila Poison"}],
+        dlq_repo=mock_dlq
+    )
+    
+    # Simula falha de validação do Pydantic no loop
+    with patch("application.use_cases.scraper_use_case.GerconPayloadContract", side_effect=ValidationError.from_exception_data(title="TestError", line_errors=[])):
+        use_case.execute_sync()
+        
+    # Verifica se push_poison_pill foi chamado no repositório persistente
+    mock_dlq.push_poison_pill.assert_called_once()
+    args, kwargs = mock_dlq.push_poison_pill.call_args
+    assert kwargs["payload"] == poison_pill
+    assert kwargs["target_list"] == "fila_poison"

@@ -15,6 +15,7 @@ from application.use_cases.scraper_interfaces import (
     IRawDataRepository,
     IProcessedDataRepository,
     IIngestionLogRepository,
+    IDLQRepository,
 )
 from domain.solicitacao_mapper import flatten_solicitacao, clean_data_row
 
@@ -44,6 +45,7 @@ class ScraperUseCase(IScrapingUseCase):
         raw_repo: IRawDataRepository,
         csv_repo: IProcessedDataRepository,
         listas_alvo: List[Dict[str, str]],
+        dlq_repo: IDLQRepository,
         page_size: int = 50,
         ingestion_log: Optional[IIngestionLogRepository] = None,
     ):
@@ -51,10 +53,10 @@ class ScraperUseCase(IScrapingUseCase):
         self.raw_repo = raw_repo
         self.csv_repo = csv_repo
         self.listas_alvo = listas_alvo
+        self.dlq_repo = dlq_repo
         self.page_size = page_size
         self.ingestion_log = ingestion_log
         self.state_file = "scraper_state.json"
-        self.dlq_poison_pills = []  # Em SRE escalável: Enviar para tabela sqlitezinha ou Bucket S3/Poison
 
         # --- Circuit Breaker Threshold ---
         self.cb_error_count = 0
@@ -105,6 +107,7 @@ class ScraperUseCase(IScrapingUseCase):
 
         # WHY: Inicializa log table junto com raw DB para garantir schema do audit
         self.raw_repo.init_db()
+        self.dlq_repo.init_dlq_table()
         if self.ingestion_log:
             self.ingestion_log.init_log_table()
 
@@ -219,8 +222,10 @@ class ScraperUseCase(IScrapingUseCase):
                                         extra={"lista": chave, "payload_poison": True},
                                     )
                                     # Faz Fail-Fast DLQ: Armazena o lixo para posterior Retentativa
-                                    self.dlq_poison_pills.append(
-                                        {"raw": j, "error": str(e)}
+                                    self.dlq_repo.push_poison_pill(
+                                        payload=j,
+                                        error_message=str(e),
+                                        target_list=chave,
                                     )
                                     SCRAPER_ERRORS_TOTAL.labels(
                                         error_type="SCHEMA_VIOLATION", target_list=chave
