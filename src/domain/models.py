@@ -1,5 +1,9 @@
-from pydantic import BaseModel, Field
+import time
+
 from enum import Enum
+
+from pydantic import BaseModel, Field
+
 from domain.specifications import FiltroAvancadoSpec
 
 
@@ -89,3 +93,41 @@ class AnalyticKPIs(BaseModel):
             if self.pacientes > 0
             else 0.0
         )
+
+    @property
+    def age_hours(self) -> float:
+        """Age of the data in hours relative to wall-clock time.
+
+        Returns 0.0 when last_sync_at is unknown (fresh install or read failure).
+        WHY: Derived metric consumed by is_stale() and by Analytics UI for the
+        human-readable label in the Amber Alert banner ("Data is X.X hours old").
+        """
+        if self.last_sync_at <= 0.0:
+            return 0.0
+        return (time.time() - self.last_sync_at) / 3600
+
+    def is_stale(self, threshold_hours: float) -> bool:
+        """Amber Alert predicate: True when data age strictly exceeds the SLA threshold.
+
+        WHY (Domain Isolation): This encapsulates the Amber Alert business rule so
+        the Presentation layer (app_analytics.py) remains a thin Humble Object
+        with no arithmetic. Ref: docs/GLOSSARY.md — Amber Alert.
+
+        Boundary contract (strict >): data exactly AT the threshold is considered fresh.
+        last_sync_at == 0 returns False — 'unknown' is handled as a separate, more
+        prominent banner in the UI, not as a staleness violation.
+
+        Args:
+            threshold_hours: Maximum acceptable data age in hours (e.g. 2.0).
+                             Usually sourced from ClinicaPolicy.data_sla_threshold_horas.
+
+        Returns:
+            bool: True → Amber Alert must be displayed. False → data is within SLA.
+        """
+        if self.last_sync_at <= 0.0:
+            # WHY: last_sync_at = 0 means "no data ever synced" (fresh install).
+            # The UI renders a distinct critical banner for this case; we must NOT
+            # conflate "never synced" with "synced but stale".
+            return False
+        return self.age_hours > threshold_hours
+
