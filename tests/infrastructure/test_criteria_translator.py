@@ -160,6 +160,28 @@ class TestTranslateFiltroAvancadoSpec:
     def test_none_spec_returns_universe(self):
         assert DuckDBCriteriaTranslator.translate(None) == "1=1"
 
+    def test_defensive_type_checking_survives_module_mismatch(self):
+        """Verifica se o tradutor é resiliente ao reload do Streamlit (nome da classe bate, mas módulo não)."""
+        class FakeFiltro:
+            colunas_inclusao = {"origem_lista": ["Fila de Espera"]}
+            colunas_exclusao = {}
+            booleanos = {}
+            booleanos_nullable = {}
+            presenca_campos = {}
+            limites_numericos = {}
+            limites_data = {}
+            termos_texto = {}
+            busca_avancada = []
+            clauses_legado = []
+
+        fake_spec = FakeFiltro()
+        # Força o nome da classe para enganar o isinstance/match (sintoma do hot reload)
+        fake_spec.__class__.__name__ = "FiltroAvancadoSpec"
+        
+        result = DuckDBCriteriaTranslator.translate(fake_spec)
+        assert '"origem_lista" IN (\'Fila de Espera\')' in result
+        assert "1=1" not in result
+
 
 class TestTranslateSpecificationComposites:
     """Validates backward-compatible translation of all Specification subtypes."""

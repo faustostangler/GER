@@ -2,14 +2,14 @@ import os
 import streamlit as st
 from domain.specifications import FiltroAvancadoSpecBuilder
 from infrastructure.repositories.criteria_translator import DuckDBCriteriaTranslator
-from src.presentation.components.kpi_board import render_kpi_board
+from presentation.components.kpi_board import render_kpi_board
 from infrastructure.config import settings
 from infrastructure.telemetry.sentry import init_sentry
-from src.presentation.components.filters import clear_filter_state, render_include_exclude, render_boolean_radio, render_presence_radio, render_dual_slider, render_age_slider, render_smart_date_range, render_advanced_text_search, render_outcome_type_filter, render_pending_reasons_filter
-from src.presentation.components.alerts import render_amber_alert
-from src.presentation.components.macro_strategy import render_macro_strategy
-from src.presentation.components.clinical_intelligence import render_clinical_intelligence
-from src.presentation.components.audit_micro import render_audit_micro
+from presentation.components.filters import clear_filter_state, render_include_exclude, render_boolean_radio, render_presence_radio, render_dual_slider, render_age_slider, render_smart_date_range, render_advanced_text_search, render_outcome_type_filter, render_pending_reasons_filter
+from presentation.components.alerts import render_amber_alert
+from presentation.components.macro_strategy import render_macro_strategy
+from presentation.components.clinical_intelligence import render_clinical_intelligence
+from presentation.components.audit_micro import render_audit_micro
 from domain.constants import MAPA_CORES_RISCO
 
 def setup_ui():

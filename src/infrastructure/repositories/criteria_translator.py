@@ -32,10 +32,14 @@ if TYPE_CHECKING:
     pass
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
 class DuckDBCriteriaTranslator:
     """Adapter: converte Specification domain objects em cláusulas SQL para DuckDB.
 
-    WHY: Centraliza toda a lógica de tradução SQL neste único ponto (Single Source
+    WHY: Centraliza toda a lógia de tradução SQL neste único ponto (Single Source
     of Truth para mapeamento domínio → SQL). Mudanças no dialeto DuckDB ou na
     estrutura do Parquet impactam apenas esta classe, não o domínio.
     """
@@ -53,6 +57,10 @@ class DuckDBCriteriaTranslator:
         """
         if spec is None:
             return "1=1"
+
+        # Defensive check for hot-reload class mismatch
+        if spec.__class__.__name__ == "FiltroAvancadoSpec":
+            return DuckDBCriteriaTranslator._translate_filtro(spec)
 
         match spec:
             case AndSpecification():
@@ -91,6 +99,9 @@ class DuckDBCriteriaTranslator:
             case _:
                 # WHY: Spec desconhecida → cláusula universo (fail-open seguro).
                 # Nunca deve rejeitar dados silenciosamente para um tipo não mapeado.
+                logger.warning(f"[SRE-WARN] Unmapped Specification detected: {type(spec)}. Falling back to 1=1.")
+                import sentry_sdk
+                sentry_sdk.capture_message(f"[SRE-WARN] Unmapped Specification detected: {type(spec)}. Falling back to 1=1.", level="warning")
                 return "1=1"
 
     @staticmethod
