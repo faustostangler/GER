@@ -182,7 +182,7 @@ class IAPIdentityAdapter(IIdentityService):
         except Exception as _auth_err:
             st.error("🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade.")
             st.markdown(
-                f'''
+                '''
                 <div style="display: flex; justify-content: center; margin-top: 20px;">
                     <form action="/oauth2/start" method="GET">
                         <input type="hidden" name="rd" value="/dashboard/" />

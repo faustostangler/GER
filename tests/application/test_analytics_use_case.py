@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from application.use_cases.interfaces import IAnalyticsRepository
 from domain.models import AnalyticKPIs
-from domain.models import ClinicaPolicy, DEFAULT_CLINICA_POLICY, DashboardState
+from domain.models import ClinicaPolicy, DEFAULT_CLINICA_POLICY
 from domain.specifications import Specification
 from application.use_cases.analytics_use_case import AnalyticsUseCase
 from infrastructure.auth.token_acl import ValidatedUserToken

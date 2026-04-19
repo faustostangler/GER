@@ -12,7 +12,6 @@ Ref: ADR-005 — Business Policy Extraction from Infrastructure Config
 """
 from application.use_cases.interfaces import IAnalyticsRepository
 from domain.models import (
-    AnalyticKPIs,
     ClinicaPolicy,
     DEFAULT_CLINICA_POLICY,
     DashboardState,

@@ -10,7 +10,8 @@ from presentation.components.alerts import render_amber_alert
 from presentation.components.macro_strategy import render_macro_strategy
 from presentation.components.clinical_intelligence import render_clinical_intelligence
 from presentation.components.audit_micro import render_audit_micro
-from domain.constants import MAPA_CORES_RISCO
+from domain.constants import MAPA_CORES_RISCO, MAPA_NOMENCLATURAS
+from presentation.di_container import get_use_case, get_identity_service
 
 def setup_ui():
     # --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
@@ -44,7 +45,6 @@ def inject_custom_css():
 
 
 # --- 2. INFRASTRUCTURE: USE CASE & DI ---
-from presentation.di_container import get_use_case, get_identity_service
 
 
 def get_dynamic_options(column: str, current_where: str, current_user) -> list:
@@ -114,42 +114,7 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # ==========================================
-    # SRE FIX: NOMENCLATURE DICTIONARY (UBIQUITOUS LANGUAGE)
-    # ==========================================
-    MAPA_NOMENCLATURAS = {
-        "entidade_especialidade_especialidadeMae_descricao": "Parent Specialty",
-        "entidade_especialidade_descricao": "Fine Specialty",
-        "entidade_especialidade_cbo_descricao": "CBO Specialty",
-        "entidade_cidPrincipal_codigo": "Main ICD (Code)",
-        "entidade_cidPrincipal_descricao": "Main ICD (Description)",
-        "origem_lista": "Source (List)",
-        "situacao": "Current Situation",
-        "entidade_especialidade_tipoRegulacao": "Regulation Type",
-        "entidade_especialidade_ativa": "Active Specialty",
-        "entidade_especialidade_teleconsulta": "Accepts Teleconsultation",
-        "entidade_centralRegulacao_nome": "Regulation Center",
-        "entidade_unidadeOperador_centralRegulacao_nome": "Operating Unit Reg. Center",
-        "liminarOrdemJudicial": "Injunction / Court Order",
-        "entidade_unidadeOperador_nome": "Operating Unit",
-        "entidade_unidadeOperador_razaoSocial": "Operating Unit (Corporate Name)",
-        "entidade_unidadeOperador_tipoUnidade_descricao": "Operating Unit Type",
-        "medicoSolicitante": "Requesting Doctor",
-        "operador_nome": "Operator",
-        "usuarioSolicitante_nome": "Requesting User",
-        "evolucoes_json": "Information Source",
-        "historico_evolucoes_completo": "Information Type",
-        "entidade_complexidade": "Complexity",
-        "entidade_classificacaoRisco_cor": "Risk Classification Color",
-        "corRegulador": "Regulator Color",
-        "usuarioSUS_municipioResidencia_nome": "Municipality of Residence",
-        "usuarioSUS_bairro": "Neighborhood",
-        "usuarioSUS_sexo": "Sex",
-        "usuarioSUS_racaCor": "Race/Color",
-        "usuarioSUS_nacionalidade": "Nationality",
-    }
-
-    # MAPA_CORES_RISCO is now imported from domain.constants
+    # MAPA_CORES_RISCO and MAPA_NOMENCLATURAS are now imported from domain.constants
 
     builder = FiltroAvancadoSpecBuilder()
     curr_where = "1=1"

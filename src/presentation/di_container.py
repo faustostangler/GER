@@ -46,7 +46,6 @@ def get_use_case():
 
 @st.cache_resource
 def get_identity_service():
-    import os
     def _is_cloud_run() -> bool:
         return bool(os.getenv("K_SERVICE"))
 
