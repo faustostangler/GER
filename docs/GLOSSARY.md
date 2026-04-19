@@ -50,6 +50,8 @@
 | **Cloud Run Auth Adapter** | Authentication adapter for serverless runtime (ADR-004). Uses a temporary password gate while Firebase Auth is not configured. Detected via `K_SERVICE`. |
 | **Password Gate** | Temporary authentication mechanism for Cloud Run via `CLOUD_RUN_AUTH_PASSWORD`. Replaces Keycloak/oauth2-proxy in environments without an identity sidecar. |
 | **Firebase Auth (Phase 2)** | GCP-managed identity provider to replace the Password Gate. Supports email/password, Google SSO, and custom claims (CRM, roles). |
+| **Humble Object (UI)** | Architectural pattern where logic is stripped away from the UI code (Streamlit), making it "dumb" and easy to test. Complex assembly logic is moved to Builders. |
+| **Composition Root (Presentation)** | Centralized location (`di_container.py`) where presentation-layer dependencies are resolved and policies are injected into Use Cases. |
 
 ## Business Policy
 
