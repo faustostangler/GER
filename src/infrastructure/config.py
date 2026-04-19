@@ -97,7 +97,7 @@ class AppSettings(BaseSettings):
         description="Porta interna do Keycloak no mesh Docker (Split-Horizon DNS).",
     )
 
-    # Infrastructure Overrides → ClinicaPolicy (domain.policies)
+    # Infrastructure Overrides → ClinicaPolicy (domain.models)
     # WHY (ADR-005): Estas vars permitem sobrescrever os defaults do domínio via .env
     # para ambientes específicos (ex: staging, testes de carga). O Domain (ClinicaPolicy)
     # É sempre a fonte de verdade dos defaults; .env é apenas um mecanismo de override.

@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import re
-from domain.models import AnalyticKPIs
+from domain.models import AnalyticKPIs, ClinicaPolicy
 
 def render_kpi(container, label_with_icon: str, value: str, help_text: str = "", alert: bool = False):
     alert_class = "alert" if alert else ""
@@ -28,7 +28,7 @@ def render_kpi(container, label_with_icon: str, value: str, help_text: str = "",
     """
     container.markdown(html, unsafe_allow_html=True)
 
-def render_kpi_board(kpi_data: AnalyticKPIs, container=None):
+def render_kpi_board(kpi_data: AnalyticKPIs, container=None, policy: ClinicaPolicy = None):
     """Componente que encapsula o painel de KPIs executivos.
     
     WHY: Isola a renderização das métricas de forma que o script

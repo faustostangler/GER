@@ -40,3 +40,16 @@ class IAnalyticsRepository(ABC):
         self, sql: str, spec: Specification, user: ValidatedUserToken
     ) -> pd.DataFrame:
         pass
+
+class IIdentityService(ABC):
+    @abstractmethod
+    def get_current_user(self) -> ValidatedUserToken:
+        pass
+
+    @abstractmethod
+    def get_logout_url(self) -> str | None:
+        pass
+
+    @abstractmethod
+    def is_authenticated(self) -> bool:
+        pass

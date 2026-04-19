@@ -8,7 +8,7 @@ testes e sem rastreamento GitOps.
 Ref: ADR-005 (a criar) — Business Policy Extraction
 """
 import pytest
-from domain.policies import ClinicaPolicy
+from domain.models import ClinicaPolicy
 
 
 class TestClinicaPolicyDefaults:

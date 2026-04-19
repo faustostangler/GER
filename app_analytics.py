@@ -10,6 +10,7 @@ from src.presentation.components.alerts import render_amber_alert
 from src.presentation.components.macro_strategy import render_macro_strategy
 from src.presentation.components.clinical_intelligence import render_clinical_intelligence
 from src.presentation.components.audit_micro import render_audit_micro
+from domain.constants import MAPA_CORES_RISCO
 
 def setup_ui():
     # --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
@@ -54,7 +55,7 @@ def get_use_case():
         DuckDBAnalyticsRepository,
     )
     from application.use_cases.analytics_use_case import AnalyticsUseCase
-    from domain.policies import ClinicaPolicy
+    from domain.models import ClinicaPolicy
 
     try:
         from infrastructure.telemetry.metrics import init_prometheus
@@ -98,11 +99,24 @@ def get_global_bounds(column: str, is_date=False):
 
 # --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
 
-# WHY: All IAM logic lives in the specialised adapter (streamlit_auth.py).
-# The user identity widget rendering is the middleware's responsibility.
-# This file (presentation entry point) must only compose — not decide.
-# Ref: ADR-006 — IAM Adapter Isolation (Phase 3 / SRP extraction).
-from presentation.adapters.streamlit_auth import require_authentication  # noqa: E402
+@st.cache_resource
+def get_identity_service():
+    import os
+    def _is_cloud_run() -> bool:
+        return bool(os.getenv("K_SERVICE"))
+
+    def _is_dev_mock_allowed() -> bool:
+        environment = os.getenv("ENVIRONMENT", "production").lower()
+        allow_dev = os.getenv("ALLOW_UNAUTHENTICATED_DEV", "false").lower() == "true"
+        return environment in ("local", "dev") and allow_dev
+
+    from infrastructure.auth.adapters import CloudRunIdentityAdapter, MockIdentityAdapter, IAPIdentityAdapter
+    if _is_cloud_run():
+        return CloudRunIdentityAdapter(settings)
+    if _is_dev_mock_allowed():
+        return MockIdentityAdapter()
+    return IAPIdentityAdapter(settings)
+
 from presentation.middlewares.auth_middleware import render_user_widget  # noqa: E402
 
 
@@ -125,11 +139,8 @@ def main():
     # by @st.cache_resource/@st.cache_data decorators.
     setup_ui()
 
-    # 2. Identity Gatekeeper (IAM Adapter)
-    # WHY: Unique Facade — all session logic, expiration and identity resolution
-    # lives in presentation.adapters.streamlit_auth.require_authentication().
-    # If unauthenticated or expired, it calls st.stop() internally.
-    user = require_authentication()
+    identity = get_identity_service()
+    user = identity.get_current_user()
 
     # 3. Domain Execution
     inject_custom_css()
@@ -146,7 +157,8 @@ def main():
     # ==========================================
     # SIDEBAR: USER IDENTITY WIDGET (IAP / Keycloak)
     # ==========================================
-    render_user_widget(user)
+    logout_url = identity.get_logout_url()
+    render_user_widget(user, logout_url)
 
     # --- DIGITAL SURGEON PREMIUM HEADER ---
     st.markdown(
@@ -194,18 +206,7 @@ def main():
         "usuarioSUS_nacionalidade": "Nationality",
     }
 
-    # ==========================================
-    # SRE FIX: MASTER COLOR DICTIONARY (GLOBAL)
-    # ==========================================
-    MAPA_CORES_RISCO = {
-        "VERMELHO": "#ef4444",
-        "LARANJA": "#f97316",
-        "AMARELO": "#eab308",
-        "VERDE": "#22c55e",
-        "AZUL": "#3b82f6",
-        "BRANCO": "#e5e7eb",
-        "Não Informado": "#9ca3af",
-    }
+    # MAPA_CORES_RISCO is now imported from domain.constants
 
     builder = FiltroAvancadoSpecBuilder()
     curr_where = "1=1"
@@ -899,17 +900,19 @@ def main():
     with st.spinner(
         "Processing Read Model (OLAP) and Tail Latency (P90)..."
     ):
-        kpi_data = use_case.get_executive_summary(filters, st.session_state.user)
+        dashboard_state = use_case.get_executive_summary(filters, st.session_state.user)
+        kpi_data = dashboard_state.kpis
+        policy = dashboard_state.policy
 
     # --- Amber Alert: Data Freshness SLA Monitor ---
     # WHY: Delegates to is_stale() (Domain layer) — no arithmetic here (Humble Object).
-    render_amber_alert(kpi_data, get_use_case()._policy)
+    render_amber_alert(kpi_data, policy)
 
     # ==========================================
     # ABA 1: VISÃO GERAL (EXECUTIVE SUMMARY)
     # ==========================================
     with t_kpi:
-        render_kpi_board(kpi_data, st)
+        render_kpi_board(kpi_data, st, policy=policy)
 
         # --- BLOCO 2 CONSOLIDADO: ANATOMIA COMPARATIVA E RISCO ---
         df_dist = use_case.get_distribution_analysis(filters, st.session_state.user)
@@ -925,6 +928,7 @@ def main():
             FINAL_WHERE=FINAL_WHERE,
             MAPA_NOMENCLATURAS=MAPA_NOMENCLATURAS,
             MAPA_CORES_RISCO=MAPA_CORES_RISCO,
+            policy=policy,
         )
 
     with t_clin:

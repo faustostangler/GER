@@ -18,15 +18,15 @@ Ref: ADR-006 — IAM Adapter Isolation (Phase 3 / SRP extraction).
 from __future__ import annotations
 
 import streamlit as st
+from typing import Optional
 
 from infrastructure.auth.token_acl import ValidatedUserToken
-from presentation.adapters.streamlit_auth import build_logout_url, is_cloud_run
 
 
-def render_user_widget(user: ValidatedUserToken) -> None:
+def render_user_widget(user: ValidatedUserToken, logout_url: Optional[str]) -> None:
     """Renders the authenticated user identity card at the top of the sidebar.
 
-    WHY: Adapts logout flow depending on the runtime via ``build_logout_url()``
+    WHY: Adapts logout flow depending on the runtime via ``logout_url``
     from the IAM Adapter — zero runtime-detection logic lives here.
 
     - **Cloud Run**: simple Streamlit button that clears ``session_state``.
@@ -35,13 +35,12 @@ def render_user_widget(user: ValidatedUserToken) -> None:
 
     Args:
         user: Validated domain token carrying clinical identity claims.
+        logout_url: The precomputed logout URL from the identity service. If None, assumes Cloud Run logout.
 
     Ref: ADR-006 — IAM Adapter Isolation.
     """
     username = getattr(user, "preferred_username", None) or getattr(user, "email", "?")
     display_name = username.split("@")[0].replace(".", " ").replace("_", " ").title()
-
-    logout_url = build_logout_url(is_cloud_run_runtime=is_cloud_run())
 
     if logout_url is None:
         # Cloud Run: Simple logout — clears Streamlit session_state (no proxy/Keycloak).

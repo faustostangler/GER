@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from application.use_cases.interfaces import IAnalyticsRepository
 from domain.models import AnalyticKPIs
-from domain.policies import ClinicaPolicy, DEFAULT_CLINICA_POLICY
+from domain.models import ClinicaPolicy, DEFAULT_CLINICA_POLICY, DashboardState
 from domain.specifications import Specification
 from application.use_cases.analytics_use_case import AnalyticsUseCase
 from infrastructure.auth.token_acl import ValidatedUserToken
@@ -81,7 +81,8 @@ def test_analytics_use_case_should_calculate_correct_kpis():
     repo = MockAnalyticsRepository(_make_stub_kpis())
     use_case = AnalyticsUseCase(repo)
 
-    kpis = use_case.get_executive_summary(None, _make_user())
+    dashboard_state = use_case.get_executive_summary(None, _make_user())
+    kpis = dashboard_state.kpis
 
     assert kpis.pacientes == 500
     assert kpis.lead_time == 10.5
@@ -113,7 +114,8 @@ class TestAnalyticsUseCasePolicyInjection:
             MockAnalyticsRepository(_make_stub_kpis()), policy=custom
         )
 
-        kpis = use_case.get_executive_summary(None, _make_user())
+        dashboard_state = use_case.get_executive_summary(None, _make_user())
+        kpis = dashboard_state.kpis
         assert kpis.mes_comercial == pytest.approx(21.0)
 
     def test_use_case_nao_importa_settings_diretamente(self):

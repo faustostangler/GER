@@ -5,14 +5,18 @@ da camada de infraestrutura para ler invariantes de negócio (SLA, cores de urg�
 mês comercial). Isso violava a Regra da Dependência (Clean Architecture): a camada
 Application apenas pode depender do Domain, nunca da Infrastructure.
 
-Solução: ClinicaPolicy (domain.policies) é injetada via construtor, tornando o
+Solução: ClinicaPolicy (domain.models) é injetada via construtor, tornando o
 Use Case testável sem qualquer dependência de .env ou pydantic-settings.
 
 Ref: ADR-005 — Business Policy Extraction from Infrastructure Config
 """
 from application.use_cases.interfaces import IAnalyticsRepository
-from domain.models import AnalyticKPIs
-from domain.policies import ClinicaPolicy, DEFAULT_CLINICA_POLICY
+from domain.models import (
+    AnalyticKPIs,
+    ClinicaPolicy,
+    DEFAULT_CLINICA_POLICY,
+    DashboardState,
+)
 from domain.specifications import (
     Specification,
     PacienteUrgenteSpec,
@@ -44,9 +48,13 @@ class AnalyticsUseCase:
         self.repository = repository
         self._policy = policy
 
+    def get_active_policy(self) -> ClinicaPolicy:
+        """Returns the domain business policy applied to this use case session."""
+        return self._policy
+
     def get_executive_summary(
         self, spec: Specification, current_user: ValidatedUserToken
-    ) -> AnalyticKPIs:
+    ) -> DashboardState:
         spec_vencidos = PacienteVencidoSpec(
             dias_tolerancia=self._policy.sla_dias_vencimento
         )
@@ -58,7 +66,7 @@ class AnalyticsUseCase:
             spec, spec_urgentes, spec_vencidos, current_user
         )
         kpis.mes_comercial = self._policy.mes_comercial_dias
-        return kpis
+        return DashboardState(kpis=kpis, policy=self._policy)
 
     def get_clinical_audit_heatmap(
         self,
