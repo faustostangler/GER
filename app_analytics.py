@@ -897,6 +897,8 @@ def main():
     filters = builder.build()
     FINAL_WHERE = DuckDBCriteriaTranslator.translate(filters)
 
+
+
     with st.spinner(
         "Processing Read Model (OLAP) and Tail Latency (P90)..."
     ):
@@ -928,7 +930,6 @@ def main():
             FINAL_WHERE=FINAL_WHERE,
             MAPA_NOMENCLATURAS=MAPA_NOMENCLATURAS,
             MAPA_CORES_RISCO=MAPA_CORES_RISCO,
-            policy=policy,
         )
 
     with t_clin:

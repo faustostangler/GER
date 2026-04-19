@@ -40,9 +40,20 @@ Decouple "what to filter" from "how to query".
 - **Sentry**: Initialize in presentation layer. Release-tag with `GIT_SHA`. Redact PII from breadcrumbs (LGPD).
 - **Graceful Degradation**: Always handle infrastructure failures (Redis down, Parquet corrupt) without crashing. Fall back to direct queries or cached state.
 
-### 6. Living Documentation
-- **ADR**: Every significant architectural change REQUIRES an Architectural Decision Record in `docs/adr/`.
-- **Glossary**: Define all new domain terms in `docs/GLOSSARY.md` (Ubiquitous Language).
+### 6. Humble Object Pattern (Presentation)
+All complex logic in `app_analytics.py` must be extracted to pure Python adapters.
+- **Rule**: The UI must only render. Sanitization, parsing, and data shaping belong in `src/presentation/adapters/parsers.py`.
+- **Goal**: Enable unit testing of UI logic without running Streamlit.
+
+### 7. Legacy Code Eradication
+Treat legacy code (raw SQL, hardcoded strings) as a toxin.
+- **Boy Scout Rule**: Refactor legacy SQL to the Specification Pattern (ADR-004) whenever you touch a module.
+- **ACL**: Force all legacy interactions through an Anti-Corruption Layer until they are completely removed.
+
+### 8. Blameless Post-Mortem Loop
+Every failure is a learning opportunity for the system, not a blame game.
+- **Protocol**: After fixing a bug, identify the systemic cause (e.g., identity mismatch) and implement structural prevention (e.g., fallback matching).
+- **Documentation**: Update `docs/adr/` or `docs/rules/` to share the systemic fix.
 
 ## Workflow Decision Tree
 
@@ -69,3 +80,6 @@ Decouple "what to filter" from "how to query".
 - [ ] Mutmut reports 0 survivors in Core Domain.
 - [ ] ADR and Glossary updated.
 - [ ] Sentry breadcrumbs are LGPD-compliant.
+- [ ] Complex UI logic is isolated (Humble Object).
+- [ ] Legacy code in the module has been eradicated or encapsulated (ACL).
+- [ ] Structural prevention implemented for the reported failure (Post-Mortem).

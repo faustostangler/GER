@@ -7,7 +7,7 @@ try:
 except ImportError:
     RENDER_LATENCY, SILENT_ERRORS = None, None
 
-from src.presentation.components.clinical_heatmap import render_clinical_heatmap
+from presentation.components.clinical_heatmap import render_clinical_heatmap
 
 
 def render_clinical_intelligence(

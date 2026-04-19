@@ -98,9 +98,18 @@ Worker: Handles heavy I/O tasks like scraping and data consolidation, exposing P
 
 Data Freshness Monitor (Amber Alert): The Streamlit UI computes `age_hours = (time.time() - kpi.last_sync_at) / 3600`. If `age_hours > settings.DATA_SLA_THRESHOLD`, renders `st.warning()` alerting clinicians that data is stale.
 
-Humble Object Pattern (Presentation): `app_analytics.py` is kept as a thin rendering layer. Complex logic (e.g., SQL sanitization, term parsing) is extracted to `src/presentation/adapters/parsers.py` for testability.
-
 Sentry Integration: Initialized in `app_analytics.py` before Streamlit rendering. Release tagged as `gercon-analytics@{GIT_SHA}`. LGPD compliance: `send_default_pii=False`, SQL breadcrumbs redacted via `before_breadcrumb` filter.
+
+Humble Object Pattern (Presentation): To ensure testability of the UI, `app_analytics.py` and its components must be kept "humble" (thin rendering only). All complex logic — such as SQL sanitization, term parsing, format conversions, and session state calculations — is extracted to pure Python functions in `src/presentation/adapters/` (e.g., `parsers.py`). This allows testing 90% of the presentation logic without any Streamlit overhead.
+
+Legacy Code Eradication: The system is in continuous evolution. Legacy artifacts (raw SQL strings, hardcoded column names, manual auth headers) must be targeted for systematic eradication.
+* **Boy Scout Rule**: Always leave the code cleaner than you found it. 
+* **Refactoring Protocol**: When touching a module with raw SQL, migrate it to the Specification Pattern (ADR-004) as part of the task.
+* **Technical Debt**: All legacy code must be wrapped in an Anti-Corruption Layer (ACL) until it can be fully replaced.
+
+Blameless Post-Mortem: Reliability is built on transparency. When failures occur (e.g., "silent" filtering bugs), we do not seek to blame individuals but to identify systemic weaknesses.
+* **Artifact**: Every critical failure must result in a Post-Mortem document in `docs/adr/` or `artifacts/`.
+* **Focus**: Identify the "Why" (e.g., Module Identity mismatch) and implement "Structural Prevention" (e.g., defensive name matching in translators).
 
 6. Design Patterns & Strict Rules
 Developers MUST follow these paradigms IN THIS ORDER:
@@ -254,3 +263,30 @@ Test suites mirror the `src/` hexagonal structure:
 [ ] Sentry: If you added new error handling, does Sentry capture it with appropriate breadcrumbs (without PII)?
 
 [ ] Redis Cache: If you modified query logic, did you test with Redis both available and unavailable?
+
+13. Defensive Translation Pattern (Anticorruption)
+To protect against Module Identity Mismatches in dynamic environments (Streamlit hot-reloads), all Infrastructure Translators should implement a "Name-Based Fallback" pattern in their `match/case` blocks:
+
+```python
+match spec:
+    case _ if spec.__class__.__name__ == "PacienteUrgenteSpec":
+        return "prioridade_clinica >= 4"
+    case PacienteUrgenteSpec():  # Primary match
+        ...
+```
+
+14. Diagnostic Protocols for Silent Failures
+When UI filters appear active but data doesn't seem to update:
+1. **Verification of Data Boundary**: Check if the raw KPI counts returned by the use case changed (e.g., from 123k to 12k). If yes, the FILTERING works; the rendering layer is crashing.
+2. **Crash Detection**: Look for `TypeError` or `AttributeError` in tab rendering logic (e.g., invalid function signatures or missing attributes).
+3. **Identity Check**: Audit `sys.modules` for duplicate paths (`from src.x` vs `from x`).
+4. **Cache Invalidation**: Flush Redis (`ger_redis_session`) to clear corrupt query hashes.
+
+15. Post-Implementation Checklist (Enhanced)
+[ ] Mutation Coverage: 0 survivors in Core Domain?
+[ ] Boundary Protection: Did you avoid passing infrastructure (AppSettings) into Presentation adapters?
+[ ] Data Layer Verification: During "silent" failures, did you verify counts before debugging SQL?
+[ ] Module Pathing: All imports in `src/` free of `src.` prefix?
+[ ] Humble Object: Is complex UI logic extracted to testable pure Python adapters?
+[ ] Legacy Cleanup: Did you identify and refactor at least one legacy artifact in the touched zone?
+[ ] Post-Mortem Loop: If this was a bug fix, did you update the rules to prevent similar systemic failures?
