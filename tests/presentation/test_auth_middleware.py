@@ -10,7 +10,7 @@ Ref: ADR-006 — IAM Adapter Isolation (Phase 3 / SRP extraction).
 from __future__ import annotations
 
 import time
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 import pytest
 
 from infrastructure.auth.token_acl import ValidatedUserToken

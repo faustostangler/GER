@@ -10,10 +10,10 @@ import sqlite3
 import json
 
 import pandas as pd
-pd.set_option('future.no_silent_downcasting', True)
 import gc
 import sys
 import os
+pd.set_option('future.no_silent_downcasting', True)
 
 # WHY: PYTHONPATH=src is set in pyproject.toml/Makefile; using src. prefix creates
 # duplicate class objects that silently break isinstance/match/case (Module Identity Mismatch).

@@ -60,6 +60,89 @@ class AnalyticsUseCase:
         kpis.mes_comercial = self._policy.mes_comercial_dias
         return kpis
 
+    def get_clinical_audit_heatmap(
+        self,
+        col_ator: str,
+        col_diag: str,
+        top_x_med: int,
+        top_x_cid: int,
+        modo_heatmap: str,
+        spec: Specification,
+        current_user: ValidatedUserToken,
+    ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+        """Gera matrizes para o Heatmap de Auditoria Clínica (Z-Score).
+        
+        WHY: Remove lógica pesada de Pandas (pivot, desvio padrão) e SQL
+        da camada de apresentação (Streamlit), permitindo testes isolados
+        e cache otimizado.
+        """
+        OPT_CID = "Horizontal Analysis (Peer Comparison)"
+        OPT_MED = "Vertical Analysis (Individual Profile)"
+
+        df_heatmap = self.repository.execute_custom_query(
+            f"""
+            WITH TopAtores AS (
+                SELECT "{col_ator}" FROM gercon
+                WHERE {{FINAL_WHERE}} AND "{col_ator}" != '' AND "{col_ator}" IS NOT NULL
+                GROUP BY 1 ORDER BY COUNT(DISTINCT numeroCMCE) DESC LIMIT {top_x_med}
+            ),
+            TopDiags AS (
+                SELECT "{col_diag}" FROM gercon
+                WHERE {{FINAL_WHERE}} AND "{col_diag}" != '' AND "{col_diag}" IS NOT NULL
+                GROUP BY 1 ORDER BY COUNT(DISTINCT numeroCMCE) DESC LIMIT {top_x_cid}
+            )
+            SELECT
+                "{col_ator}"  AS _ator,
+                "{col_diag}"  AS _diag,
+                COUNT(DISTINCT numeroCMCE) as Vol
+            FROM gercon
+            WHERE {{FINAL_WHERE}}
+              AND "{col_ator}" IN (SELECT "{col_ator}" FROM TopAtores)
+              AND "{col_diag}" IN (SELECT "{col_diag}" FROM TopDiags)
+            GROUP BY 1, 2
+            """,
+            spec,
+            current_user,
+        )
+
+        df_math = pd.DataFrame()
+        df_pivot_vol = pd.DataFrame()
+        df_text = pd.DataFrame()
+
+        if (
+            not df_heatmap.empty
+            and "_diag" in df_heatmap.columns
+            and "_ator" in df_heatmap.columns
+        ):
+            df_heatmap["_diag_curto"] = df_heatmap["_diag"].apply(
+                lambda x: str(x)[:45] + "..." if len(str(x)) > 45 else x
+            )
+
+            df_pivot_vol = df_heatmap.pivot_table(
+                index="_diag_curto",
+                columns="_ator",
+                values="Vol",
+                fill_value=0,
+            )
+            df_math = df_pivot_vol.copy().astype(float)
+
+            if modo_heatmap == OPT_CID:
+                medias_linhas = df_math.mean(axis=1)
+                desvios_linhas = df_math.std(axis=1).replace(0, 1)
+                df_math = df_math.sub(medias_linhas, axis=0).div(
+                    desvios_linhas, axis=0
+                )
+            elif modo_heatmap == OPT_MED:
+                medias_colunas = df_math.mean(axis=0)
+                desvios_colunas = df_math.std(axis=0).replace(0, 1)
+                df_math = df_math.sub(medias_colunas, axis=1).div(
+                    desvios_colunas, axis=1
+                )
+
+            df_text = df_math.apply(lambda col: col.map(lambda x: f"{x:+.1f}"))
+
+        return df_math, df_pivot_vol, df_text
+
     def get_distribution_analysis(
         self, spec: Specification, current_user: ValidatedUserToken
     ) -> pd.DataFrame:

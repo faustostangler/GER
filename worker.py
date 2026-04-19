@@ -4,7 +4,6 @@ import sys
 import os
 import uuid
 import time
-from prometheus_client import start_http_server, CollectorRegistry, multiprocess
 
 from src.infrastructure.telemetry.logger import (
     setup_structured_logger,

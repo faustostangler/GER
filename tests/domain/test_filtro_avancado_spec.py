@@ -6,7 +6,6 @@ WHY: FilterCriteria was corrupted by SQL infrastructure concerns (list[str] clau
 
 Related: Issue — SQL Leak from Infrastructure into Core Domain (ADR-004 candidate).
 """
-import pytest
 from domain.specifications import FiltroAvancadoSpec
 
 

@@ -7,7 +7,6 @@ WHY: The translator is the ACL (Anti-Corruption Layer) between domain vocabulary
 
 Related: SQL Leak refactoring from FilterCriteria → FiltroAvancadoSpec + DuckDBCriteriaTranslator.
 """
-import pytest
 from domain.specifications import (
     AdvancedSearchCriteria,
     FiltroAvancadoSpec,
