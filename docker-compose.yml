@@ -39,9 +39,14 @@ services:
     healthcheck:
       test: ["CMD", "curl", "-f", "http://127.0.0.1:8501/dashboard/_stcore/health"]
       interval: ${HEALTHCHECK_INTERVAL:-30s}
+      # WHY: start_interval polls every 5s during the start_period window (Docker 25+),
+      # allowing faster healthy promotion without inflating the normal interval.
+      start_interval: 5s
       timeout: ${HEALTHCHECK_TIMEOUT:-10s}
       retries: ${HEALTHCHECK_RETRIES:-3}
-      start_period: 30s
+      # WHY: Cold boot after a rebuild (image layer changes) takes 45-90s.
+      # 30s was too short — nginx became ready before Streamlit, causing 502.
+      start_period: ${ANALYTICS_START_PERIOD:-90s}
 
   # SRE: Router de Borda Interno para lidar com Redirecionamentos de Root (/) 
   router:
@@ -55,6 +60,9 @@ services:
     depends_on:
       analytics:
         condition: service_healthy
+    # WHY: If analytics restarts mid-session (OOM, etc.), nginx restarts too
+    # and recovers upstream connectivity without manual intervention.
+    restart: on-failure
     logging: *default-logging
 
   # --- SRE FIX: Redis Session Store para suportar JWTs gigantes do Keycloak ---
