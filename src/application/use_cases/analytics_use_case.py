@@ -51,6 +51,9 @@ class AnalyticsUseCase:
         """Returns the domain business policy applied to this use case session."""
         return self._policy
 
+    def verify_data_readiness(self) -> None:
+        self.repository.verify_data_readiness()
+
     def get_executive_summary(
         self, spec: Specification, current_user: ValidatedUserToken
     ) -> DashboardState:

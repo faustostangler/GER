@@ -8,6 +8,15 @@ from typing import Annotated
 from pydantic import BaseModel, Field, model_validator
 
 
+class DataNotReadyError(Exception):
+    """
+    Raised when the underlying read-model (OLAP) data source is unavailable,
+    missing, or corrupted.
+    """
+    def __init__(self, message: str = "The analytics data source is not ready for querying."):
+        self.message = message
+        super().__init__(self.message)
+
 
 class IngestionStatus(str, Enum):
     """Status possíveis de uma execução de ingestão."""

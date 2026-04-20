@@ -14,11 +14,13 @@ The `app_analytics.py` entrypoint was evolving into a "God Module" (Monolith), a
 - **Reason**: Decouple the UI from infrastructure details (Settings, DuckDB, Prometheus init, and Auth Adapters).
 - **Benefit**: Allows other presentation layers (e.g., FastAPI) to reuse the same injection logic.
 
-### 2. Sidebar Builder Pattern (Factory/Builder)
-- **Action**: Relocate procedural Streamlit sidebar code (cascading filters, expanders, listener state) from `app_analytics.py`.
-- **Location**: `src/presentation/builders/sidebar_builder.py`.
-- **Implementation**: A `build_sidebar(use_case, builder, st_user)` function returns `(ui_filters, state_keys, curr_where)`.
-- **Reason**: UI files must be **Humble Objects** (pixels/capture only). Complex layout assembly belongs in specialized builders.
+### 2. Sidebar Builder Pattern & Smart Components
+- **Action**: Relocate procedural Streamlit sidebar code and heavy UI blocks (like the Active Filters top bar) out of `app_analytics.py`.
+- **Location**: `src/presentation/builders/sidebar_builder.py` and `src/presentation/components/active_filters.py`.
+- **Implementation**: 
+  - A `build_sidebar(use_case, builder, st_user)` function returns `(ui_filters, state_keys, curr_where)`.
+  - A `render_active_filters_top_bar(ui_filters, state_keys)` component handles complex iterative rendering independent of the orchestrator.
+- **Reason**: UI files must be **Humble Objects** (pixels/capture only). Complex layout assembly belongs in specialized builders and encapsulated UI components.
 
 ### 3. Domain Constant Extraction (Ubiquitous Language)
 - **Action**: Move `MAPA_NOMENCLATURAS` (the translation dictionary) from UI to Core Domain.

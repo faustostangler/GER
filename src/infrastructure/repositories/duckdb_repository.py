@@ -71,6 +71,13 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             )
             self.redis_client = None
 
+    def verify_data_readiness(self) -> None:
+        from domain.models import DataNotReadyError
+        if not os.path.isfile(self.db_file):
+            raise DataNotReadyError(
+                f"Parquet database not found or invalid ({self.db_file})."
+            )
+
     def _get_rls_cte(self, user: ValidatedUserToken) -> str:
         """Sanitização estrita para Bounded Context RLS via CTE"""
         if not user:

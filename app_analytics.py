@@ -1,10 +1,11 @@
 import os
 import streamlit as st
+from domain.models import DataNotReadyError
 from domain.specifications import FiltroAvancadoSpecBuilder
 from presentation.components.kpi_board import render_kpi_board
 from infrastructure.config import settings
 from infrastructure.telemetry.sentry import init_sentry
-from presentation.components.filters import clear_filter_state
+from presentation.components.active_filters import render_active_filters_top_bar
 from presentation.builders.sidebar_builder import build_sidebar
 from presentation.components.alerts import render_amber_alert
 from presentation.components.macro_strategy import render_macro_strategy
@@ -85,13 +86,15 @@ def main():
     identity = get_identity_service()
     user = identity.get_current_user()
 
-    # 3. Domain Execution
+    # 3. Domain Execution: Pre-flight Readiness Check
     inject_custom_css()
-    # WHY: os.path.exists() returns True for directories too — when Docker bind-mounts
-    # a non-existent host path, it auto-creates an empty dir. isfile() is the correct
-    # Fail-Fast guard: it will catch both "missing" and "is a directory" cases.
-    if not os.path.isfile(settings.OUTPUT_FILE):
-        st.error(f"⚠️ Parquet database not found or invalid ({settings.OUTPUT_FILE}).")
+    try:
+        use_case = get_use_case()
+        use_case.verify_data_readiness()
+    except DataNotReadyError as e:
+        # The UI acts as a Humble Object. It simply catches the domain error
+        # and translates it into visual components.
+        st.error(f"⚠️ {str(e)}")
         st.info(
             "Execute the consolidation pipeline: `docker exec ger_analytics python sqlite_to_parquet.py`"
         )
@@ -129,46 +132,7 @@ def main():
     # ==========================================
     # VISUALIZE AND CLEAR ACTIVE FILTERS (TOP BAR)
     # ==========================================
-    has_active_filters = any(len(v) > 0 for v in ui_filters.values())
-
-    if has_active_filters:
-        total_count = sum(len(v) for v in ui_filters.values())
-
-        with st.expander(f"🔍 Active Filters ({total_count})", expanded=True):
-            for category, filters in ui_filters.items():
-                if filters:
-                    # 1. TITLE ON ITS OWN LINE
-                    st.markdown(
-                        f"<div class='cat-title'>{category}</div>",
-                        unsafe_allow_html=True,
-                    )
-
-                    # 2. FILTERS GROUPED ON THE NEXT LINE
-                    with st.container():
-                        st.markdown(
-                            "<div class='filter-row-marker' style='display:none;'></div>",
-                            unsafe_allow_html=True,
-                        )
-                        for i, f in enumerate(filters):
-                            st.button(
-                                f"{f['text']}",
-                                key=f"clr_item_{category}_{i}",
-                                on_click=clear_filter_state,
-                                args=(f["keys"],),
-                            )
-
-            # 3. CLEAR ALL ISOLATED AT THE END
-            st.write("")  # Natural micro-spacing
-            all_keys = [key for sublist in state_keys.values() for key in sublist]
-            st.button(
-                "🗑️ Clear All Filters",
-                key="btn_clear_all",
-                on_click=clear_filter_state,
-                args=(all_keys,),
-                type="primary",
-            )
-
-        st.write(" ")  # A micro-spacing right before KPIs to breathe
+    render_active_filters_top_bar(ui_filters=ui_filters, state_keys=state_keys)
 
     # ==========================================
     # DASHBOARD TABS: STRUCTURED BY DECISION LEVEL

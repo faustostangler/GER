@@ -8,6 +8,10 @@ import pandas as pd
 
 class IAnalyticsRepository(ABC):
     @abstractmethod
+    def verify_data_readiness(self) -> None:
+        pass
+
+    @abstractmethod
     def get_kpis(
         self,
         spec: Specification,

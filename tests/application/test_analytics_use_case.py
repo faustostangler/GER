@@ -21,6 +21,9 @@ class MockAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, stub_kpis: AnalyticKPIs):
         self._stub = stub_kpis
 
+    def verify_data_readiness(self) -> None:
+        pass
+
     def get_kpis(
         self,
         spec: Specification,
