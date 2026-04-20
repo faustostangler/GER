@@ -5,11 +5,15 @@ from datetime import date
 def render_audit_micro(
     use_case,
     filters,
-    FINAL_WHERE: str,
     MAPA_CORES_RISCO: dict
 ):
     """
     Renders the Audit Micro tab for outliers, top offenders, and clinical logs.
+
+    WHY: FINAL_WHERE was removed from this signature (ADR-004 / Hexagonal Architecture).
+    The SQL placeholder {{FINAL_WHERE}} inside every custom query is resolved by
+    DuckDBCriteriaTranslator inside execute_custom_query — the ONLY infrastructure
+    layer permitted to know about SQL syntax.
     """
     st.subheader("Audit of Outliers & Top Offenders (SRE)")
 
@@ -22,7 +26,7 @@ def render_audit_micro(
                 DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) as DiasFila,
                 situacao, entidade_especialidade_descricao
             FROM gercon 
-            WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
+            WHERE {{FINAL_WHERE}} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
             ORDER BY DiasFila DESC, Pontos DESC
             LIMIT 3000
         """,
@@ -72,7 +76,7 @@ def render_audit_micro(
     with c2:
         st.markdown("### ⚖️ Top Offenders")
         df_medico = use_case.execute_custom_query(
-            f"SELECT medicoSolicitante, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND medicoSolicitante != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10",
+            f"SELECT medicoSolicitante, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND medicoSolicitante != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10",
             spec=filters,
             current_user=st.session_state.user,
         )
@@ -105,7 +109,7 @@ def render_audit_micro(
         f"""
         SELECT numeroCMCE, CAST(dataSolicitacao AS DATE) as Solicitação, CAST(dataCadastro AS TIMESTAMP) as Data_Evolução, 
         situacao, entidade_classificacaoRisco_cor as "Risco Cor", historico_quadro_clinico 
-        FROM gercon WHERE {FINAL_WHERE} ORDER BY dataSolicitacao DESC, dataCadastro DESC LIMIT {limit}
+        FROM gercon WHERE {{FINAL_WHERE}} ORDER BY dataSolicitacao DESC, dataCadastro DESC LIMIT {limit}
     """,
         filters,
         st.session_state.user,

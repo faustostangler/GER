@@ -4,7 +4,7 @@ import tempfile
 from unittest.mock import patch, MagicMock
 from pathlib import Path
 from streamlit.testing.v1 import AppTest
-from domain.models import AnalyticKPIs
+from domain.models import AnalyticKPIs, DashboardState, DEFAULT_CLINICA_POLICY
 
 # SRE FIX: Localiza a raiz do projeto absoltamente (2 níveis acima de tests/presentation/)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -90,7 +90,22 @@ def mock_analytics_use_case():
             return pd.DataFrame(df_base)
 
         instance.execute_custom_query.side_effect = mock_execute_custom_query
-        instance.get_executive_summary.return_value = mock_kpis
+        # WHY: get_executive_summary MUST return DashboardState (not bare AnalyticKPIs).
+        # The app does `dashboard_state.kpis` — using AnalyticKPIs directly crashes with
+        # AttributeError. This was a pre-existing bug in the mock revealed by our refactoring.
+        instance.get_executive_summary.return_value = DashboardState(
+            kpis=mock_kpis,
+            policy=DEFAULT_CLINICA_POLICY,
+        )
+        # WHY: get_clinical_audit_heatmap returns a 3-tuple (df_math, df_pivot_vol, df_text).
+        # MagicMock is not iterable as a tuple — causes ValueError: not enough values to unpack.
+        import pandas as _pd
+        _empty_df = _pd.DataFrame()
+        instance.get_clinical_audit_heatmap.return_value = (_empty_df, _empty_df, _empty_df)
+        # WHY: get_distribution_analysis must return a DataFrame for comparative_anatomy renderer.
+        instance.get_distribution_analysis.return_value = _pd.DataFrame(
+            {"dias_fila": [10, 20], "dias_esquecido": [5, 15]}
+        )
         mock_use_case_class.return_value = instance
         yield instance
 

@@ -13,12 +13,16 @@ from presentation.components.clinical_heatmap import render_clinical_heatmap
 def render_clinical_intelligence(
     use_case,
     filters,
-    FINAL_WHERE: str,
     MAPA_NOMENCLATURAS: dict
 ):
     """
     Renders the Clinical Intelligence & Demographic Profile
     for the Clinical tab in the application.
+
+    WHY: FINAL_WHERE was removed from this signature (ADR-004 / Hexagonal Architecture).
+    The SQL placeholder {{FINAL_WHERE}} inside every custom query is resolved by
+    DuckDBCriteriaTranslator inside execute_custom_query — the ONLY infrastructure
+    layer permitted to know about SQL syntax.
     """
     st.subheader("Clinical Intelligence & Demographic Profile")
 
@@ -27,7 +31,7 @@ def render_clinical_intelligence(
         try:
             start_treemap = time.time()
             df_mun = use_case.execute_custom_query(
-                f"SELECT usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND usuarioSUS_municipioResidencia_nome != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30",
+                f"SELECT usuarioSUS_municipioResidencia_nome, usuarioSUS_bairro, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND usuarioSUS_municipioResidencia_nome != '' GROUP BY 1, 2 ORDER BY 3 DESC LIMIT 30",
                 spec=filters,
                 current_user=st.session_state.user,
             )
@@ -74,7 +78,7 @@ def render_clinical_intelligence(
                         usuarioSUS_sexo, 
                         numeroCMCE
                     FROM gercon 
-                    WHERE {FINAL_WHERE}
+                    WHERE {{FINAL_WHERE}}
                 ) 
                 WHERE Idade_Int IS NOT NULL AND Idade_Int >= 0
                 GROUP BY 1, 2
@@ -113,7 +117,7 @@ def render_clinical_intelligence(
             st.warning("⚠️ Silent error caught in demographic rendering.")
 
     df_fluxo = use_case.execute_custom_query(
-        f"SELECT CAST(dataSolicitacao AS DATE) as Dia, origem_lista, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL GROUP BY 1, 2 ORDER BY 1",
+        f"SELECT CAST(dataSolicitacao AS DATE) as Dia, origem_lista, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND dataSolicitacao IS NOT NULL GROUP BY 1, 2 ORDER BY 1",
         spec=filters,
         current_user=st.session_state.user,
     )
@@ -233,7 +237,7 @@ def render_clinical_intelligence(
         f"""
         SELECT "{_col_ator}" AS _ator, "{_col_diag}" AS _diag, COUNT(DISTINCT numeroCMCE) as Vol
         FROM gercon
-        WHERE {FINAL_WHERE}
+        WHERE {{FINAL_WHERE}}
             AND "{_col_ator}" != '' AND "{_col_ator}" IS NOT NULL
             AND "{_col_diag}" != '' AND "{_col_diag}" IS NOT NULL
         GROUP BY 1, 2 HAVING COUNT(DISTINCT numeroCMCE) >= 3 ORDER BY 3 DESC LIMIT 150

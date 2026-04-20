@@ -45,7 +45,9 @@ class MockAnalyticsRepository(IAnalyticsRepository):
     ):
         return (None, None)
 
-    def execute_custom_query(self, sql: str, user: ValidatedUserToken) -> pd.DataFrame:
+    def execute_custom_query(
+        self, sql: str, spec: Specification, user: ValidatedUserToken
+    ) -> pd.DataFrame:
         return pd.DataFrame()
 
 

@@ -1,7 +1,6 @@
 import os
 import streamlit as st
 from domain.specifications import FiltroAvancadoSpecBuilder
-from infrastructure.repositories.criteria_translator import DuckDBCriteriaTranslator
 from presentation.components.kpi_board import render_kpi_board
 from infrastructure.config import settings
 from infrastructure.telemetry.sentry import init_sentry
@@ -118,7 +117,6 @@ def main():
     # MAPA_CORES_RISCO and MAPA_NOMENCLATURAS are now imported from domain.constants
 
     builder = FiltroAvancadoSpecBuilder()
-    curr_where = "1=1"
     use_case = get_use_case()
 
     # ==========================================
@@ -190,12 +188,10 @@ def main():
     # ==========================================
     # WHY: `builder` (FiltroAvancadoSpecBuilder) accumulates all semantic filter specs
     # as the sidebar renders each widget. builder.build() produces the FiltroAvancadoSpec
-    # that the DuckDBCriteriaTranslator converts to SQL inside get_kpis().
-    # FINAL_WHERE (string) is kept for raw-SQL tab queries that bypass the use case.
-    # The old `clauses` list was removed during the builder migration — filters now
-    # flow exclusively through the semantic Specification pattern (ADR-004).
+    # that flows directly to the Use Case → Repository. The Repository's execute_custom_query
+    # translates it to SQL via DuckDBCriteriaTranslator — this is the ONLY layer allowed
+    # to know about SQL syntax (Hexagonal Architecture, ADR-004).
     filters = builder.build()
-    FINAL_WHERE = DuckDBCriteriaTranslator.translate(filters)
 
 
 
@@ -227,7 +223,6 @@ def main():
         render_macro_strategy(
             use_case=use_case,
             filters=filters,
-            FINAL_WHERE=FINAL_WHERE,
             MAPA_NOMENCLATURAS=MAPA_NOMENCLATURAS,
             MAPA_CORES_RISCO=MAPA_CORES_RISCO,
         )
@@ -236,7 +231,6 @@ def main():
         render_clinical_intelligence(
             use_case=use_case,
             filters=filters,
-            FINAL_WHERE=FINAL_WHERE,
             MAPA_NOMENCLATURAS=MAPA_NOMENCLATURAS,
         )
 
@@ -244,7 +238,6 @@ def main():
         render_audit_micro(
             use_case=use_case,
             filters=filters,
-            FINAL_WHERE=FINAL_WHERE,
             MAPA_CORES_RISCO=MAPA_CORES_RISCO,
         )
 

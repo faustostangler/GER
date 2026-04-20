@@ -4,13 +4,18 @@ import plotly.express as px
 def render_macro_strategy(
     use_case,
     filters,
-    FINAL_WHERE: str,
     MAPA_NOMENCLATURAS: dict,
     MAPA_CORES_RISCO: dict
 ):
     """
     Renders the Macro Strategy (Dynamic Explorer, Golden Signals, and Overviews)
     for the Strategy tab in the application.
+
+    WHY: FINAL_WHERE was removed from this signature (ADR-004 / Hexagonal Architecture).
+    Components now pass the domain FiltroAvancadoSpec (filters) directly. The SQL
+    placeholder {{FINAL_WHERE}} inside every custom query is resolved by
+    DuckDBCriteriaTranslator inside execute_custom_query — the ONLY layer permitted
+    to know about SQL syntax.
     """
     # --- BLOCO 1: EXPLORADOR DINÂMICO SOTA (EXPLOSÃO SOLAR BIVARIADA) ---
     st.subheader(
@@ -122,7 +127,7 @@ def render_macro_strategy(
                 COUNT(DISTINCT numeroCMCE) as Vol,
                 {sql_cor} as Metrica_Cor
             FROM gercon
-            WHERE {FINAL_WHERE}
+            WHERE {{FINAL_WHERE}}
             GROUP BY {levels_sql}
         """,
             filters,
@@ -171,7 +176,7 @@ def render_macro_strategy(
 
     with c1:
         df_risco = use_case.execute_custom_query(
-            f"SELECT entidade_classificacaoRisco_cor, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != '' GROUP BY 1",
+            f"SELECT entidade_classificacaoRisco_cor, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND entidade_classificacaoRisco_cor != '' GROUP BY 1",
             spec=filters,
             current_user=st.session_state.user,
         )
@@ -193,13 +198,13 @@ def render_macro_strategy(
     with c2:
         df_funil = use_case.execute_custom_query(
             f"""
-            SELECT '1. Requested' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE}
+            SELECT '1. Requested' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}}
             UNION ALL
-            SELECT '2. Triage' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND entidade_classificacaoRisco_cor != ''
+            SELECT '2. Triage' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND entidade_classificacaoRisco_cor != ''
             UNION ALL
-            SELECT '3. Scheduled' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND situacao ILIKE '%AGENDADA%'
+            SELECT '3. Scheduled' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND situacao ILIKE '%AGENDADA%'
             UNION ALL
-            SELECT '4. Accomplished' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND (situacao ILIKE '%ATENDIDO%' OR situacao ILIKE '%REALIZADO%')
+            SELECT '4. Accomplished' as Etapa, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND (situacao ILIKE '%ATENDIDO%' OR situacao ILIKE '%REALIZADO%')
         """,
             filters,
             st.session_state.user,
@@ -216,7 +221,7 @@ def render_macro_strategy(
         )
 
     df_sit = use_case.execute_custom_query(
-        f"SELECT situacao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} GROUP BY 1 ORDER BY 2 DESC",
+        f"SELECT situacao, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} GROUP BY 1 ORDER BY 2 DESC",
         spec=filters,
         current_user=st.session_state.user,
     )
