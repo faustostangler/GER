@@ -28,6 +28,10 @@ services:
       - ./app_analytics.py:/app/app_analytics.py
       - ./.streamlit:/app/.streamlit
       - ./gercon_raw_data.db:/app/gercon_raw_data.db
+      # WHY (Rule 009): Parquet is the primary analytical dataset — must be bind-mounted
+      # so the container always reads the host file. Without this, the container runs
+      # from an empty /app/ and os.path.isfile() returns False after every rebuild.
+      - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
     logging: *default-logging
     deploy:
@@ -208,6 +212,10 @@ services:
     volumes:
       - ./src:/app/src
       - ./gercon_raw_data.db:/app/gercon_raw_data.db
+      # WHY (Rule 009): Worker writes gercon_consolidado.parquet via sqlite_to_parquet.py.
+      # Bind-mount ensures the output lands on the host and is immediately visible
+      # to the analytics container (shared file, no copy step needed).
+      - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     depends_on:
       redis-queue:
         condition: service_healthy
