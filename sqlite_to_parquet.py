@@ -28,10 +28,12 @@ logger = setup_structured_logger("sqlite_to_parquet")
 
 
 def run_conversion():
+    from infrastructure.config import settings
+
     # WHY: Use same env-driven config as analytics/worker containers for path consistency.
     # Falls back to local defaults for CLI usage outside Docker.
     db_path = os.environ.get("SQLITE_DB_FILE", "gercon_raw_data.db")
-    parquet_out = os.environ.get("OUTPUT_FILE", "gercon_consolidado.parquet")
+    parquet_out = settings.OUTPUT_FILE
 
     logger.info(f"🔄 Iniciando conversão de {db_path} para {parquet_out}")
 
@@ -63,6 +65,39 @@ def run_conversion():
 
         import pyarrow as pa
         import pyarrow.parquet as pq
+        from pyarrow import fs
+        from urllib.parse import urlparse
+
+        s3_fs = None
+        s3_path = None
+        if parquet_out.startswith("s3://"):
+            from infrastructure.config import settings
+            parsed = urlparse(parquet_out)
+            s3_path = parsed.netloc + parsed.path
+            
+            s3_kwargs = {}
+            if settings.s3.region:
+                s3_kwargs["region"] = settings.s3.region
+            if settings.s3.access_key:
+                s3_kwargs["access_key"] = settings.s3.access_key
+            if settings.s3.secret_key:
+                s3_kwargs["secret_key"] = settings.s3.secret_key
+            if settings.s3.endpoint_url:
+                if "http://" in settings.s3.endpoint_url:
+                    s3_kwargs["scheme"] = "http"
+                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url.replace("http://", "")
+                elif "https://" in settings.s3.endpoint_url:
+                    s3_kwargs["scheme"] = "https"
+                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url.replace("https://", "")
+                else:
+                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url
+
+            s3_kwargs["force_virtual_addressing"] = False
+            s3_fs = fs.S3FileSystem(**s3_kwargs, allow_bucket_creation=True)
+            try:
+                s3_fs.create_dir(settings.s3.bucket_name)
+            except Exception as e:
+                pass
 
         while True:
             rows = cursor.fetchmany(batch_size)
@@ -186,9 +221,14 @@ def run_conversion():
 
             # Inicializa o writer com o schema do primeiro chunk (que agora está tipado)
             if writer is None:
-                writer = pq.ParquetWriter(
-                    parquet_out, table.schema, compression="snappy"
-                )
+                if s3_fs:
+                    writer = pq.ParquetWriter(
+                        s3_path, table.schema, compression="snappy", filesystem=s3_fs
+                    )
+                else:
+                    writer = pq.ParquetWriter(
+                        parquet_out, table.schema, compression="snappy"
+                    )
 
             writer.write_table(table)
 

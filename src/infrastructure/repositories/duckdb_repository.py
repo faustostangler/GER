@@ -1,16 +1,19 @@
+import logging
 import os
+import re
+from typing import Any, List, Tuple
+
 import duckdb
 import pandas as pd
-import re
-from typing import List, Tuple, Any
+
 from application.use_cases.interfaces import IAnalyticsRepository
 from domain.models import AnalyticKPIs
-from domain.specifications import (
-    Specification,
-)
+from domain.specifications import Specification
 from infrastructure.auth.token_acl import ValidatedUserToken
 from infrastructure.config import settings
 from infrastructure.repositories.criteria_translator import DuckDBCriteriaTranslator
+
+log = logging.getLogger(__name__)
 
 # WHY: Alias de retro-compatibilidade para não quebrar chamadas legadas em
 # tests/infrastructure/test_specification_translator.py enquanto a migração
@@ -26,15 +29,6 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
 
         # Limite explícito de RAM para proteção de OOMKilled no Cluster K8s (Reserva memória para Pandas)
         self.con.execute(f"PRAGMA memory_limit='{settings.db.memory_limit}';")
-
-        if db_file.startswith("s3://"):
-            region = os.getenv("AWS_REGION", "sa-east-1")
-            self.con.execute("INSTALL httpfs;")
-            self.con.execute("LOAD httpfs;")
-            self.con.execute("INSTALL aws;")
-            self.con.execute("LOAD aws;")
-            self.con.execute(f"SET s3_region='{region}';")
-            self.con.execute("CALL load_aws_credentials();")
 
         # WHY: O arquivo Parquet vazio/inexistente gera IOException (não BinderException).
         # No cold-start pós-deploy, o Worker ainda não rodou. Ao invés de crashar em loop,

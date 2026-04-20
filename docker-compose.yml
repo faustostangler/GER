@@ -28,7 +28,6 @@ services:
       - ./app_analytics.py:/app/app_analytics.py
       - ./.streamlit:/app/.streamlit
       - ./gercon_raw_data.db:/app/gercon_raw_data.db
-      - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     restart: ${DOCKER_RESTART_POLICY:-unless-stopped}
     logging: *default-logging
     deploy:
@@ -65,6 +64,9 @@ services:
     profiles: ["iam"]
     networks:
       - iap-mesh
+    volumes:
+      - redis_session_data:/data
+    command: redis-server --save 60 1 --loglevel warning
     logging: *default-logging
     deploy:
       resources:
@@ -114,6 +116,14 @@ services:
       - --cookie-expire=24h0m0s
       - --cookie-refresh=0h
       - --cookie-name=_oauth2_proxy_gercon
+      - --cookie-secure=false
+      # WHY (SRE/Chrome 147+): SameSite=None requires Secure (HTTPS) — on HTTP,
+      # Chrome REJECTS the cookie entirely, causing CSRF validation to fail on the
+      # OAuth callback. SameSite=Lax allows cookies on top-level GET navigations
+      # (which the Keycloak→Proxy redirect is), solving the 403 CSRF error.
+      - --cookie-samesite=lax
+      - --cookie-csrf-per-request=true
+      - --cookie-csrf-expire=5m
     logging: *default-logging
     depends_on:
       redis-session:
@@ -190,7 +200,6 @@ services:
     volumes:
       - ./src:/app/src
       - ./gercon_raw_data.db:/app/gercon_raw_data.db
-      - ./gercon_consolidado.parquet:/app/gercon_consolidado.parquet
     depends_on:
       redis-queue:
         condition: service_healthy
@@ -212,7 +221,7 @@ services:
   # ----------------------------------------------------
   # 1. Banco de Dados do Keycloak (Stateful)
   postgres-keycloak:
-    image: ${POSTGRES_IMAGE_NAME:-postgres}:${POSTGRES_IMAGE_VERSION:-16-alpine}
+    image: ${POSTGRES_IMAGE_NAME:-postgres}:${POSTGRES_IMAGE_VERSION:-15-alpine}
     container_name: ${COMPOSE_PROJECT_NAME:-ger}_keycloak_db
     profiles: ["iam"]
     env_file:
@@ -281,6 +290,29 @@ services:
       retries: 60
       start_period: 300s  # SRE: Acomoda a criação massiva de tabelas no DB em cold boots
 
+  # ----------------------------------------------------
+  # Object Storage (MinIO) - Local S3 Compatible
+  # ----------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY:-minioadmin}
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    networks:
+      - ger-infra-mesh
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: '512M'
+
 networks:
   ger-infra-mesh:
     name: ${COMPOSE_PROJECT_NAME:-ger}_${INFRA_NETWORK_NAME:-infra-mesh}
@@ -290,3 +322,7 @@ networks:
 volumes:
   keycloak_data:
     name: ${COMPOSE_PROJECT_NAME:-ger}_keycloak_data
+  minio_data:
+    name: ${COMPOSE_PROJECT_NAME:-ger}_minio_data
+  redis_session_data:
+    name: ${COMPOSE_PROJECT_NAME:-ger}_redis_session_data
