@@ -113,6 +113,12 @@ Qualquer alteração no valor ou formato de `settings.OUTPUT_FILE` deve ser veri
 ### R5 — Nunca commitar `S3Settings` como dependência obrigatória em `AppSettings`
 Se S3 for necessário no futuro (para artefatos auxiliares), deve ser uma configuração **opcional** com `default=None` e isolada em seu próprio adapter. O domínio e o repositório analítico principal não devem ter dependência de `S3Settings`.
 
+### R6 — Persistência Local via Bind-Mount (MANDATÓRIO)
+Para evitar que o dataset analítico desapareça após `rebuilds` (como observado em 20/04), o arquivo `gercon_consolidado.parquet` **deve** ser explicitamente listado como um bind-mount em `docker-compose.yml` para os serviços `analytics` e `worker`. 
+- **Analytics**: Para leitura via DuckDB.
+- **Worker**: Para persistência da saída do job `sqlite_to_parquet.py`.
+- **Efeito**: Garante que o arquivo de 318MB sobreviva a remoções de containers e seja compartilhado instantaneamente entre serviços sem cópias de rede.
+
 ---
 
 ## 5. Checklist de Validação para Mudanças em Storage
