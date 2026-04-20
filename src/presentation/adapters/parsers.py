@@ -45,7 +45,6 @@ class FiltroAvancadoSpecBuilder:
         self._limites_numericos: dict[str, tuple[int | float, int | float]] = {}
         self._limites_data: dict[str, tuple[str, str]] = {}
         self._booleanos: dict[str, bool] = {}
-        self._clauses_legado: list[str] = []
 
     def com_inclusao(self, coluna: str, valores: list[str]) -> "FiltroAvancadoSpecBuilder":
         """Adiciona critério de inclusão (coluna IN valores)."""
@@ -84,16 +83,7 @@ class FiltroAvancadoSpecBuilder:
         self._booleanos[coluna] = valor
         return self
 
-    def com_clauses_legado(self, clauses: list[str]) -> "FiltroAvancadoSpecBuilder":
-        """Adiciona predicados SQL opacos do shim de migração da sidebar.
 
-        WHY: Usado durante a migração incremental enquanto os widgets não foram
-        convertidos para campos semânticos. Os predicados são carregados de forma
-        opaca — apenas o DuckDBCriteriaTranslator os interpreta como SQL.
-        TODO(#ADR-004): Remover após migrar todos os widgets da sidebar.
-        """
-        self._clauses_legado = [c for c in clauses if c and c.strip()]
-        return self
 
     def build(self) -> FiltroAvancadoSpec:
         """Constrói o Value Object imutável FiltroAvancadoSpec."""
@@ -104,5 +94,4 @@ class FiltroAvancadoSpecBuilder:
             limites_numericos=self._limites_numericos,
             limites_data=self._limites_data,
             booleanos=self._booleanos,
-            clauses_legado=tuple(self._clauses_legado),
         )

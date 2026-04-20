@@ -21,12 +21,12 @@ def render_audit_micro(
     with c1:
         st.markdown("### 🔍 SLA Outlier Detection")
         df_outliers = use_case.execute_custom_query(
-            f"""
+            """
             SELECT numeroCMCE, entidade_classificacaoRisco_cor, TRY_CAST(entidade_classificacaoRisco_totalPontos AS INTEGER) as Pontos, 
                 DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) as DiasFila,
                 situacao, entidade_especialidade_descricao
             FROM gercon 
-            WHERE {{FINAL_WHERE}} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
+            WHERE {FINAL_WHERE} AND dataSolicitacao IS NOT NULL AND situacao NOT ILIKE '%ENCERRADA%'
             ORDER BY DiasFila DESC, Pontos DESC
             LIMIT 3000
         """,
@@ -76,7 +76,7 @@ def render_audit_micro(
     with c2:
         st.markdown("### ⚖️ Top Offenders")
         df_medico = use_case.execute_custom_query(
-            f"SELECT medicoSolicitante, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {{FINAL_WHERE}} AND medicoSolicitante != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10",
+            "SELECT medicoSolicitante, COUNT(DISTINCT numeroCMCE) as Vol FROM gercon WHERE {FINAL_WHERE} AND medicoSolicitante != '' GROUP BY 1 ORDER BY 2 DESC LIMIT 10",
             spec=filters,
             current_user=st.session_state.user,
         )

@@ -385,8 +385,8 @@ def build_sidebar(use_case, builder, st_user):
                         "keys": ["num_min", "num_max"],
                     }
                 )
-                builder.add_clausula_legado(
-                    f'TRY_CAST("usuarioSUS_numero" AS INTEGER) BETWEEN {v_nmin} AND {v_nmax}'
+                builder.add_limite_numerico(
+                    "usuarioSUS_numero", v_nmin, v_nmax
                 )
             st.markdown("</div>", unsafe_allow_html=True)
 

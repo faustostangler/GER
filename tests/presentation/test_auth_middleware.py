@@ -80,10 +80,8 @@ class TestRenderUserWidgetCloudRun:
 
         mock_st = MagicMock()
         # build_logout_url returns None → Cloud Run branch
-        with patch("presentation.middlewares.auth_middleware.build_logout_url", return_value=None):
-            with patch("presentation.middlewares.auth_middleware.is_cloud_run", return_value=True):
-                with patch("presentation.middlewares.auth_middleware.st", mock_st):
-                    render_user_widget(user)
+        with patch("presentation.middlewares.auth_middleware.st", mock_st):
+            render_user_widget(user, logout_url=None)
 
         # Must render the username somewhere in the sidebar
         sidebar_calls = str(mock_st.sidebar.mock_calls)
@@ -101,10 +99,8 @@ class TestRenderUserWidgetCloudRun:
         mock_st.sidebar.button.return_value = True
         mock_st.session_state.keys.return_value = ["user", "token_exp", "raw_jwt"]
 
-        with patch("presentation.middlewares.auth_middleware.build_logout_url", return_value=None):
-            with patch("presentation.middlewares.auth_middleware.is_cloud_run", return_value=True):
-                with patch("presentation.middlewares.auth_middleware.st", mock_st):
-                    render_user_widget(user)
+        with patch("presentation.middlewares.auth_middleware.st", mock_st):
+            render_user_widget(user, logout_url=None)
 
         mock_st.rerun.assert_called_once()
 
@@ -127,10 +123,8 @@ class TestRenderUserWidgetKeycloak:
 
         mock_st = MagicMock()
 
-        with patch("presentation.middlewares.auth_middleware.build_logout_url", return_value=keycloak_url):
-            with patch("presentation.middlewares.auth_middleware.is_cloud_run", return_value=False):
-                with patch("presentation.middlewares.auth_middleware.st", mock_st):
-                    render_user_widget(user)
+        with patch("presentation.middlewares.auth_middleware.st", mock_st):
+            render_user_widget(user, logout_url=keycloak_url)
 
         # Must call st.sidebar.markdown with unsafe_allow_html=True for the form
         markdown_calls = [
@@ -170,10 +164,8 @@ class TestDisplayNameFormatting:
         user = _make_user(preferred_username=preferred_username, email=email)
         mock_st = MagicMock()
 
-        with patch("presentation.middlewares.auth_middleware.build_logout_url", return_value=None):
-            with patch("presentation.middlewares.auth_middleware.is_cloud_run", return_value=True):
-                with patch("presentation.middlewares.auth_middleware.st", mock_st):
-                    render_user_widget(user)
+        with patch("presentation.middlewares.auth_middleware.st", mock_st):
+            render_user_widget(user, logout_url=None)
 
         sidebar_calls = str(mock_st.sidebar.mock_calls)
         assert expected_name_fragment in sidebar_calls, (

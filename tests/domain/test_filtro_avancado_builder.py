@@ -326,5 +326,4 @@ class TestBuilderFullRoundTrip:
         assert spec.limites_numericos["entidade_idade_idadeInteiro"] == (0, 120)
         assert spec.limites_data["dataSolicitacao"] == ("2024-01-01", "2024-12-31")
         assert len(spec.busca_avancada) == 1
-        # clauses_legado must be empty — no SQL leak from the builder
-        assert spec.clauses_legado == ()
+

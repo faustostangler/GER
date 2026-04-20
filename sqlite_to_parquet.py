@@ -96,7 +96,7 @@ def run_conversion():
             s3_fs = fs.S3FileSystem(**s3_kwargs, allow_bucket_creation=True)
             try:
                 s3_fs.create_dir(settings.s3.bucket_name)
-            except Exception as e:
+            except Exception:
                 pass
 
         while True:

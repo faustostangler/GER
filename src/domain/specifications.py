@@ -164,16 +164,7 @@ class FiltroAvancadoSpec(BaseModel, Specification):
         default_factory=list,
         description="Critérios complexos de busca textual tolerante a acentos",
     )
-    clauses_legado: tuple[str, ...] = Field(
-        default_factory=tuple,
-        description=(
-            "Shim de migração: predicados opacos gerados pela sidebar enquanto a"
-            " migração para campos semânticos não está completa. O domain NÃO"
-            " interpreta o conteúdo — é consumido exclusivamente pelo"
-            " DuckDBCriteriaTranslator na camada de infraestrutura."
-            " TODO(#ADR-004): Remover após migrar todos os widgets da sidebar."
-        ),
-    )
+
 
     def is_satisfied_by(self, candidate: Any) -> bool:
         """Avalia o candidato contra todos os critérios semânticos em memória.
@@ -231,12 +222,6 @@ class FiltroAvancadoSpecBuilder:
         self._booleanos_nullable: dict[str, bool] = {}
         self._presenca_campos: dict[str, bool] = {}
         self._busca_avancada: list[AdvancedSearchCriteria] = []
-        self._clauses_legado: list[str] = []
-
-    def add_clausula_legado(self, clausula: str) -> "FiltroAvancadoSpecBuilder":
-        if clausula:
-            self._clauses_legado.append(clausula)
-        return self
 
     def add_inclusao(self, column: str, values: list[str]) -> "FiltroAvancadoSpecBuilder":
         if values:
@@ -306,5 +291,4 @@ class FiltroAvancadoSpecBuilder:
             booleanos_nullable=self._booleanos_nullable.copy(),
             presenca_campos=self._presenca_campos.copy(),
             busca_avancada=list(self._busca_avancada),
-            clauses_legado=tuple(self._clauses_legado),
         )

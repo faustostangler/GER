@@ -150,7 +150,10 @@ class DuckDBCriteriaTranslator:
 
         # --- Limites Numéricos: coluna BETWEEN min AND max ---
         for coluna, (minimo, maximo) in spec.limites_numericos.items():
-            parts.append(f'"{coluna}" BETWEEN {minimo} AND {maximo}')
+            if coluna == "usuarioSUS_numero":
+                parts.append(f'TRY_CAST("{coluna}" AS INTEGER) BETWEEN {minimo} AND {maximo}')
+            else:
+                parts.append(f'"{coluna}" BETWEEN {minimo} AND {maximo}')
 
         # --- Limites de Data: CAST(coluna AS DATE) BETWEEN 'inicio' AND 'fim' ---
         for coluna, (inicio, fim) in spec.limites_data.items():
@@ -194,13 +197,6 @@ class DuckDBCriteriaTranslator:
             else:
                 parts.extend(row_conds)
 
-        # --- Clauses legado (shim de migração): predicados SQL opacos da sidebar ---
-        # WHY: Durante a migração incremental, a sidebar gera predicados SQL brutos
-        # que não foram migrados para campos semânticos ainda. O translator os injeta
-        # diretamente aqui — única camada que conhece o dialeto SQL.
-        # TODO(#ADR-004): Remover após migrar todos os widgets da sidebar.
-        for clause in spec.clauses_legado:
-            if clause and clause.strip():
-                parts.append(clause)
+
 
         return " AND ".join(parts) if parts else "1=1"

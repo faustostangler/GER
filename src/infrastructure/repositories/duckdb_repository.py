@@ -15,11 +15,7 @@ from infrastructure.repositories.criteria_translator import DuckDBCriteriaTransl
 
 log = logging.getLogger(__name__)
 
-# WHY: Alias de retro-compatibilidade para não quebrar chamadas legadas em
-# tests/infrastructure/test_specification_translator.py enquanto a migração
-# total para DuckDBCriteriaTranslator não é concluída.
-# TODO(#ADR-004): Remover este alias após atualização de test_specification_translator.py
-DuckDBSpecificationTranslator = DuckDBCriteriaTranslator
+
 
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):

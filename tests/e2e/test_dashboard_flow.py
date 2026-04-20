@@ -47,7 +47,7 @@ def test_dashboard_e2e_flow(page: Page, streamlit_server: str):
     expect(app_container).to_be_visible(timeout=30000)
     
     # Assert that a metric eventually gets rendered
-    metric = page.locator("[data-testid='stMetricValue']").first
+    metric = page.locator(".kpi-value").first
     try:
         expect(metric).to_be_visible(timeout=30000)
     except Exception as e:
