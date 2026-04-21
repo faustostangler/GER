@@ -31,6 +31,8 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 from infrastructure.config import settings
 from domain.identity import DoctorProfile, MedicalCouncilRegistration
 from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository
+from infrastructure.adapters.cfm_client import CFMClient
+from application.use_cases.interfaces import ICFMClient
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("keycloak_events_consumer")
@@ -39,11 +41,31 @@ KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_URL
 KEYCLOAK_EVENTS_TOPIC = "keycloak.events.register"
 KEYCLOAK_EVENTS_DLQ = "keycloak.events.dlq"
 
-# WHY (in-process idempotency): Prevents re-processing the same event_id if
-# Kafka redelivers a message after a rebalance or container restart.
-# Production upgrade: replace with Redis SET or PostgreSQL UNIQUE constraint.
-# TODO(ADR-006): Migrate idempotency store to Redis for cross-replica safety.
-processed_events: set[str] = set()
+import redis.asyncio as redis
+
+# Global Redis client for async operations
+_redis_client = redis.Redis(
+    host=settings.redis.host,
+    port=settings.redis.port,
+    db=0,
+    decode_responses=True,
+    socket_connect_timeout=2,
+)
+
+
+async def is_already_processed(event_id: str) -> bool:
+    """Check if the event was already processed using Redis as a distributed store.
+
+    WHY (ADR-006): Replacing the in-memory set with Redis ensures cross-replica safety.
+    Uses 'SET NX' to check and lock atomically with a 7-day TTL.
+    """
+    if not event_id:
+        return False
+    # nx=True returns True if set, None if already exists
+    result = await _redis_client.set(
+        f"processed_event:{event_id}", "1", nx=True, ex=604800
+    )
+    return result is None
 
 # WHY (long-lived producer): Creating a new AIOKafkaProducer per DLQ message
 # would exhaust TCP sockets under load (socket exhaustion). One shared producer
@@ -51,7 +73,7 @@ processed_events: set[str] = set()
 dlq_producer: Optional[AIOKafkaProducer] = None
 
 
-def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
+async def validate_cfm_api(crm_numero: str, crm_uf: str, cfm_client: ICFMClient) -> bool:
     """Validate CRM registration against the CFM (Conselho Federal de Medicina) API.
 
     WHY (ACL boundary): This function is the Anti-Corruption Layer between our domain
@@ -61,6 +83,7 @@ def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
     Args:
         crm_numero: CRM registration number (digits only).
         crm_uf:     Federation unit (2-letter uppercase string).
+        cfm_client: The production CFM client adapter.
 
     Returns:
         bool: True if CFM confirms the registration is active and valid.
@@ -68,20 +91,13 @@ def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
     Raises:
         ConnectionError: On network timeout or CFM API unavailability.
         ValueError:      If CFM returns an invalid/malformed response.
-
-    TODO(ADR-006): Replace simulation with real HTTPX call to CFM REST API.
     """
-    # ACL: simulate a "poison pill" CRM that always fails (for DLQ testing).
-    if crm_numero == "00000":
-        raise ConnectionError("Timeout na API do CFM")
-    return True
+    return await cfm_client.validate(crm_numero, crm_uf)
 
 
-# Global repository instance
-_doctor_profile_repo = SQLDoctorProfileRepository()
-
-
-async def _persist_doctor_profile(profile: DoctorProfile) -> None:
+async def _persist_doctor_profile(
+    profile: DoctorProfile, repo: SQLDoctorProfileRepository
+) -> None:
     """Persist a verified DoctorProfile to the domain store via PostgreSQL/Redis.
 
     WHY (SOTA Persistence): delegates to the SQLDoctorProfileRepository which implements
@@ -92,7 +108,7 @@ async def _persist_doctor_profile(profile: DoctorProfile) -> None:
         profile: Fully constructed DoctorProfile with crm_verified=True.
     """
     try:
-        await asyncio.to_thread(_doctor_profile_repo.save, profile)
+        await asyncio.to_thread(repo.save, profile)
         logger.info(
             "DoctorProfile successfully persisted for user_id=%s (CRM %s/%s).",
             profile.user_id,
@@ -119,7 +135,9 @@ async def send_to_dlq(payload: dict, error_msg: str) -> None:
     logger.error("Event forwarded to DLQ. Cause: %s", error_msg)
 
 
-async def _process_register_event(event_data: dict) -> None:
+async def _process_register_event(
+    event_data: dict, repo: SQLDoctorProfileRepository, cfm_client: ICFMClient
+) -> None:
     """Process a single USER_REGISTERED event from the Keycloak SPI.
 
     Extracts CRM fields from the event details, runs CFM validation,
@@ -162,7 +180,9 @@ async def _process_register_event(event_data: dict) -> None:
         crm_uf,
     )
 
-    is_valid = validate_cfm_api(crm_registration.crm_numero, crm_registration.crm_uf)
+    is_valid = await validate_cfm_api(
+        crm_registration.crm_numero, crm_registration.crm_uf, cfm_client
+    )
 
     if is_valid:
         # Domain authorization: only the consumer pipeline sets crm_verified=True.
@@ -171,7 +191,7 @@ async def _process_register_event(event_data: dict) -> None:
             crm=crm_registration,
             crm_verified=True,
         )
-        await _persist_doctor_profile(profile)
+        await _persist_doctor_profile(profile, repo)
         logger.info(
             "CRM %s/%s verified and DoctorProfile persisted for user_id=%s.",
             crm_numero,
@@ -208,14 +228,20 @@ async def consume_keycloak_events() -> None:
     await consumer.start()
     logger.info("Kafka Consumer started — awaiting Keycloak SPI events.")
 
+    # Initialize repository and client inside the loop to ensure fresh DB session/engine
+    repo = SQLDoctorProfileRepository()
+    cfm_client = CFMClient()
+
     try:
         async for msg in consumer:
             event_data: dict = json.loads(msg.value.decode("utf-8"))
             event_id: Optional[str] = event_data.get("id")
 
             # ── Idempotency guard ─────────────────────────────────────────────
-            if event_id in processed_events:
-                logger.info("Event %s already processed — skipping (idempotency).", event_id)
+            if await is_already_processed(event_id):
+                logger.info(
+                    "Event %s already processed — skipping (idempotency).", event_id
+                )
                 await consumer.commit()
                 continue
 
@@ -231,7 +257,7 @@ async def consume_keycloak_events() -> None:
 
             for attempt in range(max_retries):
                 try:
-                    await _process_register_event(event_data)
+                    await _process_register_event(event_data, repo, cfm_client)
                     success = True
                     break
                 except Exception as exc:
@@ -254,7 +280,7 @@ async def consume_keycloak_events() -> None:
             # ── Commit offset (always, even on DLQ path) ─────────────────────
             # WHY: Committing after DLQ ensures the partition advances. Without this,
             # a single bad message would halt the entire consumer group forever.
-            processed_events.add(event_id)
+            # NOTE: Redis entry was already created in the idempotency guard (SET NX).
             await consumer.commit()
 
     finally:

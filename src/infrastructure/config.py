@@ -43,6 +43,13 @@ class RedisSettings(BaseModel):
     port: int = Field(default=6379, alias="REDIS__PORT")
 
 
+class CFMSettings(BaseModel):
+    """Configurações para integração com a API do CFM (Conselho Federal de Medicina)."""
+    api_url: HttpUrl = Field(default="https://api.cfm.org.br/v1", alias="CFM_API_URL")
+    api_token: SecretStr = Field(default="mock-token", alias="CFM_API_TOKEN")
+    timeout: int = Field(default=10, alias="CFM_API_TIMEOUT")
+
+
 class AppSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=("env/creds.env", "env/config.env"),
@@ -59,6 +66,7 @@ class AppSettings(BaseSettings):
     db: DatabaseSettings = Field(default_factory=DatabaseSettings)
     redis: RedisSettings = Field(default_factory=RedisSettings)
     rde: RDESettings = Field(default_factory=RDESettings)
+    cfm: CFMSettings = Field(default_factory=CFMSettings)
 
     # Infrastructure & IO
     OUTPUT_FILE: str = Field(default="gercon_consolidado.parquet")

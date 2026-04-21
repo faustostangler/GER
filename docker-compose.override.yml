@@ -1,0 +1,4 @@
+services:
+  postgres-keycloak:
+    ports:
+      - "5433:5432"

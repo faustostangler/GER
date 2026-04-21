@@ -72,3 +72,12 @@ class IDoctorProfileRepository(ABC):
     def save(self, profile: DoctorProfile) -> None:
         """Persist or update a doctor profile."""
         pass
+
+
+class ICFMClient(ABC):
+    """Port for external CRM (Medical Council) validation."""
+
+    @abstractmethod
+    async def validate(self, crm_numero: str, crm_uf: str) -> bool:
+        """Validate CRM registration against the CFM API."""
+        pass

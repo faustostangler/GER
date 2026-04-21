@@ -41,6 +41,9 @@ if [ "$ROLE" = "analytics" ]; then
 elif [ "$ROLE" = "worker" ]; then
     echo "Starting ARQ Worker..."
     exec arq src.infrastructure.queue.worker_settings.WorkerConfig
+elif [ "$ROLE" = "identity-consumer" ]; then
+    echo "Starting Identity Event Consumer..."
+    exec python -m infrastructure.events.keycloak_kafka_consumer
 else
     echo "Error: Unknown ROLE '$ROLE'"
     exit 1

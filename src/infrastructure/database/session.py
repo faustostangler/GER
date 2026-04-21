@@ -15,15 +15,20 @@ db_url = (
 
 # WHY (SRE Fail-Fast constraint): Verify DB reachability on startup. If unreachable,
 # the pod crashes immediately instead of failing silently later during a user request.
-try:
-    engine = create_engine(db_url, pool_pre_ping=True)
-    with engine.connect() as conn:
-        logger.info("✅ Database connection established successfully.")
+if settings.ENVIRONMENT != "testing":
+    try:
+        engine = create_engine(db_url, pool_pre_ping=True)
+        with engine.connect() as conn:
+            logger.info("✅ Database connection established successfully.")
 
-    # Create tables automatically for local dev environments
-    Base.metadata.create_all(bind=engine)
-except Exception as e:
-    logger.critical(f"FATAL: Database is unreachable on startup: {e}")
-    sys.exit(1)
+        # Create tables automatically for local dev environments
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        logger.critical(f"FATAL: Database is unreachable on startup: {e}")
+        sys.exit(1)
+else:
+    # In testing, we don't fail-fast to allow manual mocking of the engine/session
+    logger.info("🧪 Testing environment detected. Skipping DB fail-fast startup check.")
+    engine = create_engine("sqlite:///:memory:")  # Fallback for tests if not mocked
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

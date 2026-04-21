@@ -148,6 +148,28 @@ services:
       - iap-mesh
       - ger-infra-mesh 
 
+  # --- SRE: Main Application Database (SQL Layer for Doctor Profiles) ---
+  db:
+    image: ${POSTGRES_IMAGE_NAME:-postgres}:${POSTGRES_IMAGE_VERSION:-15-alpine}
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_db
+    env_file:
+      - env/creds.env
+      - env/config.env
+    environment:
+      - POSTGRES_USER=${DB__USER:-postgres}
+      - POSTGRES_PASSWORD=${DB__PASSWORD:-postgres}
+      - POSTGRES_DB=${DB__NAME:-fly_ai_db}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - ger-infra-mesh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${DB__USER:-postgres} -d $${DB__NAME:-fly_ai_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
   # ----------------------------------------------------
   # Event Streaming (SOTA Redpanda, Thread-per-core)
   # ----------------------------------------------------
@@ -231,6 +253,32 @@ services:
       - "prometheus.io/scrape=true"
       - "prometheus.io/port=8000"
       - "prometheus.io/path=/metrics"
+
+  identity-consumer:
+    build: .
+    container_name: ${COMPOSE_PROJECT_NAME:-ger}_identity_consumer
+    env_file:
+      - env/creds.env
+      - env/config.env
+    environment:
+      - ROLE=identity-consumer
+    networks:
+      - ger-infra-mesh
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      db:
+        condition: service_healthy
+      redpanda-0:
+        condition: service_healthy
+      redis-queue:
+        condition: service_healthy
+    restart: "on-failure"
+    logging: *default-logging
+    deploy:
+      resources:
+        limits:
+          memory: '512M'
 
   # ----------------------------------------------------
   # Identity Access Management (IAM) - Profile: "iam"
@@ -342,3 +390,5 @@ volumes:
     name: ${COMPOSE_PROJECT_NAME:-ger}_minio_data
   redis_session_data:
     name: ${COMPOSE_PROJECT_NAME:-ger}_redis_session_data
+  db_data:
+    name: ${COMPOSE_PROJECT_NAME:-ger}_db_data
