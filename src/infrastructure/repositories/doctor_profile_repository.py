@@ -2,8 +2,6 @@ import json
 import logging
 from typing import Optional
 
-from sqlalchemy import create_engine, Column, String, Boolean
-from sqlalchemy.orm import sessionmaker, declarative_base
 from sqlalchemy.exc import SQLAlchemyError
 import redis
 
@@ -11,38 +9,20 @@ from application.use_cases.interfaces import IDoctorProfileRepository
 from domain.identity import DoctorProfile, MedicalCouncilRegistration
 from infrastructure.config import settings
 
+# Import the Database Session and declarative models
+from infrastructure.database.session import SessionLocal
+from infrastructure.database.models import DoctorProfileModel
+
 logger = logging.getLogger(__name__)
-
-Base = declarative_base()
-
-class DoctorProfileModel(Base):
-    """PostgreSQL model for DoctorProfile persistence."""
-    __tablename__ = "doctor_profiles"
-
-    user_id = Column(String, primary_key=True)
-    crm_numero = Column(String, nullable=False)
-    crm_uf = Column(String, nullable=False, index=True)
-    crm_verified = Column(Boolean, default=False, nullable=False)
 
 
 class SQLDoctorProfileRepository(IDoctorProfileRepository):
     """PostgreSQL implementation of DoctorProfile repository with Redis write-through cache."""
 
     def __init__(self):
-        # Configure PostgreSQL connection
-        db_url = (
-            f"postgresql://{settings.db.user}:{settings.db.password}@"
-            f"{settings.db.service_name}:{settings.db.internal_port}/{settings.db.name}"
-        )
-        self.engine = create_engine(db_url, pool_pre_ping=True)
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+        # Session is provided by the central database session manager
+        self.SessionLocal = SessionLocal
         
-        # SRE: Ensure table exists (Init-on-startup/Gaffer pattern)
-        try:
-            Base.metadata.create_all(self.engine)
-        except Exception as e:
-            logger.error("Failed to create doctor_profiles table: %s", e)
-
         # Configure Redis cache (Graceful Degradation)
         try:
             self.redis_client = redis.Redis(
@@ -85,12 +65,12 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
         # 2. PostgreSQL Source of Truth
         db = self.SessionLocal()
         try:
-            model = db.query(DoctorProfileModel).filter(DoctorProfileModel.user_id == user_id).first()
+            model = db.query(DoctorProfileModel).filter(DoctorProfileModel.id == user_id).first()
             if not model:
                 return None
             
             profile = DoctorProfile(
-                user_id=model.user_id,
+                user_id=model.id,
                 crm=MedicalCouncilRegistration(
                     crm_numero=model.crm_numero,
                     crm_uf=model.crm_uf
@@ -126,14 +106,14 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
         db = self.SessionLocal()
         try:
             # Atomic UPSERT equivalent
-            model = db.query(DoctorProfileModel).filter(DoctorProfileModel.user_id == profile.user_id).first()
+            model = db.query(DoctorProfileModel).filter(DoctorProfileModel.id == profile.user_id).first()
             if model:
                 model.crm_numero = profile.crm.crm_numero
                 model.crm_uf = profile.crm.crm_uf
                 model.crm_verified = profile.crm_verified
             else:
                 model = DoctorProfileModel(
-                    user_id=profile.user_id,
+                    id=profile.user_id,
                     crm_numero=profile.crm.crm_numero,
                     crm_uf=profile.crm.crm_uf,
                     crm_verified=profile.crm_verified

@@ -43,9 +43,6 @@ class TestThunderingHerdPrevention:
         mock_key = MagicMock()
         mock_key.key = MagicMock()
 
-        http_fetch_count = {"count": 0}
-        fetch_lock = threading.Lock()
-
         def mock_get_signing_key(token):
             """Simulates stale cache: first call always raises, subsequent succeed."""
             from jwt import PyJWKClientError
@@ -53,9 +50,6 @@ class TestThunderingHerdPrevention:
 
         def mock_get_signing_key_after_refresh(token):
             return mock_key
-
-        # We intercept at the PyJWKClient constructor level to count real instantiations
-        original_client_class = jwt_validator.PyJWKClient
 
         instantiation_count = {"n": 0}
         instantiation_lock = threading.Lock()
