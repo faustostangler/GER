@@ -16,6 +16,8 @@
 | **Risk Color** | `entidade_classificacaoRisco_cor` | Clinical urgency classification by colors: RED (emergency) > ORANGE (urgent) > YELLOW (somewhat urgent) > GREEN (non-urgent) > BLUE (elective) > WHITE (unclassified). |
 | **List Source** | `origem_lista` | Type of waiting list in Gercon (e.g., "Awaiting Vacancy", "Scheduled"). |
 | **ICD** | `cid_descricao` | International Classification of Diseases — diagnostic code associated with the request. |
+| **Doctor Profile** | `DoctorProfile` | The core domain entity representing a clinician. The authoritative source for clinical authorization status, storing verified CRM numbers. |
+| **CFM** | `Validação CFM` | Federal Council of Medicine. The external regulatory body API used to verify a physician's CRM status asynchronously. |
 
 ## Temporal Metrics
 
@@ -52,6 +54,8 @@
 | **Firebase Auth (Phase 2)** | GCP-managed identity provider to replace the Password Gate. Supports email/password, Google SSO, and custom claims (CRM, roles). |
 | **Humble Object (UI)** | Architectural pattern where logic is stripped away from the UI code (Streamlit), making it "dumb" and easy to test. Complex assembly logic is moved to Builders. |
 | **Composition Root (Presentation)** | Centralized location (`di_container.py`) where presentation-layer dependencies are resolved and policies are injected into Use Cases. |
+| **Thundering Herd** | SRE vulnerability where multiple concurrent processes experience a cache miss simultaneously, overwhelming the upstream service (e.g., Keycloak JWKS fetch). |
+| **Double-Checked Locking** | Thread-safe concurrency pattern used to prevent the Thundering Herd. A lock is acquired upon a cache miss, and the cache is checked a second time inside the critical section before making expensive network calls. |
 
 ## Business Policy
 

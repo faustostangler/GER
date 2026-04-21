@@ -1,8 +1,35 @@
+"""Kafka consumer for Keycloak USER_REGISTERED events.
+
+WHY (DDD / Event-Driven Authorization): Keycloak handles password authentication
+(Identity). This consumer handles CRM verification (Domain Authorization), triggered
+by the USER_REGISTERED event emitted by the Keycloak SPI Event Listener.
+
+Pipeline:
+  Keycloak SPI → Redpanda topic ``keycloak.events.register``
+    → consume_keycloak_events()
+      → validate_cfm_api() (CFM mock / real integration)
+        → save DoctorProfile(crm_verified=True) to domain store
+          → jwt_validator can now authorize the user on next API call
+
+SRE Resilience:
+  - Idempotency: processed_events set prevents double-processing on rebalance.
+  - DLQ: unrecoverable events (poison pills, CFM timeouts) are forwarded to
+    ``keycloak.events.dlq`` with the original payload + error for post-mortem.
+  - Manual commit: offset is committed AFTER DoctorProfile persistence OR DLQ
+    forwarding, never silently skipped, to prevent partition stalls.
+  - Exponential backoff: up to 3 retries with 2^n second delays before DLQ.
+
+Ref: docs/adr/ADR-006-iam-zero-trust-crm-authorization.md
+"""
 import asyncio
 import json
 import logging
+from typing import Optional
+
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
+
 from infrastructure.config import settings
+from domain.identity import DoctorProfile, MedicalCouncilRegistration
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("keycloak_events_consumer")
@@ -11,37 +38,156 @@ KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_URL
 KEYCLOAK_EVENTS_TOPIC = "keycloak.events.register"
 KEYCLOAK_EVENTS_DLQ = "keycloak.events.dlq"
 
-# Mocked Idempotency Store (e.g. DuckDB/SQLite or Redis)
-processed_events = set()
+# WHY (in-process idempotency): Prevents re-processing the same event_id if
+# Kafka redelivers a message after a rebalance or container restart.
+# Production upgrade: replace with Redis SET or PostgreSQL UNIQUE constraint.
+# TODO(ADR-006): Migrate idempotency store to Redis for cross-replica safety.
+processed_events: set[str] = set()
 
-# Global DLQ Producer (Long-lived connection to avoid Socket Exhaustion)
-dlq_producer: AIOKafkaProducer = None
+# WHY (long-lived producer): Creating a new AIOKafkaProducer per DLQ message
+# would exhaust TCP sockets under load (socket exhaustion). One shared producer
+# per consumer lifecycle is the correct pattern.
+dlq_producer: Optional[AIOKafkaProducer] = None
 
 
 def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
+    """Validate CRM registration against the CFM (Conselho Federal de Medicina) API.
+
+    WHY (ACL boundary): This function is the Anti-Corruption Layer between our domain
+    and the external CFM registry. All API-specific error handling and retries are
+    encapsulated here; the consumer only receives a bool or an exception.
+
+    Args:
+        crm_numero: CRM registration number (digits only).
+        crm_uf:     Federation unit (2-letter uppercase string).
+
+    Returns:
+        bool: True if CFM confirms the registration is active and valid.
+
+    Raises:
+        ConnectionError: On network timeout or CFM API unavailability.
+        ValueError:      If CFM returns an invalid/malformed response.
+
+    TODO(ADR-006): Replace simulation with real HTTPX call to CFM REST API.
     """
-    Simula uma chamada de rede para validação na API do CFM.
-    Se falhar (timeout ou erro 500), lançamos Exception para testar o DLQ.
-    """
-    # Exemplo simulado - lança exceção em caso de indisponibilidade
-    if crm_numero == "00000":  # Simulando um Poison Pill / Falha de Rede
+    # ACL: simulate a "poison pill" CRM that always fails (for DLQ testing).
+    if crm_numero == "00000":
         raise ConnectionError("Timeout na API do CFM")
     return True
 
 
-async def send_to_dlq(payload: dict, error_msg: str):
+async def _persist_doctor_profile(profile: DoctorProfile) -> None:
+    """Persist a verified DoctorProfile to the domain store.
+
+    WHY (Port): This is the write-side Port for the domain store. The consumer
+    pipeline is the ONLY component that may set crm_verified=True.
+
+    Args:
+        profile: Fully constructed DoctorProfile with crm_verified=True.
+
+    TODO(ADR-006): Inject IDoctorProfileRepository and call .save(profile).
+    The repository must be backed by PostgreSQL with a Redis write-through cache
+    so that jwt_validator's _lookup_doctor_profile gets sub-millisecond reads.
+    """
+    # Stub: log the persistence intent until the real repository is injected.
+    logger.info(
+        "DoctorProfile persisted (stub): user_id=%s crm=%s/%s crm_verified=%s",
+        profile.user_id,
+        profile.crm.crm_numero,
+        profile.crm.crm_uf,
+        profile.crm_verified,
+    )
+    # Production: await doctor_profile_repo.save(profile)
+
+
+async def send_to_dlq(payload: dict, error_msg: str) -> None:
+    """Forward an unprocessable event to the Dead Letter Queue for post-mortem analysis.
+
+    Args:
+        payload:   Original event payload that could not be processed.
+        error_msg: Human-readable description of the failure cause.
+    """
     global dlq_producer
     dead_letter = {"original_payload": payload, "error": error_msg}
     await dlq_producer.send_and_wait(
         KEYCLOAK_EVENTS_DLQ, json.dumps(dead_letter).encode("utf-8")
     )
-    logger.error(f"Mensagem enviada para DLQ. Erro: {error_msg}")
+    logger.error("Event forwarded to DLQ. Cause: %s", error_msg)
 
 
-async def consume_keycloak_events():
+async def _process_register_event(event_data: dict) -> None:
+    """Process a single USER_REGISTERED event from the Keycloak SPI.
+
+    Extracts CRM fields from the event details, runs CFM validation,
+    and persists a DoctorProfile(crm_verified=True) if validation succeeds.
+
+    WHY (extracted function): Separating event parsing from consumer lifecycle
+    (start/stop, commit) makes this logic independently testable without a
+    running Kafka broker — a Chaos Engineering priority.
+
+    Args:
+        event_data: Decoded JSON payload from the Keycloak SPI event message.
+
+    Raises:
+        ValueError:      If CRM fields are absent or malformed.
+        ConnectionError: If CFM API is unreachable after max_retries.
+    """
+    user_id: str = event_data.get("userId", "")
+    details: dict = event_data.get("details", {})
+    crm_numero: Optional[str] = details.get("crm_numero")
+    crm_uf: Optional[str] = details.get("crm_uf")
+
+    if not crm_numero or not crm_uf:
+        raise ValueError(
+            f"Missing CRM fields in USER_REGISTERED event for user_id={user_id}. "
+            "Event sent to DLQ for manual review."
+        )
+
+    # Construct and validate the VO early — fail fast before hitting the network.
+    # WHY: MedicalCouncilRegistration validators (digits-only, 2-letter UF) run
+    # at construction time. A malformed CRM from Keycloak is caught here, not
+    # silently stored as garbage in the domain store.
+    crm_registration = MedicalCouncilRegistration(
+        crm_numero=crm_numero, crm_uf=crm_uf
+    )
+
+    logger.info(
+        "Starting async CFM validation for user_id=%s CRM=%s/%s",
+        user_id,
+        crm_numero,
+        crm_uf,
+    )
+
+    is_valid = validate_cfm_api(crm_registration.crm_numero, crm_registration.crm_uf)
+
+    if is_valid:
+        # Domain authorization: only the consumer pipeline sets crm_verified=True.
+        profile = DoctorProfile(
+            user_id=user_id,
+            crm=crm_registration,
+            crm_verified=True,
+        )
+        await _persist_doctor_profile(profile)
+        logger.info(
+            "CRM %s/%s verified and DoctorProfile persisted for user_id=%s.",
+            crm_numero,
+            crm_uf,
+            user_id,
+        )
+
+
+async def consume_keycloak_events() -> None:
+    """Async entry point for the Keycloak USER_REGISTERED event consumer.
+
+    Lifecycle:
+      1. Start DLQ producer (long-lived — one connection per consumer process).
+      2. Subscribe to ``keycloak.events.register`` topic.
+      3. For each message: idempotency check → type filter → process → commit.
+      4. On unrecoverable failure: forward to DLQ → commit (no partition stall).
+    """
     global dlq_producer
 
-    # 1. Inicie o Producer da DLQ uma ÚNICA vez no ciclo de vida
+    # Long-lived DLQ producer — started once, closed in the finally block.
     dlq_producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS)
     await dlq_producer.start()
 
@@ -49,65 +195,61 @@ async def consume_keycloak_events():
         KEYCLOAK_EVENTS_TOPIC,
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         group_id="gercon_identity_group",
-        enable_auto_commit=False,  # Controle manual para DLQ e Idempotência
+        # WHY (manual commit): Offsets are committed AFTER DoctorProfile persistence
+        # or DLQ forwarding. Auto-commit risks losing events if the process crashes
+        # between poll() and processing — the "at-least-once" SRE guarantee.
+        enable_auto_commit=False,
     )
 
     await consumer.start()
-    logger.info("Kafka Consumer iniciado, aguardando eventos do Keycloak SPI...")
+    logger.info("Kafka Consumer started — awaiting Keycloak SPI events.")
 
     try:
         async for msg in consumer:
-            event_data = json.loads(msg.value.decode("utf-8"))
-            event_id = event_data.get("id")
+            event_data: dict = json.loads(msg.value.decode("utf-8"))
+            event_id: Optional[str] = event_data.get("id")
 
-            # 1. Idempotency Check
+            # ── Idempotency guard ─────────────────────────────────────────────
             if event_id in processed_events:
-                logger.info(f"Evento {event_id} já processado. Ignorando.")
+                logger.info("Event %s already processed — skipping (idempotency).", event_id)
                 await consumer.commit()
                 continue
 
-            event_type = event_data.get("type")
+            event_type: str = event_data.get("type", "")
             if event_type != "REGISTER":
-                # Apenas nos importamos com registros para este Bounded Context
+                # Only REGISTER events are relevant to this Bounded Context.
                 await consumer.commit()
                 continue
 
-            user_id = event_data.get("userId")
-            details = event_data.get("details", {})
-            crm_numero = details.get("crm_numero")
-            crm_uf = details.get("crm_uf")
-
-            logger.info(
-                f"Iniciando validação de CFM via evento assíncrono para o usuário {user_id}"
-            )
-
-            # 2. Processamento com Resiliência e DLQ
+            # ── Processing with retry + DLQ ───────────────────────────────────
             max_retries = 3
             success = False
+
             for attempt in range(max_retries):
                 try:
-                    if crm_numero and crm_uf:
-                        is_valid = validate_cfm_api(crm_numero, crm_uf)
-                        if is_valid:
-                            logger.info(
-                                f"CRM {crm_numero}/{crm_uf} validado com sucesso para {user_id}. Criando DoctorProfile."
-                            )
-                            # TODO: Criar DoctorProfile no Banco Principal
+                    await _process_register_event(event_data)
                     success = True
                     break
-                except Exception as e:
+                except Exception as exc:
                     logger.warning(
-                        f"Tentativa {attempt + 1} falhou para o evento {event_id}: {e}"
+                        "Attempt %d/%d failed for event %s: %s",
+                        attempt + 1,
+                        max_retries,
+                        event_id,
+                        exc,
                     )
-                    await asyncio.sleep(2**attempt)  # Exponential backoff
+                    if attempt < max_retries - 1:
+                        await asyncio.sleep(2**attempt)  # Exponential backoff
 
             if not success:
-                # 3. Dead Letter Queue Pattern
                 await send_to_dlq(
-                    event_data, "Falha de processamento final após retries."
+                    event_data,
+                    f"Processing failed after {max_retries} retries — sent to DLQ.",
                 )
 
-            # 4. Commit Offset (Mesmo se for para DLQ, a partição não deve travar)
+            # ── Commit offset (always, even on DLQ path) ─────────────────────
+            # WHY: Committing after DLQ ensures the partition advances. Without this,
+            # a single bad message would halt the entire consumer group forever.
             processed_events.add(event_id)
             await consumer.commit()
 

@@ -9,10 +9,20 @@ from application.use_cases.interfaces import IIdentityService
 from infrastructure.auth.token_acl import ValidatedUserToken
 
 class MockIdentityAdapter(IIdentityService):
+    """Dev-only identity adapter. Bypasses JWT validation and CRM DB lookup entirely.
+
+    WHY: In local development there is no Keycloak and no DoctorProfile DB.
+    The mock produces a stable ValidatedUserToken with a pre-verified CRM so the
+    Presentation layer has a consistent identity without infrastructure dependencies.
+    CRM fields are hardcoded here — NOT sourced from a JWT claim or DB.
+    """
+
     def get_current_user(self) -> ValidatedUserToken:
         if self.is_authenticated():
             return st.session_state.user
 
+        # WHY: crm_numero and crm_uf are explicit dev constants, not JWT claims.
+        # This mirrors what jwt_validator returns in production after DoctorProfile lookup.
         mock_user = ValidatedUserToken(
             sub="dev-id-123",
             email="dev@gercon.com",
@@ -26,6 +36,7 @@ class MockIdentityAdapter(IIdentityService):
         st.session_state.raw_jwt = "mock-jwt-token"
         st.session_state.token_exp = mock_user.exp
         st.rerun()
+
 
     def get_logout_url(self) -> Optional[str]:
         return None
