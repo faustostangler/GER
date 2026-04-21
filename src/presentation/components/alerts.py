@@ -64,3 +64,45 @@ def render_amber_alert(kpis, policy) -> None:
 
     # --- State 3: Data is fresh — no banner rendered (happy path) ---
 
+
+def render_auth_violation_alert(exception: Exception) -> None:
+    """Renders a premium clinical access denial gate for unverified doctors.
+
+    WHY (Zero-Trust UI): Provides clear guidance when authentication succeeds but
+    domain authorization (CRM verification) fails. Instead of a generic 403,
+    the clinician receives a high-fidelity explanation with their context.
+    """
+    crm_raw = getattr(exception, "crm_raw", "Não identificado")
+    user_id = getattr(exception, "user_id", "Desconhecido")
+
+    st.markdown(
+        f"""
+        <div class="auth-violation-container">
+            <div class="auth-violation-header">
+                <span class="auth-violation-icon">🔐</span>
+                <div class="auth-violation-title">Acesso Clínico Bloqueado</div>
+            </div>
+            <div class="auth-violation-body">
+                <p>Identidade confirmada, mas seu <b>perfil profissional ainda não possui autorização</b> para este módulo.</p>
+                <div class="auth-violation-meta">
+                    <b>Subject ID:</b> <code>{user_id}</code><br>
+                    <b>CRM Detectado:</b> <code>{crm_raw}</code>
+                </div>
+                <div class="auth-violation-reasons">
+                    <b>Possíveis causas:</b>
+                    <ul>
+                        <li>Seu cadastro é novo e ainda está sendo validado pelo CFM.</li>
+                        <li>Houve uma falha na sincronização do seu CRM com o Keycloak.</li>
+                        <li>Sua licença médica está inativa ou suspensa.</li>
+                    </ul>
+                </div>
+                <hr style="border: 0; border-top: 1px solid rgba(239, 68, 68, 0.2); margin: 20px 0;">
+                <p style="font-size: 0.85rem; opacity: 0.8;">
+                    <i>Security Protocol: Zero-Trust CRM Authorization (ADR-006).</i>
+                </p>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+

@@ -1,7 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import List, Any, Tuple
+from typing import List, Any, Tuple, Optional
 from domain.models import AnalyticKPIs
 from domain.specifications import Specification
+from domain.identity import DoctorProfile
 from infrastructure.auth.token_acl import ValidatedUserToken
 import pandas as pd
 
@@ -56,4 +57,18 @@ class IIdentityService(ABC):
 
     @abstractmethod
     def is_authenticated(self) -> bool:
+        pass
+
+
+class IDoctorProfileRepository(ABC):
+    """Port for DoctorProfile persistence and lookup."""
+
+    @abstractmethod
+    def find_by_user_id(self, user_id: str) -> Optional[DoctorProfile]:
+        """Lookup a doctor profile by their Keycloak UUID (sub)."""
+        pass
+
+    @abstractmethod
+    def save(self, profile: DoctorProfile) -> None:
+        """Persist or update a doctor profile."""
         pass

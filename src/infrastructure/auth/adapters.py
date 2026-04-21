@@ -191,6 +191,13 @@ class IAPIdentityAdapter(IIdentityService):
             )
             st.rerun()
         except Exception as _auth_err:
+            from domain.identity import IdentityContractViolationException
+            from presentation.components.alerts import render_auth_violation_alert
+
+            if isinstance(_auth_err, IdentityContractViolationException):
+                render_auth_violation_alert(_auth_err)
+                st.stop()
+
             st.error("🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade.")
             st.markdown(
                 '''

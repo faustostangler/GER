@@ -130,7 +130,6 @@ class TestCRMAuthorizationGate:
         Post-refactoring, the authoritative source of CRM truth is our DoctorProfile DB,
         not the JWT claim. This test fails if any code path reads crm from the token.
         """
-        import ast
         import pathlib
 
         validator_src = pathlib.Path(

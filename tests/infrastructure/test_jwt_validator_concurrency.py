@@ -13,8 +13,7 @@ Expected behavior with the fix:
 """
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from unittest.mock import MagicMock, patch, call
-import pytest
+from unittest.mock import MagicMock, patch
 
 
 class TestThunderingHerdPrevention:

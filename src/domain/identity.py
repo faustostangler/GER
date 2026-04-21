@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 import re
+from typing import Optional
 
 
 class MedicalCouncilRegistration(BaseModel):
@@ -76,3 +77,12 @@ class DoctorProfile(BaseModel):
                   False in all other states (pending, rejected, or unknown).
         """
         return self.crm_verified
+
+
+class IdentityContractViolationException(Exception):
+    """Exception raised when a user is authenticated but does not possess a verified CRM."""
+
+    def __init__(self, message: str, user_id: str, crm_raw: Optional[str] = None):
+        super().__init__(message)
+        self.user_id = user_id
+        self.crm_raw = crm_raw

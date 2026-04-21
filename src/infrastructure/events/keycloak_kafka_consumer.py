@@ -30,6 +30,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from infrastructure.config import settings
 from domain.identity import DoctorProfile, MedicalCouncilRegistration
+from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("keycloak_events_consumer")
@@ -76,28 +77,31 @@ def validate_cfm_api(crm_numero: str, crm_uf: str) -> bool:
     return True
 
 
-async def _persist_doctor_profile(profile: DoctorProfile) -> None:
-    """Persist a verified DoctorProfile to the domain store.
+# Global repository instance
+_doctor_profile_repo = SQLDoctorProfileRepository()
 
-    WHY (Port): This is the write-side Port for the domain store. The consumer
-    pipeline is the ONLY component that may set crm_verified=True.
+
+async def _persist_doctor_profile(profile: DoctorProfile) -> None:
+    """Persist a verified DoctorProfile to the domain store via PostgreSQL/Redis.
+
+    WHY (SOTA Persistence): delegates to the SQLDoctorProfileRepository which implements
+    the write-through cache pattern (SQL commit + Redis update). Wrapping in
+    asyncio.to_thread ensures the background worker remains responsive during I/O.
 
     Args:
         profile: Fully constructed DoctorProfile with crm_verified=True.
-
-    TODO(ADR-006): Inject IDoctorProfileRepository and call .save(profile).
-    The repository must be backed by PostgreSQL with a Redis write-through cache
-    so that jwt_validator's _lookup_doctor_profile gets sub-millisecond reads.
     """
-    # Stub: log the persistence intent until the real repository is injected.
-    logger.info(
-        "DoctorProfile persisted (stub): user_id=%s crm=%s/%s crm_verified=%s",
-        profile.user_id,
-        profile.crm.crm_numero,
-        profile.crm.crm_uf,
-        profile.crm_verified,
-    )
-    # Production: await doctor_profile_repo.save(profile)
+    try:
+        await asyncio.to_thread(_doctor_profile_repo.save, profile)
+        logger.info(
+            "DoctorProfile successfully persisted for user_id=%s (CRM %s/%s).",
+            profile.user_id,
+            profile.crm.crm_numero,
+            profile.crm.crm_uf,
+        )
+    except Exception as e:
+        logger.error("Critical failure during DoctorProfile persistence: %s", e)
+        raise
 
 
 async def send_to_dlq(payload: dict, error_msg: str) -> None:
