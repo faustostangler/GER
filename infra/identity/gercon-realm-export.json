@@ -56,6 +56,15 @@
         "attributes": {}
       },
       {
+        "id": "81f472ff-f74c-40c8-b699-63d6ca58a784",
+        "name": "clinical_viewer",
+        "description": "Médico usuário do Gercon",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "81f15d05-4c0d-485e-943c-a14cd74f77b9",
+        "attributes": {}
+      },
+      {
         "id": "81066c2c-382e-45e5-8356-2621ed48185f",
         "name": "default-roles-gercon-realm",
         "description": "${role_default-roles}",
@@ -249,11 +258,11 @@
                 "view-clients",
                 "manage-identity-providers",
                 "query-realms",
-                "manage-realm",
                 "view-realm",
-                "create-client",
+                "manage-realm",
                 "manage-events",
                 "query-users",
+                "create-client",
                 "view-identity-providers"
               ]
             }
@@ -702,12 +711,12 @@
           "protocolMapper": "oidc-audience-mapper",
           "consentRequired": false,
           "config": {
-            "id.token.claim": "true",
-            "lightweight.claim": "false",
             "introspection.token.claim": "true",
             "included.custom.audience": "gercon-analytics",
-            "access.token.claim": "true",
-            "userinfo.token.claim": "true"
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "lightweight.claim": "false",
+            "access.token.claim": "true"
           }
         },
         {
@@ -741,6 +750,23 @@
             "lightweight.claim": "false",
             "access.token.claim": "true",
             "claim.name": "crm_uf",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "id": "b85a22ce-de06-4192-ab00-379d08e93643",
+          "name": "Realm Roles Mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "lightweight.claim": "false",
+            "access.token.claim": "true",
+            "claim.name": "roles",
             "jsonType.label": "String"
           }
         }
@@ -1504,13 +1530,13 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-property-mapper",
-            "oidc-full-name-mapper",
-            "oidc-sha256-pairwise-sub-mapper",
-            "oidc-usermodel-attribute-mapper",
             "saml-role-list-mapper",
             "oidc-address-mapper",
+            "oidc-usermodel-attribute-mapper",
             "saml-user-attribute-mapper",
+            "oidc-full-name-mapper",
+            "oidc-usermodel-property-mapper",
+            "oidc-sha256-pairwise-sub-mapper",
             "saml-user-property-mapper"
           ]
         }
@@ -1523,14 +1549,14 @@
         "subComponents": {},
         "config": {
           "allowed-protocol-mapper-types": [
-            "oidc-usermodel-property-mapper",
             "oidc-sha256-pairwise-sub-mapper",
-            "oidc-address-mapper",
-            "saml-role-list-mapper",
             "oidc-usermodel-attribute-mapper",
+            "oidc-full-name-mapper",
+            "oidc-address-mapper",
             "saml-user-property-mapper",
+            "oidc-usermodel-property-mapper",
             "saml-user-attribute-mapper",
-            "oidc-full-name-mapper"
+            "saml-role-list-mapper"
           ]
         }
       },
@@ -2264,7 +2290,7 @@
     "cibaInterval": "5",
     "realmReusableOtpCode": "false"
   },
-  "keycloakVersion": "24.0.0",
+  "keycloakVersion": "24.0.2",
   "userManagedAccessAllowed": false,
   "clientProfiles": {
     "profiles": []
