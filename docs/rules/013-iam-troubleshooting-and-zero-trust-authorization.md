@@ -35,13 +35,19 @@ The GER system utilizes a sophisticated IAM stack involving Keycloak, OAuth2-Pro
 *   **Diagnostic Protocol**:
     1.  Get the `sub` ID from the error message.
     2.  Check the application database: `SELECT * FROM doctor_profiles WHERE id = 'SUB_ID';`.
-    3.  If missing, the Kafka ingestion pipeline failed or the user was created before the Zero-Trust implementation.
-*   **Resolution**: Manually verify and insert the profile to unblock access:
+    3.  If missing, check if the user was part of a `realm-export.json` import (which bypasses the Kafka SPI events) or if the Kafka consumer logs show a CFM validation failure.
+*   **Resolution (Manual Intervention)**: Manually verify and insert the profile to unblock access:
     ```sql
     INSERT INTO doctor_profiles (id, crm_numero, crm_uf, crm_verified) 
     VALUES ('SUB_ID', 'CRM_NUMBER', 'UF', true);
     ```
 
-## 4. Observability and Sentry
+## 4. Synchronization Gaps (Imports vs Events)
+**Context**: The `keycloak_kafka_consumer` only reacts to real-time `USER_REGISTERED` events.
+*   **The Gap**: Users imported via the `realm-export.json` during Keycloak's `--import-realm` bootstrap DO NOT trigger Kafka events.
+*   **Constraint**: Every user imported manually or via IaC must have a corresponding entry manually created in the `doctor_profiles` table if they are to be used immediately for clinical modules.
+*   **Future Mitigation**: A migration script or a startup sync task should be considered to reconcile Keycloak users with the `DoctorProfile` store.
+
+## 5. Observability and Sentry
 *   **Release Tagging**: Always ensure `GIT_SHA` is injected during builds for Sentry correlation.
 *   **PII Filtering**: Breadcrumbs must redact SQL queries containing patient PII to remain LGPD compliant.
