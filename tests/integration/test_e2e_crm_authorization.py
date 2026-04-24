@@ -30,13 +30,12 @@ import infrastructure.repositories.doctor_profile_repository  # noqa: E402
 infrastructure.repositories.doctor_profile_repository.SessionLocal = SessionLocal
 
 from infrastructure.database.models import Base  # noqa: E402
-from infrastructure.repositories.doctor_profile_repository import (
+from infrastructure.repositories.doctor_profile_repository import (  # noqa: E402
     SQLDoctorProfileRepository,
 )  # noqa: E402
 from infrastructure.events.keycloak_kafka_consumer import _process_register_event  # noqa: E402
-from infrastructure.auth.jwt_validator import (
+from infrastructure.auth.jwt_validator import (  # noqa: E402
     verify_token,
-    IdentityContractViolationException,
 )  # noqa: E402
 import infrastructure.auth.jwt_validator as jwt_validator  # noqa: E402
 

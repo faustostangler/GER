@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -10,7 +11,6 @@ import pytest  # noqa: E402
 
 import numpy  # noqa: E402, F401
 import pandas  # noqa: E402, F401
-import os
 
 # --- SRE: CRITICAL ENVIRONMENT INITIALIZATION ---
 # WHY: These must be set BEFORE any infrastructure modules are imported during

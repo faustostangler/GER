@@ -1,8 +1,6 @@
 import os
 import subprocess
 import pytest
-import httpx
-from tenacity import AsyncRetrying, wait_fixed, stop_after_attempt
 from playwright.async_api import async_playwright, expect
 
 # WHY: Standardize on async but avoid pytest-playwright fixture conflicts
