@@ -1,4 +1,3 @@
-import asyncio
 import json
 import uuid
 import pytest
@@ -9,7 +8,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
-from infrastructure.events.keycloak_kafka_consumer import consume_keycloak_events, KEYCLOAK_EVENTS_DLQ
+from infrastructure.events.keycloak_kafka_consumer import consume_keycloak_events  # noqa: E402
 
 @pytest.mark.asyncio
 async def test_consumer_forwards_to_dlq_after_max_retries():

@@ -28,6 +28,8 @@ from typing import Optional
 
 from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
+import redis.asyncio as redis
+
 from infrastructure.config import settings
 from domain.identity import DoctorProfile, MedicalCouncilRegistration
 from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository
@@ -40,8 +42,6 @@ logger = logging.getLogger("keycloak_events_consumer")
 KAFKA_BOOTSTRAP_SERVERS = settings.KAFKA_URL
 KEYCLOAK_EVENTS_TOPIC = "keycloak.events.register"
 KEYCLOAK_EVENTS_DLQ = "keycloak.events.dlq"
-
-import redis.asyncio as redis
 
 # Global Redis client for async operations
 _redis_client = redis.Redis(

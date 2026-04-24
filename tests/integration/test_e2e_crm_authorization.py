@@ -1,5 +1,3 @@
-import asyncio
-import json
 import uuid
 import pytest
 from unittest.mock import patch, MagicMock, AsyncMock
@@ -19,19 +17,20 @@ engine = create_engine(TEST_DB_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine)
 
 # 2. Force Patch modules
-import infrastructure.database.session
+# WHY (E402): These imports MUST come after sys.path manipulation and module
+# patching to ensure the test SQLite engine replaces the production session.
+import infrastructure.database.session  # noqa: E402
 infrastructure.database.session.SessionLocal = SessionLocal
 infrastructure.database.session.engine = engine
 
-import infrastructure.repositories.doctor_profile_repository
+import infrastructure.repositories.doctor_profile_repository  # noqa: E402
 infrastructure.repositories.doctor_profile_repository.SessionLocal = SessionLocal
 
-from infrastructure.database.models import DoctorProfileModel, Base
-from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository
-from infrastructure.events.keycloak_kafka_consumer import _process_register_event
-from infrastructure.auth.jwt_validator import verify_token, IdentityContractViolationException
-import infrastructure.auth.jwt_validator as jwt_validator
-from domain.identity import DoctorProfile
+from infrastructure.database.models import Base  # noqa: E402
+from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository  # noqa: E402
+from infrastructure.events.keycloak_kafka_consumer import _process_register_event  # noqa: E402
+from infrastructure.auth.jwt_validator import verify_token, IdentityContractViolationException  # noqa: E402
+import infrastructure.auth.jwt_validator as jwt_validator  # noqa: E402
 
 # We'll use the pytest-asyncio to run async tests
 pytestmark = pytest.mark.asyncio
