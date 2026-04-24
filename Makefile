@@ -40,8 +40,10 @@ help:
 # env_file: só injeta vars nos containers em runtime — NÃO serve para interpolação YAML.
 # FLUXO: edite env/compose.env → execute `make env` → execute `make up-iam`
 env:
+	@echo "Creating .env from env/compose.env..."
 	@cp env/compose.env .env
-	@echo "✅ .env gerado a partir de env/compose.env (EXTERNAL_DOMAIN=$$(grep ^EXTERNAL_DOMAIN env/compose.env | cut -d= -f2))"
+	@cat env/config.env >> .env || true # Append app config if separate
+	@echo "✅ .env gerado com sucesso (SSOT)."
 
 # SRE: Inicia apenas a base da identidade para permitir a configuração manual inicial
 bootstrap:

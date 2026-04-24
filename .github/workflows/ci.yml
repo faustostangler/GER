@@ -59,92 +59,40 @@ jobs:
 
       - name: ⚙️ Setup Mock Environment (.env)
         run: |
-          # 1. Fallbacks Vitais para o docker-compose.yml (Sistema)
-          touch .env
+          # 1. Initialize .env from SSOT (Single Source of Truth)
+          # Isso gera o .env a partir de env/compose.env + env/config.env
+          make env
+          
+          # 2. CI Overrides (Ajustes específicos para o runner efêmero)
           echo "COMPOSE_PROJECT_NAME=ger-ci" >> .env
-          echo "HEALTHCHECK_RETRIES=3" >> .env
-          echo "HEALTHCHECK_INTERVAL=30s" >> .env
-          echo "HEALTHCHECK_TIMEOUT=10s" >> .env
           echo "DOCKER_RESTART_POLICY=no" >> .env
-          echo "DOCKER_LOG_MAX_SIZE=10m" >> .env
-          echo "DOCKER_LOG_MAX_FILE=3" >> .env
-          echo "ANALYTICS_SERVICE_NAME=analytics-ci" >> .env
-          echo "ANALYTICS_MEM_LIMIT=2G" >> .env
-          echo "ANALYTICS_MEM_RESERVATION=512M" >> .env
           echo "RDE_ACCESS_TOKEN=mock-token-ci" >> .env
-          # SRE FIX: Vacinando o Keycloak contra URLs vazias e definindo o DB
-          echo "POSTGRES_DB=keycloak" >> .env
-          echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> .env
-          echo "KEYCLOAK_EXTERNAL_PORT=8080" >> .env
-          echo "KEYCLOAK_INTERNAL_PORT=8080" >> .env
-          echo "DOCKER_BIND_IP=127.0.0.1" >> .env
-          # SRE FIX 5: Variáveis de Identidade do Keycloak (KC_HOSTNAME_URL)
-          # Sem estas, docker-compose interpola KC_HOSTNAME_URL como "://:8080" → Keycloak exit(1)
-          echo "PROTOCOL=http" >> .env
-          echo "PROJECT_DOMAIN=127.0.0.1.nip.io" >> .env
-          echo "IAM_SUBDOMAIN=iam.127.0.0.1.nip.io" >> .env
-          echo "KEYCLOAK_REALM=gercon-realm" >> .env
 
-          # 2. Arquivos de Credenciais para DENTRO dos Containers (env_file)
+          # 3. MOCK: env/creds.env (Segredos ignorados pelo Git)
           mkdir -p env
-          
-          # MOCK: env/creds.env (Segredos)
-          touch env/creds.env
-          echo "POSTGRES_USER=postgres" >> env/creds.env
-          echo "POSTGRES_PASSWORD=postgres" >> env/creds.env
-          echo "POSTGRES_DB=keycloak" >> env/creds.env
-          echo "KEYCLOAK_ADMIN=admin" >> env/creds.env
-          echo "KEYCLOAK_ADMIN_PASSWORD=admin" >> env/creds.env
-          
-          # --- SRE FIX 1: Variáveis Ocultas do Keycloak Quarkus ---
-          echo "KC_DB_USERNAME=postgres" >> env/creds.env
-          echo "KC_DB_PASSWORD=postgres" >> env/creds.env
+          cat <<EOF > env/creds.env
+          POSTGRES_USER=postgres
+          POSTGRES_PASSWORD=postgres
+          POSTGRES_DB=keycloak
+          KEYCLOAK_ADMIN=admin
+          KEYCLOAK_ADMIN_PASSWORD=admin
+          KC_DB_USERNAME=postgres
+          KC_DB_PASSWORD=postgres
+          OAUTH2_PROXY_COOKIE_SECRET=MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=
+          OAUTH2_PROXY_CLIENT_ID=gercon-analytics
+          OAUTH2_PROXY_CLIENT_SECRET=change-me
+          ENVIRONMENT=dev
+          PORT=8501
+          REDIS__HOST=redis-queue
+          REDIS_QUEUE_HOST=redis-queue
+          EOF
 
-          # --- SRE FIX 3: Variáveis Vitais do OAUTH2-PROXY (Segredos) ---
-          # O Cookie Secret precisa ser um base64 de 32 bytes
-          echo "OAUTH2_PROXY_COOKIE_SECRET=MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI=" >> env/creds.env
-          echo "OAUTH2_PROXY_CLIENT_ID=gercon-analytics" >> env/creds.env
-          echo "OAUTH2_PROXY_CLIENT_SECRET=change-me" >> env/creds.env
-          
-          # 3. SRE FIX: Forçando Identidade Dev e DNS Correto do Redis
-          echo "ENVIRONMENT=dev" >> env/creds.env
-          echo "PORT=8501" >> env/creds.env
-          # O DNS interno do Docker Compose resolve pelo nome do serviço
-          echo "REDIS__HOST=redis-queue" >> env/creds.env
-          echo "REDIS_QUEUE_HOST=redis-queue" >> env/creds.env
-
-          # MOCK: env/config.env (Configurações não sensíveis)
-          touch env/config.env
-          echo "EXTERNAL_DOMAIN=127.0.0.1.nip.io" >> env/config.env
-          echo "KEYCLOAK_EXTERNAL_PORT=8080" >> env/config.env
-          echo "KEYCLOAK_INTERNAL_PORT=8080" >> env/config.env
-          echo "KEYCLOAK_REALM=gercon-realm" >> env/config.env
-          echo "OAUTH2_PROXY_INTERNAL_PORT=4180" >> env/config.env
-          echo "OAUTH2_PROXY_EXTERNAL_PORT=4180" >> env/config.env
-          echo "OAUTH2_PROXY_UPSTREAMS=http://router:80" >> env/config.env
-          echo "OAUTH2_PROXY_COOKIE_SECURE=false" >> env/config.env
-          echo "IAP_NETWORK_NAME=iap-mesh" >> env/config.env
-          echo "INFRA_NETWORK_NAME=infra-mesh" >> env/config.env
-          echo "DOCKER_BIND_IP=127.0.0.1" >> env/config.env
-          echo "SERVICE_TYPE=analytics" >> env/config.env
-          echo "MES_COMERCIAL_DIAS=30" >> env/config.env
-          echo "DATA_SLA_THRESHOLD=2.0" >> env/config.env
-
-          # Variáveis de Split-Horizon DNS (Comunicação do Proxy com o Keycloak no CI)
-          echo "OAUTH2_PROXY_OIDC_ISSUER_URL=http://127.0.0.1.nip.io:8080/realms/gercon-realm" >> env/config.env
-          echo "OAUTH2_PROXY_LOGIN_URL=http://127.0.0.1.nip.io:8080/realms/gercon-realm/protocol/openid-connect/auth" >> env/config.env
-          # URLs Internas (Proxy -> Keycloak direto pela rede do Docker)
-          echo "OAUTH2_PROXY_REDEEM_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/token" >> env/config.env
-          echo "OAUTH2_PROXY_JWKS_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/certs" >> env/config.env
-          echo "OAUTH2_PROXY_VALIDATE_URL=http://keycloak:8080/realms/gercon-realm/protocol/openid-connect/userinfo" >> env/config.env
-
-          # MOCK: Volumes locais vazios para evitar falhas do Docker daemon criar diretórios
+          # 4. MOCK: Volumes locais vazios
           touch gercon_raw_data.db
           touch gercon_consolidado.parquet
           
-          # --- SRE FIX 4: O Arquivo Fantasma do Realm (Prevenção de Bind-Mount) ---
+          # 5. SRE FIX 4: O Arquivo Fantasma do Realm (Prevenção de Bind-Mount)
           mkdir -p infra/identity
-          # Garante que não é um diretório criado acidentalmente por tentativas anteriores
           rm -rf infra/identity/gercon-realm-export.json
           
           # Cria um Realm Mock Mínimo para o Proxy e para os Testes E2E (Playwright)
@@ -171,6 +119,14 @@ jobs:
             ]
           }
           EOF
+
+      - name: 🔍 Validate Environment (Fail-Fast)
+        run: |
+          if [ -z "$(grep KEYCLOAK_INTERNAL_SERVICE .env)" ]; then
+            echo "❌ ERRO: Variável Crítica KEYCLOAK_INTERNAL_SERVICE ausente no .env!"
+            exit 1
+          fi
+          echo "✅ Ambiente validado com sucesso."
 
       # SRE FIX: Garante que o entrypoint seja executável pelo Linux (remove CRLF)
       - name: 🧹 Fix Linux Line Endings
