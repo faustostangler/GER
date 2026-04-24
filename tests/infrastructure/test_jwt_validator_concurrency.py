@@ -11,6 +11,7 @@ Expected behavior with the fix:
   500 threads → 1 thread gets the lock → 1 Keycloak /certs request → 499 threads
   read from the refreshed cache.
 """
+
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import MagicMock, patch
@@ -46,6 +47,7 @@ class TestThunderingHerdPrevention:
         def mock_get_signing_key(token):
             """Simulates stale cache: first call always raises, subsequent succeed."""
             from jwt import PyJWKClientError
+
             raise PyJWKClientError("Cache miss — key not found")
 
         def mock_get_signing_key_after_refresh(token):
@@ -70,16 +72,31 @@ class TestThunderingHerdPrevention:
         def simulate_request(thread_id: int):
             """Each thread attempts to verify a token against a stale cache."""
             try:
-                with patch("infrastructure.auth.jwt_validator.PyJWKClient", CountingPyJWKClient):
-                    with patch("infrastructure.auth.jwt_validator.jwks_client") as mock_client:
+                with patch(
+                    "infrastructure.auth.jwt_validator.PyJWKClient", CountingPyJWKClient
+                ):
+                    with patch(
+                        "infrastructure.auth.jwt_validator.jwks_client"
+                    ) as mock_client:
                         from jwt import PyJWKClientError
-                        mock_client.get_signing_key_from_jwt.side_effect = PyJWKClientError("Cache miss")
-                        with patch("jwt.decode", return_value=self._make_valid_payload()):
+
+                        mock_client.get_signing_key_from_jwt.side_effect = (
+                            PyJWKClientError("Cache miss")
+                        )
+                        with patch(
+                            "jwt.decode", return_value=self._make_valid_payload()
+                        ):
                             with patch(
                                 "infrastructure.auth.jwt_validator._lookup_doctor_profile",
-                                return_value=MagicMock(is_authorized=lambda: True, crm=MagicMock(crm_numero="99999", crm_uf="RS")),
+                                return_value=MagicMock(
+                                    is_authorized=lambda: True,
+                                    crm=MagicMock(crm_numero="99999", crm_uf="RS"),
+                                ),
                             ):
-                                with patch("jwt.get_unverified_header", return_value={"kid": "test-kid"}):
+                                with patch(
+                                    "jwt.get_unverified_header",
+                                    return_value={"kid": "test-kid"},
+                                ):
                                     pass  # We are testing the lock, not the full validation
                 results.append(thread_id)
             except Exception as e:
@@ -112,7 +129,9 @@ class TestThunderingHerdPrevention:
                     call_log.append(threading.current_thread().name)
 
         with ThreadPoolExecutor(max_workers=NUM_THREADS) as executor:
-            futures = [executor.submit(concurrent_cache_refresh) for _ in range(NUM_THREADS)]
+            futures = [
+                executor.submit(concurrent_cache_refresh) for _ in range(NUM_THREADS)
+            ]
             for f in as_completed(futures):
                 f.result()  # Raise any exceptions from threads
 

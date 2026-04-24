@@ -14,11 +14,13 @@ APP_PATH = str(BASE_DIR / "app_analytics.py")
 @pytest.fixture
 def mock_analytics_use_case():
     # Patchamos a classe da arquitetura limpa SEM src. prefix
-    with patch("application.use_cases.analytics_use_case.AnalyticsUseCase") as mock_use_case_class:
+    with patch(
+        "application.use_cases.analytics_use_case.AnalyticsUseCase"
+    ) as mock_use_case_class:
         instance = MagicMock()
         instance.get_global_bounds.return_value = (1, 100)
         instance.get_dynamic_options.return_value = ["Opção A", "Opção B"]
-        
+
         # SRE FIX: mock da política de negócio usada pela presentation
         mock_policy = MagicMock()
         mock_policy.idade_min = 0
@@ -39,24 +41,34 @@ def mock_analytics_use_case():
             pac_urgentes=10,
             pac_vencidos=5,
             p90_lead_time=45.2,
-            p90_esquecido=60.1
+            p90_esquecido=60.1,
         )
 
         def mock_execute_custom_query(query, spec, current_user, **kwargs):
             import pandas as pd
+
             df_base = {
                 "Categoria": ["A", "B"],
                 "Vol": [10, 20],
                 "entidade_classificacaoRisco_cor": ["VERMELHO", "VERDE"],
                 "Etapa": ["1. Solicitado", "2. Triado"],
-                "situacao": ["AGENDADA", "ATENDIDO"],                       # raw col used by px.bar at line 2519
-                "entidade_situacao_descricao": ["AGENDADA", "ATENDIDO"],    # renamed col used elsewhere
+                "situacao": [
+                    "AGENDADA",
+                    "ATENDIDO",
+                ],  # raw col used by px.bar at line 2519
+                "entidade_situacao_descricao": [
+                    "AGENDADA",
+                    "ATENDIDO",
+                ],  # renamed col used elsewhere
                 "origem_descricao": ["Origem A", "Origem B"],
                 "entidade_especialidade_descricao": ["Cardio", "Orto"],
                 "motivo_descricao": ["Motivo A", "Motivo B"],
                 "CID": ["A01", "A02"],
                 "Janela": ["2026-01-01", "2026-01-02"],
-                "entidade_especialidade_especialidadeMae_descricao": ["Clinica", "Cirurgia"],
+                "entidade_especialidade_especialidadeMae_descricao": [
+                    "Clinica",
+                    "Cirurgia",
+                ],
                 "entidade_cidPrincipal_descricao": ["A00", "A01"],
                 "num_dias_aguardando": [1, 5],
                 "lead_time": [1.0, 5.0],
@@ -100,8 +112,13 @@ def mock_analytics_use_case():
         # WHY: get_clinical_audit_heatmap returns a 3-tuple (df_math, df_pivot_vol, df_text).
         # MagicMock is not iterable as a tuple — causes ValueError: not enough values to unpack.
         import pandas as _pd
+
         _empty_df = _pd.DataFrame()
-        instance.get_clinical_audit_heatmap.return_value = (_empty_df, _empty_df, _empty_df)
+        instance.get_clinical_audit_heatmap.return_value = (
+            _empty_df,
+            _empty_df,
+            _empty_df,
+        )
         # WHY: get_distribution_analysis must return a DataFrame for comparative_anatomy renderer.
         instance.get_distribution_analysis.return_value = _pd.DataFrame(
             {"dias_fila": [10, 20], "dias_esquecido": [5, 15]}
@@ -112,7 +129,9 @@ def mock_analytics_use_case():
 
 @pytest.fixture
 def mock_duckdb_repo():
-    with patch("infrastructure.repositories.duckdb_repository.DuckDBAnalyticsRepository") as mock_db:
+    with patch(
+        "infrastructure.repositories.duckdb_repository.DuckDBAnalyticsRepository"
+    ) as mock_db:
         yield mock_db
 
 
@@ -139,7 +158,7 @@ def test_app_ui_loads_and_updates_state(mock_duckdb_repo, mock_analytics_use_cas
         env_overrides = {
             "ENVIRONMENT": "dev",
             "ALLOW_UNAUTHENTICATED_DEV": "true",  # Guarda dupla IAP: 2º fator de bypass
-            "OUTPUT_FILE": tmp_parquet_path,       # Parquet real em /tmp (visível na thread)
+            "OUTPUT_FILE": tmp_parquet_path,  # Parquet real em /tmp (visível na thread)
         }
         with patch.dict("os.environ", env_overrides):
             # SRE FIX: Use path absoluto para evitar quebra no sandbox do mutmut
@@ -150,7 +169,9 @@ def test_app_ui_loads_and_updates_state(mock_duckdb_repo, mock_analytics_use_cas
 
             # 2. Verificar se a tela inicial e o Título carregaram corretamente
             assert len(at.markdown) > 0, "Nenhum markdown de header foi renderizado"
-            assert any("GERCON SRE" in md.value for md in at.markdown), "O header customizado GERCON SRE não foi encontrado"
+            assert any("GERCON SRE" in md.value for md in at.markdown), (
+                "O header customizado GERCON SRE não foi encontrado"
+            )
 
             # 3. Simular interação com a aplicação e verificar mutação do estado de Tracker SRE
             if len(at.toggle) > 0:
@@ -161,7 +182,9 @@ def test_app_ui_loads_and_updates_state(mock_duckdb_repo, mock_analytics_use_cas
             if len(at.button) > 0:
                 clear_all_button = None
                 for idx, b in enumerate(at.button):
-                    if "Limpar Todos os Filtros" in getattr(b, "label", getattr(b, "value", "")):
+                    if "Limpar Todos os Filtros" in getattr(
+                        b, "label", getattr(b, "value", "")
+                    ):
                         clear_all_button = at.button[idx]
                         break
 

@@ -3,7 +3,11 @@ import json
 import time
 import logging
 from typing import List, Dict, Any
-from application.use_cases.scraper_interfaces import IRawDataRepository, IIngestionLogRepository, IDLQRepository
+from application.use_cases.scraper_interfaces import (
+    IRawDataRepository,
+    IIngestionLogRepository,
+    IDLQRepository,
+)
 from domain.models import IngestionLogEntry
 from infrastructure.telemetry.metrics import SCRAPER_ERRORS_TOTAL
 

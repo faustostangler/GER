@@ -4,6 +4,7 @@ TDD: Domain Model Tests for IngestionLogEntry and IngestionStatus.
 Validates the Value Object's invariants, boundary conditions, and
 Pydantic serialization for the audit trail domain model.
 """
+
 import time
 import pytest
 from pydantic import ValidationError

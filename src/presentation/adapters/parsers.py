@@ -3,6 +3,7 @@
 WHY: Mantém a camada de apresentação fina (thin). Toda lógica testavel é
 extraída para este módulo, protegendo o domínio de construçóes SQL diretas.
 """
+
 from __future__ import annotations
 
 from domain.specifications import FiltroAvancadoSpec
@@ -46,13 +47,17 @@ class FiltroAvancadoSpecBuilder:
         self._limites_data: dict[str, tuple[str, str]] = {}
         self._booleanos: dict[str, bool] = {}
 
-    def com_inclusao(self, coluna: str, valores: list[str]) -> "FiltroAvancadoSpecBuilder":
+    def com_inclusao(
+        self, coluna: str, valores: list[str]
+    ) -> "FiltroAvancadoSpecBuilder":
         """Adiciona critério de inclusão (coluna IN valores)."""
         if valores:
             self._colunas_inclusao[coluna] = valores
         return self
 
-    def com_exclusao(self, coluna: str, valores: list[str]) -> "FiltroAvancadoSpecBuilder":
+    def com_exclusao(
+        self, coluna: str, valores: list[str]
+    ) -> "FiltroAvancadoSpecBuilder":
         """Adiciona critério de exclusão (coluna NOT IN valores)."""
         if valores:
             self._colunas_exclusao[coluna] = valores
@@ -82,8 +87,6 @@ class FiltroAvancadoSpecBuilder:
         """Adiciona filtro booleano exato."""
         self._booleanos[coluna] = valor
         return self
-
-
 
     def build(self) -> FiltroAvancadoSpec:
         """Constrói o Value Object imutável FiltroAvancadoSpec."""

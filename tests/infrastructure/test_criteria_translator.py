@@ -7,6 +7,7 @@ WHY: The translator is the ACL (Anti-Corruption Layer) between domain vocabulary
 
 Related: SQL Leak refactoring from FilterCriteria → FiltroAvancadoSpec + DuckDBCriteriaTranslator.
 """
+
 from domain.specifications import (
     AdvancedSearchCriteria,
     FiltroAvancadoSpec,
@@ -26,15 +27,15 @@ class TestTranslateFiltroAvancadoSpec:
         assert DuckDBCriteriaTranslator.translate(spec) == "1=1"
 
     def test_inclusao_single_value(self):
-        spec = FiltroAvancadoSpec(
-            colunas_inclusao={"origem_lista": ["LISTA_SUS"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_inclusao={"origem_lista": ["LISTA_SUS"]})
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert '"origem_lista" IN (\'LISTA_SUS\')' in result
+        assert "\"origem_lista\" IN ('LISTA_SUS')" in result
 
     def test_inclusao_multiple_values_joined_with_in(self):
         spec = FiltroAvancadoSpec(
-            colunas_inclusao={"entidade_especialidade_descricao": ["CARDIOLOGIA", "ORTOPEDIA"]}
+            colunas_inclusao={
+                "entidade_especialidade_descricao": ["CARDIOLOGIA", "ORTOPEDIA"]
+            }
         )
         result = DuckDBCriteriaTranslator.translate(spec)
         assert '"entidade_especialidade_descricao" IN' in result
@@ -42,11 +43,9 @@ class TestTranslateFiltroAvancadoSpec:
         assert "'ORTOPEDIA'" in result
 
     def test_exclusao_single_value(self):
-        spec = FiltroAvancadoSpec(
-            colunas_exclusao={"entidade_complexidade": ["ALTA"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_exclusao={"entidade_complexidade": ["ALTA"]})
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert '"entidade_complexidade" NOT IN (\'ALTA\')' in result
+        assert "\"entidade_complexidade\" NOT IN ('ALTA')" in result
 
     def test_inclusao_and_exclusao_combined_with_and(self):
         spec = FiltroAvancadoSpec(
@@ -106,9 +105,7 @@ class TestTranslateFiltroAvancadoSpec:
 
     def test_texto_ilike_clause(self):
         """Text search must use case-insensitive ILIKE in DuckDB."""
-        spec = FiltroAvancadoSpec(
-            termos_texto={"justificativaRetorno": ["urgente"]}
-        )
+        spec = FiltroAvancadoSpec(termos_texto={"justificativaRetorno": ["urgente"]})
         result = DuckDBCriteriaTranslator.translate(spec)
         assert "ILIKE" in result
         assert "%urgente%" in result
@@ -118,24 +115,27 @@ class TestTranslateFiltroAvancadoSpec:
             column="historico",
             or_terms=["dor", "febre"],
             and_terms=["aguda"],
-            not_terms=["leve"]
+            not_terms=["leve"],
         )
         spec = FiltroAvancadoSpec(busca_avancada=[crit])
         result = DuckDBCriteriaTranslator.translate(spec)
         assert "strip_accents(\"historico\") ILIKE strip_accents('%dor%')" in result
         assert " OR " in result
         assert "strip_accents(\"historico\") ILIKE strip_accents('%aguda%')" in result
-        assert "strip_accents(\"historico\") NOT ILIKE strip_accents('%leve%')" in result
+        assert (
+            "strip_accents(\"historico\") NOT ILIKE strip_accents('%leve%')" in result
+        )
 
     def test_busca_avancada_aggregate_search(self):
         crit = AdvancedSearchCriteria(
-            column="evolucoes",
-            or_terms=["alta"],
-            aggregate_by="numeroCMCE"
+            column="evolucoes", or_terms=["alta"], aggregate_by="numeroCMCE"
         )
         spec = FiltroAvancadoSpec(busca_avancada=[crit])
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert '"numeroCMCE" IN (SELECT "numeroCMCE" FROM BaseRLS GROUP BY "numeroCMCE" HAVING (bool_or(strip_accents("evolucoes") ILIKE strip_accents(\'%alta%\'))))' in result
+        assert (
+            '"numeroCMCE" IN (SELECT "numeroCMCE" FROM BaseRLS GROUP BY "numeroCMCE" HAVING (bool_or(strip_accents("evolucoes") ILIKE strip_accents(\'%alta%\'))))'
+            in result
+        )
 
     def test_multiple_fields_all_combined_with_and(self):
         spec = FiltroAvancadoSpec(
@@ -150,9 +150,7 @@ class TestTranslateFiltroAvancadoSpec:
 
     def test_sql_injection_escaping_in_values(self):
         """Single quotes in values must be escaped to prevent SQL injection."""
-        spec = FiltroAvancadoSpec(
-            colunas_inclusao={"motivoCancelamento": ["O'Brien"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_inclusao={"motivoCancelamento": ["O'Brien"]})
         result = DuckDBCriteriaTranslator.translate(spec)
         # The apostrophe must be escaped (doubled) in SQL
         assert "O''Brien" in result
@@ -162,6 +160,7 @@ class TestTranslateFiltroAvancadoSpec:
 
     def test_defensive_type_checking_survives_module_mismatch(self):
         """Verifica se o tradutor é resiliente ao reload do Streamlit (nome da classe bate, mas módulo não)."""
+
         class FakeFiltro:
             colunas_inclusao = {"origem_lista": ["Fila de Espera"]}
             colunas_exclusao = {}
@@ -173,13 +172,12 @@ class TestTranslateFiltroAvancadoSpec:
             termos_texto = {}
             busca_avancada = []
 
-
         fake_spec = FakeFiltro()
         # Força o nome da classe para enganar o isinstance/match (sintoma do hot reload)
         fake_spec.__class__.__name__ = "FiltroAvancadoSpec"
-        
+
         result = DuckDBCriteriaTranslator.translate(fake_spec)
-        assert '"origem_lista" IN (\'Fila de Espera\')' in result
+        assert "\"origem_lista\" IN ('Fila de Espera')" in result
         assert "1=1" not in result
 
 
@@ -189,17 +187,26 @@ class TestTranslateSpecificationComposites:
     def test_translate_paciente_urgente(self):
         spec = PacienteUrgenteSpec(cores_alvo=["VERMELHO", "LARANJA", "AMARELO"])
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert result == "entidade_classificacaoRisco_cor IN ('VERMELHO', 'LARANJA', 'AMARELO')"
+        assert (
+            result
+            == "entidade_classificacaoRisco_cor IN ('VERMELHO', 'LARANJA', 'AMARELO')"
+        )
 
     def test_translate_paciente_vencido(self):
         spec = PacienteVencidoSpec(dias_tolerancia=180)
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert result == "DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > 180"
+        assert (
+            result
+            == "DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > 180"
+        )
 
     def test_translate_lead_time_critico(self):
         spec = LeadTimeCriticoSpec(max_dias=90)
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert result == "DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > 90"
+        assert (
+            result
+            == "DATEDIFF('day', CAST(dataSolicitacao AS DATE), CURRENT_DATE) > 90"
+        )
 
     def test_translate_composite_and(self):
         spec = PacienteUrgenteSpec(
@@ -224,7 +231,10 @@ class TestTranslateSpecificationComposites:
     def test_translate_composite_not(self):
         spec = ~(PacienteUrgenteSpec(cores_alvo=["VERMELHO", "LARANJA", "AMARELO"]))
         result = DuckDBCriteriaTranslator.translate(spec)
-        assert result == "NOT (entidade_classificacaoRisco_cor IN ('VERMELHO', 'LARANJA', 'AMARELO'))"
+        assert (
+            result
+            == "NOT (entidade_classificacaoRisco_cor IN ('VERMELHO', 'LARANJA', 'AMARELO'))"
+        )
 
     def test_translate_none(self):
         assert DuckDBCriteriaTranslator.translate(None) == "1=1"
@@ -238,6 +248,3 @@ class TestTranslateSpecificationComposites:
 
         result = DuckDBCriteriaTranslator.translate(UnknownSpec())
         assert result == "1=1"
-
-
-

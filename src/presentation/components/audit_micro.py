@@ -2,11 +2,8 @@ import streamlit as st
 import plotly.express as px
 from datetime import date
 
-def render_audit_micro(
-    use_case,
-    filters,
-    MAPA_CORES_RISCO: dict
-):
+
+def render_audit_micro(use_case, filters, MAPA_CORES_RISCO: dict):
     """
     Renders the Audit Micro tab for outliers, top offenders, and clinical logs.
 
@@ -64,9 +61,7 @@ def render_audit_micro(
                 fig_out.add_hline(
                     y=40, line_dash="dot", annotation_text="High Severity"
                 )
-                fig_out.add_vline(
-                    x=180, line_dash="dot", annotation_text="180 d SLA"
-                )
+                fig_out.add_vline(x=180, line_dash="dot", annotation_text="180 d SLA")
                 st.plotly_chart(
                     fig_out, width="stretch", config={"displayModeBar": False}
                 )

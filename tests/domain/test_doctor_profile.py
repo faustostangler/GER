@@ -8,6 +8,7 @@ BEFORE implementation. They verify:
 - Entities are equated by user_id (identity-based), not by CRM fields (value-based).
 - The entity is a pure domain object with zero infrastructure dependencies.
 """
+
 import pytest
 from domain.identity import DoctorProfile, MedicalCouncilRegistration
 

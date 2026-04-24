@@ -10,6 +10,7 @@ Initializes Sentry error tracking with:
 WHY: Sentry catches exceptions that escape our Chaos Testing mesh.
 The test suite validates known failure modes; Sentry catches the unknown unknowns.
 """
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,9 @@ logger = logging.getLogger(__name__)
 def init_sentry(dsn: str, environment: str, release: str):
     """Initializes Sentry SDK. No-op if dsn is None or empty."""
     if not dsn:
-        logger.info("Sentry DSN não configurado — error tracking desativado (ambiente local).")
+        logger.info(
+            "Sentry DSN não configurado — error tracking desativado (ambiente local)."
+        )
         return
 
     try:
@@ -43,7 +46,9 @@ def init_sentry(dsn: str, environment: str, release: str):
             # WHY: Filtra dados de saúde do breadcrumb (compliance)
             before_breadcrumb=_filter_health_data_breadcrumb,
         )
-        logger.info(f"Sentry inicializado — release: gercon-analytics@{release}, env: {environment}")
+        logger.info(
+            f"Sentry inicializado — release: gercon-analytics@{release}, env: {environment}"
+        )
     except Exception as e:
         logger.warning(f"Falha ao inicializar Sentry (non-blocking): {e}")
 

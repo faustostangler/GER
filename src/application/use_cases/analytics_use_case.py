@@ -10,6 +10,7 @@ Use Case testável sem qualquer dependência de .env ou pydantic-settings.
 
 Ref: ADR-005 — Business Policy Extraction from Infrastructure Config
 """
+
 from application.use_cases.interfaces import IAnalyticsRepository
 from domain.models import (
     ClinicaPolicy,
@@ -81,7 +82,7 @@ class AnalyticsUseCase:
         current_user: ValidatedUserToken,
     ) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """Gera matrizes para o Heatmap de Auditoria Clínica (Z-Score).
-        
+
         WHY: Remove lógica pesada de Pandas (pivot, desvio padrão) e SQL
         da camada de apresentação (Streamlit), permitindo testes isolados
         e cache otimizado.
@@ -139,9 +140,7 @@ class AnalyticsUseCase:
             if modo_heatmap == OPT_CID:
                 medias_linhas = df_math.mean(axis=1)
                 desvios_linhas = df_math.std(axis=1).replace(0, 1)
-                df_math = df_math.sub(medias_linhas, axis=0).div(
-                    desvios_linhas, axis=0
-                )
+                df_math = df_math.sub(medias_linhas, axis=0).div(desvios_linhas, axis=0)
             elif modo_heatmap == OPT_MED:
                 medias_colunas = df_math.mean(axis=0)
                 desvios_colunas = df_math.std(axis=0).replace(0, 1)

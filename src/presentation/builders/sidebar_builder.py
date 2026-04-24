@@ -1,6 +1,17 @@
 import streamlit as st
 from infrastructure.repositories.criteria_translator import DuckDBCriteriaTranslator
-from presentation.components.filters import render_include_exclude, render_boolean_radio, render_presence_radio, render_dual_slider, render_age_slider, render_smart_date_range, render_advanced_text_search, render_outcome_type_filter, render_pending_reasons_filter
+from presentation.components.filters import (
+    render_include_exclude,
+    render_boolean_radio,
+    render_presence_radio,
+    render_dual_slider,
+    render_age_slider,
+    render_smart_date_range,
+    render_advanced_text_search,
+    render_outcome_type_filter,
+    render_pending_reasons_filter,
+)
+
 
 def build_sidebar(use_case, builder, st_user):
     """
@@ -24,36 +35,44 @@ def build_sidebar(use_case, builder, st_user):
 
     cat = "🩺 Clinical & Regulation"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Parent Specialty",
-            "entidade_especialidade_especialidadeMae_descricao", builder,
+            "entidade_especialidade_especialidadeMae_descricao",
+            builder,
             curr_where,
             "espm",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Fine Specialty",
-            "entidade_especialidade_descricao", builder,
+            "entidade_especialidade_descricao",
+            builder,
             curr_where,
             "espf",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "CBO Specialty",
-            "entidade_especialidade_cbo_descricao", builder,
+            "entidade_especialidade_cbo_descricao",
+            builder,
             curr_where,
             "esp_cbo",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Auxiliary Description",
-            "entidade_especialidade_descricaoAuxiliar", builder,
+            "entidade_especialidade_descricaoAuxiliar",
+            builder,
             curr_where,
             "esp_aux",
             ui_filters[cat],
@@ -61,18 +80,22 @@ def build_sidebar(use_case, builder, st_user):
             st_user,
         )
         st.markdown("---")
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Requesting Doctor",
-            "medicoSolicitante", builder,
+            "medicoSolicitante",
+            builder,
             curr_where,
             "med_sol",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Operating Unit",
-            "entidade_unidadeOperador_nome", builder,
+            "entidade_unidadeOperador_nome",
+            builder,
             curr_where,
             "usol",
             ui_filters[cat],
@@ -80,9 +103,11 @@ def build_sidebar(use_case, builder, st_user):
             st_user,
         )
         st.markdown("---")
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Main ICD (Code)",
-            "entidade_cidPrincipal_codigo", builder,
+            "entidade_cidPrincipal_codigo",
+            builder,
             curr_where,
             "cid_cod",
             ui_filters[cat],
@@ -91,7 +116,8 @@ def build_sidebar(use_case, builder, st_user):
         )
         curr_where = render_advanced_text_search(
             "Main ICD (Description)",
-            "entidade_cidPrincipal_descricao", builder,
+            "entidade_cidPrincipal_descricao",
+            builder,
             "txt_cid_desc",
             ui_filters[cat],
             state_keys[cat],
@@ -100,7 +126,8 @@ def build_sidebar(use_case, builder, st_user):
         st.markdown("---")
         curr_where = render_advanced_text_search(
             "Patient Evolutions",
-            "historico_quadro_clinico", builder,
+            "historico_quadro_clinico",
+            builder,
             "txt_evo",
             ui_filters[cat],
             state_keys[cat],
@@ -113,23 +140,27 @@ def build_sidebar(use_case, builder, st_user):
         # Actors moved from the old Evolutions tab
         curr_where = render_advanced_text_search(
             "Information Type",
-            "historico_evolucoes_completo", builder,
+            "historico_evolucoes_completo",
+            builder,
             "txt_tinf",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_advanced_text_search(
             "Information Source",
-            "evolucoes_json", builder,
+            "evolucoes_json",
+            builder,
             "txt_orig_inf",
             ui_filters[cat],
             state_keys[cat],
         )
         st.markdown("---")
 
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Source (List)",
-            "origem_lista", builder,
+            "origem_lista",
+            builder,
             curr_where,
             "lst",
             ui_filters[cat],
@@ -137,27 +168,33 @@ def build_sidebar(use_case, builder, st_user):
             st_user,
             default_in=["Fila de Espera"],
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Current Situation",
-            "situacao", builder,
+            "situacao",
+            builder,
             curr_where,
             "sit",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Regulation Type",
-            "entidade_especialidade_tipoRegulacao", builder,
+            "entidade_especialidade_tipoRegulacao",
+            builder,
             curr_where,
             "treg",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Active Specialty",
-            "entidade_especialidade_ativa", builder,
+            "entidade_especialidade_ativa",
+            builder,
             curr_where,
             "stesp",
             ui_filters[cat],
@@ -168,25 +205,30 @@ def build_sidebar(use_case, builder, st_user):
         st.markdown("---")
         curr_where = render_presence_radio(
             "Injunction / Court Order",
-            "liminarOrdemJudicial", builder,
+            "liminarOrdemJudicial",
+            builder,
             "oj",
             ui_filters[cat],
             state_keys[cat],
         )
 
         st.markdown("---")
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Operator",
-            "operador_nome", builder,
+            "operador_nome",
+            builder,
             curr_where,
             "op_nome",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Requesting User",
-            "usuarioSolicitante_nome", builder,
+            "usuarioSolicitante_nome",
+            builder,
             curr_where,
             "usu_sol_nome",
             ui_filters[cat],
@@ -195,27 +237,33 @@ def build_sidebar(use_case, builder, st_user):
         )
 
         st.markdown("---")
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Regulation Center",
-            "entidade_centralRegulacao_nome", builder,
+            "entidade_centralRegulacao_nome",
+            builder,
             curr_where,
             "cent_reg",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Operating Unit Reg. Center",
-            "entidade_unidadeOperador_centralRegulacao_nome", builder,
+            "entidade_unidadeOperador_centralRegulacao_nome",
+            builder,
             curr_where,
             "uni_op_cent",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Reference Unit",
-            "entidade_unidadeReferencia_nome", builder,
+            "entidade_unidadeReferencia_nome",
+            builder,
             curr_where,
             "uni_ref",
             ui_filters[cat],
@@ -226,42 +274,48 @@ def build_sidebar(use_case, builder, st_user):
         st.markdown("---")
         curr_where = render_boolean_radio(
             "Has DITA",
-            "entidade_possuiDita", builder,
+            "entidade_possuiDita",
+            builder,
             "dita",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Outside Regionalization",
-            "entidade_foraDaRegionalizacao", builder,
+            "entidade_foraDaRegionalizacao",
+            builder,
             "freg",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Access Regularization",
-            "regularizacaoAcesso", builder,
+            "regularizacaoAcesso",
+            builder,
             "reg_acc",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Accepts Teleconsultation",
-            "entidade_especialidade_teleconsulta", builder,
+            "entidade_especialidade_teleconsulta",
+            builder,
             "tele",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Matrix Support",
-            "entidade_especialidade_matriciamento", builder,
+            "entidade_especialidade_matriciamento",
+            builder,
             "matri",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Unclassified",
-            "entidade_semClassificacao", builder,
+            "entidade_semClassificacao",
+            builder,
             "sem_class",
             ui_filters[cat],
             state_keys[cat],
@@ -273,7 +327,8 @@ def build_sidebar(use_case, builder, st_user):
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_smart_date_range(
             "Request Date",
-            "dataSolicitacao", builder,
+            "dataSolicitacao",
+            builder,
             "dt_solic",
             ui_filters[cat],
             state_keys[cat],
@@ -281,7 +336,8 @@ def build_sidebar(use_case, builder, st_user):
         st.write(" ")
         curr_where = render_smart_date_range(
             "Registration Date",
-            "dataCadastro", builder,
+            "dataCadastro",
+            builder,
             "dt_cad",
             ui_filters[cat],
             state_keys[cat],
@@ -289,7 +345,8 @@ def build_sidebar(use_case, builder, st_user):
         st.write(" ")
         curr_where = render_smart_date_range(
             "Evolution Date",
-            "dataCadastro", builder,
+            "dataCadastro",
+            builder,
             "dt_evo",
             ui_filters[cat],
             state_keys[cat],
@@ -297,7 +354,8 @@ def build_sidebar(use_case, builder, st_user):
         st.write(" ")
         curr_where = render_smart_date_range(
             "First Appointment",
-            "dataPrimeiroAgendamento", builder,
+            "dataPrimeiroAgendamento",
+            builder,
             "dt_pagend",
             ui_filters[cat],
             state_keys[cat],
@@ -305,7 +363,8 @@ def build_sidebar(use_case, builder, st_user):
         st.write(" ")
         curr_where = render_smart_date_range(
             "First Authorization",
-            "dataPrimeiraAutorizacao", builder,
+            "dataPrimeiraAutorizacao",
+            builder,
             "dt_paut",
             ui_filters[cat],
             state_keys[cat],
@@ -315,7 +374,8 @@ def build_sidebar(use_case, builder, st_user):
     with st.sidebar.expander(cat, expanded=False):
         curr_where = render_advanced_text_search(
             "Search: Patient Name",
-            "usuarioSUS_nomeCompleto", builder,
+            "usuarioSUS_nomeCompleto",
+            builder,
             "txt_pac_nome",
             ui_filters[cat],
             state_keys[cat],
@@ -323,18 +383,22 @@ def build_sidebar(use_case, builder, st_user):
         curr_where = DuckDBCriteriaTranslator.translate(builder.build())
         st.markdown("---")
 
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Municipality of Residence",
-            "usuarioSUS_municipioResidencia_nome", builder,
+            "usuarioSUS_municipioResidencia_nome",
+            builder,
             curr_where,
             "mun",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Neighborhood",
-            "usuarioSUS_bairro", builder,
+            "usuarioSUS_bairro",
+            builder,
             curr_where,
             "bai",
             ui_filters[cat],
@@ -345,7 +409,8 @@ def build_sidebar(use_case, builder, st_user):
         # Logradouro with conditional injecting numbering inside Deep Search
         curr_where = render_advanced_text_search(
             "Street",
-            "usuarioSUS_logradouro", builder,
+            "usuarioSUS_logradouro",
+            builder,
             "txt_logr",
             ui_filters[cat],
             state_keys[cat],
@@ -385,17 +450,17 @@ def build_sidebar(use_case, builder, st_user):
                         "keys": ["num_min", "num_max"],
                     }
                 )
-                builder.add_limite_numerico(
-                    "usuarioSUS_numero", v_nmin, v_nmax
-                )
+                builder.add_limite_numerico("usuarioSUS_numero", v_nmin, v_nmax)
             st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()  # --- Visual Separator for Personal Identification ---
 
         curr_where = DuckDBCriteriaTranslator.translate(builder.build())
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Sex",
-            "usuarioSUS_sexo", builder,
+            "usuarioSUS_sexo",
+            builder,
             curr_where,
             "sex",
             ui_filters[cat],
@@ -404,22 +469,31 @@ def build_sidebar(use_case, builder, st_user):
         )
 
         # Component that injects entidade_idade_idadeInteiro (with Dual Slider)
-        curr_where = render_age_slider(use_case, 
-            "Age Group (Age)", builder, "f_idade", ui_filters[cat], state_keys[cat]
+        curr_where = render_age_slider(
+            use_case,
+            "Age Group (Age)",
+            builder,
+            "f_idade",
+            ui_filters[cat],
+            state_keys[cat],
         )
 
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Race/Color",
-            "usuarioSUS_racaCor", builder,
+            "usuarioSUS_racaCor",
+            builder,
             curr_where,
             "cor",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Nationality",
-            "usuarioSUS_nacionalidade", builder,
+            "usuarioSUS_nacionalidade",
+            builder,
             curr_where,
             "nac",
             ui_filters[cat],
@@ -429,27 +503,33 @@ def build_sidebar(use_case, builder, st_user):
 
     cat = "⚠️ Triage & Risk Classification"
     with st.sidebar.expander(cat, expanded=False):
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Complexity",
-            "entidade_complexidade", builder,
+            "entidade_complexidade",
+            builder,
             curr_where,
             "cpx",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Risk Color (Current)",
-            "entidade_classificacaoRisco_cor", builder,
+            "entidade_classificacaoRisco_cor",
+            builder,
             curr_where,
             "r_cor",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Regulator Color",
-            "corRegulador", builder,
+            "corRegulador",
+            builder,
             curr_where,
             "c_reg",
             ui_filters[cat],
@@ -460,30 +540,37 @@ def build_sidebar(use_case, builder, st_user):
         st.markdown("---")
         curr_where = render_boolean_radio(
             "Reclassified by Requester",
-            "entidade_classificacaoRisco_reclassificadaSolicitante", builder,
+            "entidade_classificacaoRisco_reclassificadaSolicitante",
+            builder,
             "r_recl",
             ui_filters[cat],
             state_keys[cat],
         )
 
         st.markdown("---")
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Gravity Points",
-            "entidade_classificacaoRisco_pontosGravidade", builder,
+            "entidade_classificacaoRisco_pontosGravidade",
+            builder,
             "pt_grav",
             ui_filters[cat],
             state_keys[cat],
         )
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Time Points",
-            "entidade_classificacaoRisco_pontosTempo", builder,
+            "entidade_classificacaoRisco_pontosTempo",
+            builder,
             "pt_tmp",
             ui_filters[cat],
             state_keys[cat],
         )
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Total Points",
-            "entidade_classificacaoRisco_totalPontos", builder,
+            "entidade_classificacaoRisco_totalPontos",
+            builder,
             "pt_tot",
             ui_filters[cat],
             state_keys[cat],
@@ -504,9 +591,11 @@ def build_sidebar(use_case, builder, st_user):
             st_user,
         )
 
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Provisional Status",
-            "statusProvisorio", builder,
+            "statusProvisorio",
+            builder,
             curr_where,
             "st_prov",
             ui_filters[cat],
@@ -529,18 +618,22 @@ def build_sidebar(use_case, builder, st_user):
         )
 
         st.markdown("---")
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Cancellation Reason",
-            "motivoCancelamento", builder,
+            "motivoCancelamento",
+            builder,
             curr_where,
             "mot_canc",
             ui_filters[cat],
             state_keys[cat],
             st_user,
         )
-        curr_where = render_include_exclude(use_case, 
+        curr_where = render_include_exclude(
+            use_case,
             "Closure Reason",
-            "motivoEncerramento", builder,
+            "motivoEncerramento",
+            builder,
             curr_where,
             "mot_enc",
             ui_filters[cat],
@@ -552,7 +645,8 @@ def build_sidebar(use_case, builder, st_user):
         # 2. Textos de Justificativa (Deep Search)  (Keep comments largely in English if desired, but focus on the UI strings)
         curr_where = render_advanced_text_search(
             "Return Justification",
-            "justificativaRetorno", builder,
+            "justificativaRetorno",
+            builder,
             "txt_retorno",
             ui_filters[cat],
             state_keys[cat],
@@ -562,28 +656,32 @@ def build_sidebar(use_case, builder, st_user):
         # 3. Marcos de Sucesso (Booleans)
         curr_where = render_boolean_radio(
             "1. Was Authorized?",
-            "SLA_Marco_Autorizada", builder,
+            "SLA_Marco_Autorizada",
+            builder,
             "m_aut",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "2. Was Scheduled?",
-            "SLA_Marco_Agendada", builder,
+            "SLA_Marco_Agendada",
+            builder,
             "m_agd",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "3. Was Accomplished?",
-            "SLA_Marco_Realizada", builder,
+            "SLA_Marco_Realizada",
+            builder,
             "m_rea",
             ui_filters[cat],
             state_keys[cat],
         )
         curr_where = render_boolean_radio(
             "Queue Finished? (Timer Stopped)",
-            "SLA_Desfecho_Atingido", builder,
+            "SLA_Desfecho_Atingido",
+            builder,
             "m_fim",
             ui_filters[cat],
             state_keys[cat],
@@ -591,30 +689,38 @@ def build_sidebar(use_case, builder, st_user):
 
         st.markdown("---")
         # 4. Sliders de SLA (Métricas calculadas em dias e interações)
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Total Lead Time (Days)",
-            "SLA_Lead_Time_Total_Dias", builder,
+            "SLA_Lead_Time_Total_Dias",
+            builder,
             "sla_tot",
             ui_filters[cat],
             state_keys[cat],
         )
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Time with Regulator (Days)",
-            "SLA_Tempo_Regulador_Dias", builder,
+            "SLA_Tempo_Regulador_Dias",
+            builder,
             "sla_reg",
             ui_filters[cat],
             state_keys[cat],
         )
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Time with Requester (Days)",
-            "SLA_Tempo_Solicitante_Dias", builder,
+            "SLA_Tempo_Solicitante_Dias",
+            builder,
             "sla_sol",
             ui_filters[cat],
             state_keys[cat],
         )
-        curr_where = render_dual_slider(use_case, 
+        curr_where = render_dual_slider(
+            use_case,
             "Interaction Volume (Ping-Pong)",
-            "SLA_Interacoes_Regulacao", builder,
+            "SLA_Interacoes_Regulacao",
+            builder,
             "sla_int",
             ui_filters[cat],
             state_keys[cat],

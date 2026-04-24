@@ -4,6 +4,7 @@ TDD: Infrastructure Adapter Tests for SQLiteRawRepository (Ingestion Log).
 Valida o ciclo completo de persistência e leitura do audit log
 usando SQLite em modo :memory: para isolamento total do teste.
 """
+
 import time
 import pytest
 from infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository

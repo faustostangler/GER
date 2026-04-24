@@ -8,6 +8,7 @@ import streamlit as st
 from application.use_cases.interfaces import IIdentityService
 from infrastructure.auth.token_acl import ValidatedUserToken
 
+
 class MockIdentityAdapter(IIdentityService):
     """Dev-only identity adapter. Bypasses JWT validation and CRM DB lookup entirely.
 
@@ -37,7 +38,6 @@ class MockIdentityAdapter(IIdentityService):
         st.session_state.token_exp = mock_user.exp
         st.rerun()
 
-
     def get_logout_url(self) -> Optional[str]:
         return None
 
@@ -55,20 +55,23 @@ class CloudRunIdentityAdapter(IIdentityService):
     def get_current_user(self) -> ValidatedUserToken:
         if self.is_authenticated():
             return st.session_state.user
-            
+
         _user_in_state = "user" in st.session_state
         _token_exp = st.session_state.get("token_exp", 0)
         _token_valid = _token_exp > time.time()
-        
+
         # token expired check
         if _user_in_state and not _token_valid:
-            st.warning("⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.", icon="🔒")
+            st.warning(
+                "⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.",
+                icon="🔒",
+            )
             if st.button("🔄 Renovar Login", type="primary"):
                 for key in list(st.session_state.keys()):
                     del st.session_state[key]
                 st.rerun()
             st.stop()
-            
+
         # check cloud run login gate
         if st.session_state.get("cloud_run_authenticated"):
             # already passed password gate
@@ -88,7 +91,7 @@ class CloudRunIdentityAdapter(IIdentityService):
 
         # Show gate
         self._cloud_run_login_gate()
-        
+
     def _cloud_run_login_gate(self):
         expected_hash = os.getenv("CLOUD_RUN_AUTH_PASSWORD_HASH", "")
         expected_plain = os.getenv("CLOUD_RUN_AUTH_PASSWORD", "")
@@ -118,7 +121,9 @@ class CloudRunIdentityAdapter(IIdentityService):
         with col_center:
             with st.form("cloud_run_login", clear_on_submit=True):
                 st.subheader("🔐 Login")
-                password = st.text_input("Senha de Acesso", type="password", key="cr_pwd")
+                password = st.text_input(
+                    "Senha de Acesso", type="password", key="cr_pwd"
+                )
                 submitted = st.form_submit_button(
                     "Entrar", use_container_width=True, type="primary"
                 )
@@ -130,7 +135,7 @@ class CloudRunIdentityAdapter(IIdentityService):
                     valid = input_sha256 == expected_hash.lower()
                 else:
                     valid = password == expected_plain
-                
+
                 if valid:
                     st.session_state["cloud_run_authenticated"] = True
                     st.rerun()
@@ -156,11 +161,11 @@ class IAPIdentityAdapter(IIdentityService):
     def get_current_user(self) -> ValidatedUserToken:
         if self.is_authenticated():
             return st.session_state.user
-            
+
         _user_in_state = "user" in st.session_state
         _token_exp = st.session_state.get("token_exp", 0)
         _token_valid = _token_exp > time.time()
-        
+
         if _user_in_state and not _token_valid:
             st.warning(
                 "⏱️ Sua sessão de 24h expirou. Clique em **Renovar Login** para continuar.",
@@ -182,6 +187,7 @@ class IAPIdentityAdapter(IIdentityService):
                 raise ValueError("Missing Authentication Headers (IAP Proxy)")
 
             from infrastructure.auth.jwt_validator import verify_token
+
             user_domain = verify_token(auth_header)
 
             st.session_state.user = user_domain
@@ -198,9 +204,11 @@ class IAPIdentityAdapter(IIdentityService):
                 render_auth_violation_alert(_auth_err)
                 st.stop()
 
-            st.error("🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade.")
+            st.error(
+                "🚨 **Acesso não autorizado.** Não foi possível verificar a sua identidade."
+            )
             st.markdown(
-                '''
+                """
                 <div style="display: flex; justify-content: center; margin-top: 20px;">
                     <form action="/oauth2/start" method="GET">
                         <input type="hidden" name="rd" value="/dashboard/" />
@@ -221,7 +229,7 @@ class IAPIdentityAdapter(IIdentityService):
                         </button>
                     </form>
                 </div>
-                ''',
+                """,
                 unsafe_allow_html=True,
             )
             if os.getenv("APP__DEBUG", "false").lower() == "true":
@@ -234,7 +242,9 @@ class IAPIdentityAdapter(IIdentityService):
                             if k.lower().startswith("x-")
                         }
                     )
-                    st.error(f"❌ Erro de autenticação: {type(_auth_err).__name__}: {_auth_err}")
+                    st.error(
+                        f"❌ Erro de autenticação: {type(_auth_err).__name__}: {_auth_err}"
+                    )
             st.stop()
 
     def get_logout_url(self) -> Optional[str]:

@@ -64,9 +64,13 @@ def extract_unidade(unidade_dict: dict, prefix: str, target_dict: dict) -> None:
         return
     # pragma: no mutate
     target_dict[f"{prefix}_nome"] = unidade_dict.get("nome", "")  # pragma: no mutate
-    target_dict[f"{prefix}_razaoSocial"] = unidade_dict.get("razaoSocial", "")  # pragma: no mutate
+    target_dict[f"{prefix}_razaoSocial"] = unidade_dict.get(
+        "razaoSocial", ""
+    )  # pragma: no mutate
     tipo_un = unidade_dict.get("tipoUnidade") or {}
-    target_dict[f"{prefix}_tipoUnidade_descricao"] = tipo_un.get("descricao", "")  # pragma: no mutate
+    target_dict[f"{prefix}_tipoUnidade_descricao"] = tipo_un.get(
+        "descricao", ""
+    )  # pragma: no mutate
     mun = unidade_dict.get("municipio") or {}
     target_dict[f"{prefix}_municipio_nome"] = mun.get("nome", "")  # pragma: no mutate
     target_dict[f"{prefix}_municipio_uf"] = mun.get("uf", "")  # pragma: no mutate
@@ -238,41 +242,65 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
     data["situacao"] = j_dict.get("situacao", "")  # pragma: no mutate
     data["origem_lista"] = origem_lista  # pragma: no mutate
     data["corRegulador"] = j_dict.get("corRegulador", "")  # pragma: no mutate
-    data["dataSolicitacao"] = timestamp_to_date(j_dict.get("dataSolicitacao"))  # pragma: no mutate
-    data["liminarOrdemJudicial"] = j_dict.get("liminarOrdemJudicial", "")  # pragma: no mutate
+    data["dataSolicitacao"] = timestamp_to_date(
+        j_dict.get("dataSolicitacao")
+    )  # pragma: no mutate
+    data["liminarOrdemJudicial"] = j_dict.get(
+        "liminarOrdemJudicial", ""
+    )  # pragma: no mutate
 
     # ── 2. DEMOGRAFIA DO PACIENTE (usuarioSUS) ───────────────────────────
     # pragma: no mutate
     u_sus = j_dict.get("usuarioSUS") or {}
-    data["usuarioSUS_nomeCompleto"] = hash_pii(u_sus.get("nomeCompleto", ""))  # pragma: no mutate
+    data["usuarioSUS_nomeCompleto"] = hash_pii(
+        u_sus.get("nomeCompleto", "")
+    )  # pragma: no mutate
     dn_raw = timestamp_to_date(u_sus.get("dataNascimento"))
-    data["usuarioSUS_dataNascimento"] = dn_raw.split(" ")[0] if dn_raw else ""  # pragma: no mutate
+    data["usuarioSUS_dataNascimento"] = (
+        dn_raw.split(" ")[0] if dn_raw else ""
+    )  # pragma: no mutate
     data["usuarioSUS_sexo"] = u_sus.get("sexo", "")  # pragma: no mutate
     data["usuarioSUS_racaCor"] = u_sus.get("racaCor", "")  # pragma: no mutate
     data["usuarioSUS_cpf"] = hash_pii(u_sus.get("cpf", ""))  # pragma: no mutate
     data["usuarioSUS_nomeMae"] = hash_pii(u_sus.get("nomeMae", ""))  # pragma: no mutate
-    data["usuarioSUS_cartaoSus"] = hash_pii(u_sus.get("cartaoSus", ""))  # pragma: no mutate
-    data["usuarioSUS_nacionalidade"] = u_sus.get("nacionalidade", "")  # pragma: no mutate
+    data["usuarioSUS_cartaoSus"] = hash_pii(
+        u_sus.get("cartaoSus", "")
+    )  # pragma: no mutate
+    data["usuarioSUS_nacionalidade"] = u_sus.get(
+        "nacionalidade", ""
+    )  # pragma: no mutate
     data["usuarioSUS_logradouro"] = u_sus.get("logradouro", "")  # pragma: no mutate
     data["usuarioSUS_numero"] = u_sus.get("numero", "")  # pragma: no mutate
     data["usuarioSUS_complemento"] = u_sus.get("complemento", "")  # pragma: no mutate
     data["usuarioSUS_bairro"] = u_sus.get("bairro", "")  # pragma: no mutate
     data["usuarioSUS_cep"] = u_sus.get("cep", "")  # pragma: no mutate
     mun_res = u_sus.get("municipioResidencia") or {}
-    data["usuarioSUS_municipioResidencia_nome"] = mun_res.get("nome", "")  # pragma: no mutate
-    data["usuarioSUS_municipioResidencia_uf"] = mun_res.get("uf", "")  # pragma: no mutate
+    data["usuarioSUS_municipioResidencia_nome"] = mun_res.get(
+        "nome", ""
+    )  # pragma: no mutate
+    data["usuarioSUS_municipioResidencia_uf"] = mun_res.get(
+        "uf", ""
+    )  # pragma: no mutate
 
     # ── 3. ATORES RAIZ (Governança) ──────────────────────────────────────
     # pragma: no mutate
     op = j_dict.get("operador") or {}
     op_prof = op.get("profissional") or {}
-    data["operador_nome"] = op.get("nome") or op_prof.get("nome", "")  # pragma: no mutate
-    data["operador_cpf"] = hash_pii(op.get("cpf") or op_prof.get("cpf", ""))  # pragma: no mutate
+    data["operador_nome"] = op.get("nome") or op_prof.get(
+        "nome", ""
+    )  # pragma: no mutate
+    data["operador_cpf"] = hash_pii(
+        op.get("cpf") or op_prof.get("cpf", "")
+    )  # pragma: no mutate
 
     us = j_dict.get("usuarioSolicitante") or {}
     us_prof = us.get("profissional") or {}
-    data["usuarioSolicitante_nome"] = us.get("nome") or us_prof.get("nome", "")  # pragma: no mutate
-    data["usuarioSolicitante_cpf"] = hash_pii(us.get("cpf") or us_prof.get("cpf", ""))  # pragma: no mutate
+    data["usuarioSolicitante_nome"] = us.get("nome") or us_prof.get(
+        "nome", ""
+    )  # pragma: no mutate
+    data["usuarioSolicitante_cpf"] = hash_pii(
+        us.get("cpf") or us_prof.get("cpf", "")
+    )  # pragma: no mutate
 
     # ── 4. CICLO DE VIDA RAIZ ────────────────────────────────────────────
     # pragma: no mutate
@@ -282,14 +310,26 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
     data["dataPrimeiraAutorizacao"] = timestamp_to_date(  # pragma: no mutate
         j_dict.get("dataPrimeiraAutorizacao")
     )
-    data["regularizacaoAcesso"] = j_dict.get("regularizacaoAcesso", "")  # pragma: no mutate
+    data["regularizacaoAcesso"] = j_dict.get(
+        "regularizacaoAcesso", ""
+    )  # pragma: no mutate
     data["statusProvisorio"] = j_dict.get("statusProvisorio", "")  # pragma: no mutate
-    data["justificativaRetorno"] = j_dict.get("justificativaRetorno", "")  # pragma: no mutate
-    data["justificativaDuplicacao"] = j_dict.get("justificativaDuplicacao", "")  # pragma: no mutate
+    data["justificativaRetorno"] = j_dict.get(
+        "justificativaRetorno", ""
+    )  # pragma: no mutate
+    data["justificativaDuplicacao"] = j_dict.get(
+        "justificativaDuplicacao", ""
+    )  # pragma: no mutate
     data["motivoPendencia"] = j_dict.get("motivoPendencia", "")  # pragma: no mutate
-    data["motivoCancelamento"] = j_dict.get("motivoCancelamento", "")  # pragma: no mutate
-    data["motivoEncerramento"] = j_dict.get("motivoEncerramento", "")  # pragma: no mutate
-    data["descricaoEncerramento"] = j_dict.get("descricaoEncerramento", "")  # pragma: no mutate
+    data["motivoCancelamento"] = j_dict.get(
+        "motivoCancelamento", ""
+    )  # pragma: no mutate
+    data["motivoEncerramento"] = j_dict.get(
+        "motivoEncerramento", ""
+    )  # pragma: no mutate
+    data["descricaoEncerramento"] = j_dict.get(
+        "descricaoEncerramento", ""
+    )  # pragma: no mutate
 
     # ── 5-7. EVENT SOURCING: Evoluções + Snapshot + SLA ──────────────────
     evolucoes = j_dict.get("evolucoes", [])
@@ -342,74 +382,116 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
             data_ultima_interacao = ts_atual
 
             entidade = det_json.get("entidade") or {}
-            
+
             # pragma: no mutate
             if entidade:
-                data["entidade_sistemaOrigem"] = entidade.get("sistemaOrigem", "")  # pragma: no mutate
-                data["entidade_complexidade"] = entidade.get("complexidade", "")  # pragma: no mutate
+                data["entidade_sistemaOrigem"] = entidade.get(
+                    "sistemaOrigem", ""
+                )  # pragma: no mutate
+                data["entidade_complexidade"] = entidade.get(
+                    "complexidade", ""
+                )  # pragma: no mutate
                 data["entidade_semClassificacao"] = safe_bool(  # pragma: no mutate
                     entidade.get("semClassificacao")
                 )
 
                 # pragma: no mutate
                 cid = entidade.get("cidPrincipal") or {}
-                data["entidade_cidPrincipal_codigo"] = cid.get("codigo", "")  # pragma: no mutate
-                data["entidade_cidPrincipal_descricao"] = cid.get("descricao", "")  # pragma: no mutate
+                data["entidade_cidPrincipal_codigo"] = cid.get(
+                    "codigo", ""
+                )  # pragma: no mutate
+                data["entidade_cidPrincipal_descricao"] = cid.get(
+                    "descricao", ""
+                )  # pragma: no mutate
 
                 esp = entidade.get("especialidade") or {}
-                data["entidade_especialidade_descricao"] = esp.get("descricao", "")  # pragma: no mutate
-                data["entidade_especialidade_descricaoAuxiliar"] = esp.get(  # pragma: no mutate
-                    "descricaoAuxiliar", ""
+                data["entidade_especialidade_descricao"] = esp.get(
+                    "descricao", ""
+                )  # pragma: no mutate
+                data["entidade_especialidade_descricaoAuxiliar"] = (
+                    esp.get(  # pragma: no mutate
+                        "descricaoAuxiliar", ""
+                    )
                 )
                 data["entidade_especialidade_cbo_descricao"] = (  # pragma: no mutate
                     esp.get("cbo") or {}
                 ).get("descricao", "")
 
                 esp_mae = esp.get("especialidadeMae") or {}
-                data["entidade_especialidade_especialidadeMae_descricao"] = esp_mae.get(  # pragma: no mutate
-                    "descricao", ""
+                data["entidade_especialidade_especialidadeMae_descricao"] = (
+                    esp_mae.get(  # pragma: no mutate
+                        "descricao", ""
+                    )
                 )
-                data["entidade_especialidade_especialidadeMae_cbo_descricao"] = (  # pragma: no mutate
+                data[
+                    "entidade_especialidade_especialidadeMae_cbo_descricao"
+                ] = (  # pragma: no mutate
                     esp_mae.get("cbo") or {}
                 ).get("descricao", "")
 
-                data["entidade_especialidade_tipoRegulacao"] = esp.get(  # pragma: no mutate
-                    "tipoRegulacao", ""
+                data["entidade_especialidade_tipoRegulacao"] = (
+                    esp.get(  # pragma: no mutate
+                        "tipoRegulacao", ""
+                    )
                 )
-                data["entidade_especialidade_teleconsulta"] = safe_bool(  # pragma: no mutate
-                    esp.get("teleconsulta")
+                data["entidade_especialidade_teleconsulta"] = (
+                    safe_bool(  # pragma: no mutate
+                        esp.get("teleconsulta")
+                    )
                 )
-                data["entidade_especialidade_ativa"] = safe_bool(esp.get("ativa"))  # pragma: no mutate
-                data["entidade_especialidade_matriciamento"] = safe_bool(  # pragma: no mutate
-                    esp.get("matriciamento")
+                data["entidade_especialidade_ativa"] = safe_bool(
+                    esp.get("ativa")
+                )  # pragma: no mutate
+                data["entidade_especialidade_matriciamento"] = (
+                    safe_bool(  # pragma: no mutate
+                        esp.get("matriciamento")
+                    )
                 )
-                data["entidade_especialidade_tipoOCI"] = safe_bool(esp.get("tipoOCI"))  # pragma: no mutate
+                data["entidade_especialidade_tipoOCI"] = safe_bool(
+                    esp.get("tipoOCI")
+                )  # pragma: no mutate
 
                 # pragma: no mutate
                 risco = entidade.get("classificacaoRisco") or {}
-                data["entidade_classificacaoRisco_totalPontos"] = risco.get(  # pragma: no mutate
-                    "totalPontos", 0
+                data["entidade_classificacaoRisco_totalPontos"] = (
+                    risco.get(  # pragma: no mutate
+                        "totalPontos", 0
+                    )
                 )
-                data["entidade_classificacaoRisco_pontosGravidade"] = risco.get(  # pragma: no mutate
-                    "pontosGravidade", 0
+                data["entidade_classificacaoRisco_pontosGravidade"] = (
+                    risco.get(  # pragma: no mutate
+                        "pontosGravidade", 0
+                    )
                 )
-                data["entidade_classificacaoRisco_pontosTempo"] = risco.get(  # pragma: no mutate
-                    "pontosTempo", 0
+                data["entidade_classificacaoRisco_pontosTempo"] = (
+                    risco.get(  # pragma: no mutate
+                        "pontosTempo", 0
+                    )
                 )
-                data["entidade_classificacaoRisco_cor"] = risco.get("cor", "")  # pragma: no mutate
-                data["entidade_classificacaoRisco_reclassificadaSolicitante"] = (  # pragma: no mutate
+                data["entidade_classificacaoRisco_cor"] = risco.get(
+                    "cor", ""
+                )  # pragma: no mutate
+                data[
+                    "entidade_classificacaoRisco_reclassificadaSolicitante"
+                ] = (  # pragma: no mutate
                     safe_bool(risco.get("reclassificadaSolicitante"))
                 )
 
                 data["entidade_foraDaRegionalizacao"] = safe_bool(  # pragma: no mutate
                     entidade.get("foraDaRegionalizacao")
                 )
-                data["entidade_possuiDita"] = safe_bool(entidade.get("possuiDita"))  # pragma: no mutate
+                data["entidade_possuiDita"] = safe_bool(
+                    entidade.get("possuiDita")
+                )  # pragma: no mutate
 
                 # Geografias do Snapshot
                 mun_sus_ent = entidade.get("municipioUsuarioSUS") or {}
-                data["entidade_municipioUsuarioSUS_nome"] = mun_sus_ent.get("nome", "")  # pragma: no mutate
-                data["entidade_municipioUsuarioSUS_uf"] = mun_sus_ent.get("uf", "")  # pragma: no mutate
+                data["entidade_municipioUsuarioSUS_nome"] = mun_sus_ent.get(
+                    "nome", ""
+                )  # pragma: no mutate
+                data["entidade_municipioUsuarioSUS_uf"] = mun_sus_ent.get(
+                    "uf", ""
+                )  # pragma: no mutate
 
                 extract_unidade(
                     entidade.get("unidadeOperador"), "entidade_unidadeOperador", data
@@ -566,18 +648,28 @@ def flatten_solicitacao(j_dict: Dict[Any, Any], origem_lista: str) -> Dict[str, 
 
     # ── F. MÉTRICAS SLA CONSOLIDADAS ────────────────────────────────────
     MS_PER_DAY = 86400000.0
-    data["SLA_Tempo_Solicitante_Dias"] = round(tempo_solicitante_ms / MS_PER_DAY, 2)  # pragma: no mutate
-    data["SLA_Tempo_Regulador_Dias"] = round(tempo_regulador_ms / MS_PER_DAY, 2)  # pragma: no mutate
+    data["SLA_Tempo_Solicitante_Dias"] = round(
+        tempo_solicitante_ms / MS_PER_DAY, 2
+    )  # pragma: no mutate
+    data["SLA_Tempo_Regulador_Dias"] = round(
+        tempo_regulador_ms / MS_PER_DAY, 2
+    )  # pragma: no mutate
     data["SLA_Lead_Time_Total_Dias"] = round(  # pragma: no mutate
         (tempo_solicitante_ms + tempo_regulador_ms) / MS_PER_DAY, 2
     )
     data["SLA_Interacoes_Regulacao"] = qtd_interacoes_regulacao  # pragma: no mutate
-    data["SLA_Atores_Envolvidos"] = " | ".join(sorted(atores_envolvidos))  # pragma: no mutate
+    data["SLA_Atores_Envolvidos"] = " | ".join(
+        sorted(atores_envolvidos)
+    )  # pragma: no mutate
     data["SLA_Desfecho_Atingido"] = bool(data_desfecho)  # pragma: no mutate
 
     # ── G. DUAL-WRITE FINAL ─────────────────────────────────────────────
     data["historico_quadro_clinico"] = " || ".join(textos_clinicos)  # pragma: no mutate
-    data["historico_evolucoes_completo"] = " || ".join(textos_completos)  # pragma: no mutate
-    data["evolucoes_json"] = json.dumps(evolucoes_parsed, ensure_ascii=False)  # pragma: no mutate
+    data["historico_evolucoes_completo"] = " || ".join(
+        textos_completos
+    )  # pragma: no mutate
+    data["evolucoes_json"] = json.dumps(
+        evolucoes_parsed, ensure_ascii=False
+    )  # pragma: no mutate
 
     return data

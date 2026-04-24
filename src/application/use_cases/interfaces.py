@@ -46,6 +46,7 @@ class IAnalyticsRepository(ABC):
     ) -> pd.DataFrame:
         pass
 
+
 class IIdentityService(ABC):
     @abstractmethod
     def get_current_user(self) -> ValidatedUserToken:

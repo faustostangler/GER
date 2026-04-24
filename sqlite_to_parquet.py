@@ -13,7 +13,8 @@ import pandas as pd
 import gc
 import sys
 import os
-pd.set_option('future.no_silent_downcasting', True)
+
+pd.set_option("future.no_silent_downcasting", True)
 
 # WHY: PYTHONPATH=src is set in pyproject.toml/Makefile; using src. prefix creates
 # duplicate class objects that silently break isinstance/match/case (Module Identity Mismatch).
@@ -72,9 +73,10 @@ def run_conversion():
         s3_path = None
         if parquet_out.startswith("s3://"):
             from infrastructure.config import settings
+
             parsed = urlparse(parquet_out)
             s3_path = parsed.netloc + parsed.path
-            
+
             s3_kwargs = {}
             if settings.s3.region:
                 s3_kwargs["region"] = settings.s3.region
@@ -85,10 +87,14 @@ def run_conversion():
             if settings.s3.endpoint_url:
                 if "http://" in settings.s3.endpoint_url:
                     s3_kwargs["scheme"] = "http"
-                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url.replace("http://", "")
+                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url.replace(
+                        "http://", ""
+                    )
                 elif "https://" in settings.s3.endpoint_url:
                     s3_kwargs["scheme"] = "https"
-                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url.replace("https://", "")
+                    s3_kwargs["endpoint_override"] = settings.s3.endpoint_url.replace(
+                        "https://", ""
+                    )
                 else:
                     s3_kwargs["endpoint_override"] = settings.s3.endpoint_url
 
@@ -175,7 +181,9 @@ def run_conversion():
                 )
             ]
             for col in cols_bool:
-                df_chunk[col] = df_chunk[col].fillna(False).infer_objects(copy=False).astype(bool)
+                df_chunk[col] = (
+                    df_chunk[col].fillna(False).infer_objects(copy=False).astype(bool)
+                )
 
             # --- Type Safety Explicito para Métricas SLA ---
             float_cols = [
@@ -186,9 +194,11 @@ def run_conversion():
             for col in float_cols:
                 if col in df_chunk.columns:
                     # Converte para float, valores inválidos viram NaN, depois preenche com 0.0
-                    df_chunk[col] = pd.to_numeric(
-                        df_chunk[col], errors="coerce"
-                    ).fillna(0.0).infer_objects(copy=False)
+                    df_chunk[col] = (
+                        pd.to_numeric(df_chunk[col], errors="coerce")
+                        .fillna(0.0)
+                        .infer_objects(copy=False)
+                    )
 
             if "SLA_Interacoes_Regulacao" in df_chunk.columns:
                 df_chunk["SLA_Interacoes_Regulacao"] = (

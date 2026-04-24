@@ -7,6 +7,7 @@ exists (Red phase of TDD cycle before the extraction).
 
 Ref: ADR-006 — IAM Adapter Isolation (Phase 3 / SRP extraction).
 """
+
 from __future__ import annotations
 
 import time
@@ -19,6 +20,7 @@ from infrastructure.auth.token_acl import ValidatedUserToken
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_user(**kwargs) -> ValidatedUserToken:
     """Factory for ValidatedUserToken with sensible clinical defaults."""
@@ -56,7 +58,9 @@ class TestAuthMiddlewareContract:
         import presentation.middlewares.auth_middleware as mw
 
         # Public — must exist
-        assert hasattr(mw, "render_user_widget"), "render_user_widget missing from middleware"
+        assert hasattr(mw, "render_user_widget"), (
+            "render_user_widget missing from middleware"
+        )
         # Private form — must NOT be re-exported (clean boundary)
         assert not hasattr(mw, "_render_user_widget"), (
             "_render_user_widget leaked into middleware public API"
@@ -130,9 +134,10 @@ class TestRenderUserWidgetKeycloak:
         markdown_calls = [
             str(c) for c in mock_st.sidebar.mock_calls if "markdown" in str(c)
         ]
-        assert any("form" in c or "oauth2" in c or "keycloak" in c.lower() for c in markdown_calls), (
-            "Expected HTML logout form in sidebar.markdown calls"
-        )
+        assert any(
+            "form" in c or "oauth2" in c or "keycloak" in c.lower()
+            for c in markdown_calls
+        ), "Expected HTML logout form in sidebar.markdown calls"
 
 
 # ---------------------------------------------------------------------------

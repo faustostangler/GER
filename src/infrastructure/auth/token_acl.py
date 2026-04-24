@@ -34,7 +34,9 @@ class ValidatedUserToken(BaseModel):
         exp:                JWT expiration epoch. Used for session staleness checks in UI.
     """
 
-    sub: str = Field(..., description="Keycloak UUID (sub claim) — stable user identifier")
+    sub: str = Field(
+        ..., description="Keycloak UUID (sub claim) — stable user identifier"
+    )
     email: str
     preferred_username: str
     roles: List[str] = Field(

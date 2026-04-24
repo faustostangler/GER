@@ -6,12 +6,12 @@ Simula falhas de infraestrutura para provar que o sistema sobrevive ao caos:
 2. Latência de rede no DuckDB → validação de timeout gracioso
 3. Parquet corrompido → Circuit Breaker do Data Contract
 """
+
 import os
 import time
 import pytest
 import pandas as pd
 from unittest.mock import MagicMock, patch
-
 
 
 class TestRedisChaos:
@@ -21,13 +21,15 @@ class TestRedisChaos:
         """Se Redis cair, _query deve retornar dados direto do Parquet sem exceção."""
         # Arrange: Cria um Parquet mínimo válido
         parquet_path = str(tmp_path / "test.parquet")
-        df = pd.DataFrame({
-            "numeroCMCE": ["P001", "P002"],
-            "entidade_classificacaoRisco_cor": ["VERMELHO", "VERDE"],
-            "entidade_especialidade_descricao": ["Cardio", "Neuro"],
-            "dataSolicitacao": ["2025-01-01", "2025-06-01"],
-            "dataCadastro": ["2025-01-01", "2025-06-01"],
-        })
+        df = pd.DataFrame(
+            {
+                "numeroCMCE": ["P001", "P002"],
+                "entidade_classificacaoRisco_cor": ["VERMELHO", "VERDE"],
+                "entidade_especialidade_descricao": ["Cardio", "Neuro"],
+                "dataSolicitacao": ["2025-01-01", "2025-06-01"],
+                "dataCadastro": ["2025-01-01", "2025-06-01"],
+            }
+        )
         df.to_parquet(parquet_path)
 
         # Act: Monta o repositório sem Redis (simula queda)
@@ -37,7 +39,10 @@ class TestRedisChaos:
             mock_settings.redis.port = 59999  # Porta inexistente
             mock_settings.OUTPUT_FILE = parquet_path
 
-            from infrastructure.repositories.duckdb_repository import DuckDBAnalyticsRepository
+            from infrastructure.repositories.duckdb_repository import (
+                DuckDBAnalyticsRepository,
+            )
+
             repo = DuckDBAnalyticsRepository(parquet_path)
 
         # Assert: redis_client é None (fallback)
@@ -50,13 +55,15 @@ class TestRedisChaos:
     def test_redis_failure_mid_operation_is_transparent(self, tmp_path):
         """Se Redis falhar DURANTE uma operação, a query não deve travar."""
         parquet_path = str(tmp_path / "test.parquet")
-        df = pd.DataFrame({
-            "numeroCMCE": ["P001"],
-            "entidade_classificacaoRisco_cor": ["VERMELHO"],
-            "entidade_especialidade_descricao": ["Cardio"],
-            "dataSolicitacao": ["2025-01-01"],
-            "dataCadastro": ["2025-01-01"],
-        })
+        df = pd.DataFrame(
+            {
+                "numeroCMCE": ["P001"],
+                "entidade_classificacaoRisco_cor": ["VERMELHO"],
+                "entidade_especialidade_descricao": ["Cardio"],
+                "dataSolicitacao": ["2025-01-01"],
+                "dataCadastro": ["2025-01-01"],
+            }
+        )
         df.to_parquet(parquet_path)
 
         with patch("infrastructure.config.settings") as mock_settings:
@@ -65,7 +72,10 @@ class TestRedisChaos:
             mock_settings.redis.port = 59999
             mock_settings.OUTPUT_FILE = parquet_path
 
-            from infrastructure.repositories.duckdb_repository import DuckDBAnalyticsRepository
+            from infrastructure.repositories.duckdb_repository import (
+                DuckDBAnalyticsRepository,
+            )
+
             repo = DuckDBAnalyticsRepository(parquet_path)
 
         # Simula um client Redis que foi setado mas falha no .get()
@@ -86,10 +96,12 @@ class TestDataContractChaos:
         """Se o Parquet não tiver colunas obrigatórias, ValueError é disparado."""
         parquet_path = str(tmp_path / "corrupted.parquet")
         # Cria um Parquet com schema errado (falte numeroCMCE)
-        df = pd.DataFrame({
-            "coluna_inventada": [1, 2, 3],
-            "outra_irrelevante": ["a", "b", "c"],
-        })
+        df = pd.DataFrame(
+            {
+                "coluna_inventada": [1, 2, 3],
+                "outra_irrelevante": ["a", "b", "c"],
+            }
+        )
         df.to_parquet(parquet_path)
 
         with patch("infrastructure.config.settings") as mock_settings:
@@ -98,21 +110,26 @@ class TestDataContractChaos:
             mock_settings.redis.port = 59999
             mock_settings.OUTPUT_FILE = parquet_path
 
-            from infrastructure.repositories.duckdb_repository import DuckDBAnalyticsRepository
+            from infrastructure.repositories.duckdb_repository import (
+                DuckDBAnalyticsRepository,
+            )
+
             with pytest.raises(ValueError, match="Data Contract Quebrado"):
                 DuckDBAnalyticsRepository(parquet_path)
 
     def test_valid_schema_passes_contract(self, tmp_path):
         """Parquet com todas as colunas obrigatórias não dispara Circuit Breaker."""
         parquet_path = str(tmp_path / "valid.parquet")
-        df = pd.DataFrame({
-            "numeroCMCE": ["P001"],
-            "entidade_classificacaoRisco_cor": ["VERMELHO"],
-            "entidade_especialidade_descricao": ["Cardio"],
-            "dataSolicitacao": ["2025-01-01"],
-            "dataCadastro": ["2025-01-01"],
-            "extra_column": ["ignored"],
-        })
+        df = pd.DataFrame(
+            {
+                "numeroCMCE": ["P001"],
+                "entidade_classificacaoRisco_cor": ["VERMELHO"],
+                "entidade_especialidade_descricao": ["Cardio"],
+                "dataSolicitacao": ["2025-01-01"],
+                "dataCadastro": ["2025-01-01"],
+                "extra_column": ["ignored"],
+            }
+        )
         df.to_parquet(parquet_path)
 
         with patch("infrastructure.config.settings") as mock_settings:
@@ -121,7 +138,10 @@ class TestDataContractChaos:
             mock_settings.redis.port = 59999
             mock_settings.OUTPUT_FILE = parquet_path
 
-            from infrastructure.repositories.duckdb_repository import DuckDBAnalyticsRepository
+            from infrastructure.repositories.duckdb_repository import (
+                DuckDBAnalyticsRepository,
+            )
+
             repo = DuckDBAnalyticsRepository(parquet_path)
 
         # Smoke test: query funciona
@@ -158,4 +178,6 @@ class TestDataFreshnessChaos:
         age_hours = (time.time() - actual_mtime) / 3600
         threshold = 2.0
 
-        assert age_hours < threshold, "O arquivo recém-criado não deveria estar obsoleto"
+        assert age_hours < threshold, (
+            "O arquivo recém-criado não deveria estar obsoleto"
+        )

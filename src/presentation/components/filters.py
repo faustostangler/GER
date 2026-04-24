@@ -116,7 +116,12 @@ def render_include_exclude(
 
 
 def render_boolean_radio(
-    label: str, column: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
+    label: str,
+    column: str,
+    builder: FiltroAvancadoSpecBuilder,
+    key: str,
+    ui_tracker: list,
+    cat_keys: list,
 ):
     """SRE Component for boolean fields (True/False/Null)"""
     cat_keys.append(f"{key}_radio")
@@ -147,7 +152,12 @@ def render_boolean_radio(
 
 
 def render_presence_radio(
-    label: str, column: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
+    label: str,
+    column: str,
+    builder: FiltroAvancadoSpecBuilder,
+    key: str,
+    ui_tracker: list,
+    cat_keys: list,
 ):
     """SRE Component for text/ID fields where value presence validates true flag."""
     cat_keys.append(f"{key}_radio")
@@ -178,7 +188,13 @@ def render_presence_radio(
 
 
 def render_dual_slider(
-    use_case, label: str, column: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
+    use_case,
+    label: str,
+    column: str,
+    builder: FiltroAvancadoSpecBuilder,
+    key: str,
+    ui_tracker: list,
+    cat_keys: list,
 ):
     """SRE UX FIX: Bidirectional slider synchronized with numeric inputs for surgical precision."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
@@ -252,11 +268,16 @@ def render_dual_slider(
 
 
 def render_age_slider(
-    use_case, label: str, builder: FiltroAvancadoSpecBuilder, key: str, ui_tracker: list, cat_keys: list
+    use_case,
+    label: str,
+    builder: FiltroAvancadoSpecBuilder,
+    key: str,
+    ui_tracker: list,
+    cat_keys: list,
 ):
     """Domain Component for Age: Converts visible Age Range to DATEDIFF in OLAP SQL."""
     cat_keys.extend([f"{key}_sld", f"{key}_min", f"{key}_max"])
-    
+
     _policy = use_case._policy
     vmin_val, vmax_val = _policy.idade_min, _policy.idade_max
 
@@ -353,7 +374,9 @@ def render_smart_date_range(
                 "keys": [key],
             }
         )
-        builder.add_limite_data(column, val[0].strftime('%Y-%m-%d'), val[1].strftime('%Y-%m-%d'))
+        builder.add_limite_data(
+            column, val[0].strftime("%Y-%m-%d"), val[1].strftime("%Y-%m-%d")
+        )
 
     return DuckDBCriteriaTranslator.translate(builder.build())
 
@@ -431,22 +454,41 @@ def render_advanced_text_search(
 
             if and_terms or or_terms or not_terms:
                 _or = [w for w in or_terms.split(",") if w.strip()] if or_terms else []
-                _and = [w for w in and_terms.split(",") if w.strip()] if and_terms else []
-                _not = [w for w in not_terms.split(",") if w.strip()] if not_terms else []
+                _and = (
+                    [w for w in and_terms.split(",") if w.strip()] if and_terms else []
+                )
+                _not = (
+                    [w for w in not_terms.split(",") if w.strip()] if not_terms else []
+                )
 
                 if _or:
-                    ui_tracker.append({"text": f"✅ {label}: {or_terms}", "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"]})
+                    ui_tracker.append(
+                        {
+                            "text": f"✅ {label}: {or_terms}",
+                            "keys": [f"{key}_or_val", f"{key}_or", f"{key}_toggle"],
+                        }
+                    )
                 if _and:
-                    ui_tracker.append({"text": f"⚠️ AND {label}: {and_terms}", "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"]})
+                    ui_tracker.append(
+                        {
+                            "text": f"⚠️ AND {label}: {and_terms}",
+                            "keys": [f"{key}_and_val", f"{key}_and", f"{key}_toggle"],
+                        }
+                    )
                 if _not:
-                    ui_tracker.append({"text": f"❌ {label}: {not_terms}", "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"]})
+                    ui_tracker.append(
+                        {
+                            "text": f"❌ {label}: {not_terms}",
+                            "keys": [f"{key}_not_val", f"{key}_not", f"{key}_toggle"],
+                        }
+                    )
 
                 builder.add_busca_avancada(
                     column=column,
                     or_terms=_or,
                     and_terms=_and,
                     not_terms=_not,
-                    aggregate_by=aggregate_by if aggregate_by else None
+                    aggregate_by=aggregate_by if aggregate_by else None,
                 )
 
     return DuckDBCriteriaTranslator.translate(builder.build())
@@ -464,16 +506,20 @@ def render_outcome_type_filter(
     current_user,
 ):
     """Renders the unique Outcome Type filter handling IN PROGRESS meaning empty."""
-    _desfecho_options_raw = use_case.get_dynamic_options(column, current_where, current_user)
-    _desfecho_options = sorted(set([o for o in _desfecho_options_raw if o])) + ["IN PROGRESS"]
+    _desfecho_options_raw = use_case.get_dynamic_options(
+        column, current_where, current_user
+    )
+    _desfecho_options = sorted(set([o for o in _desfecho_options_raw if o])) + [
+        "IN PROGRESS"
+    ]
 
     cat_keys.extend([f"{key}_in", f"{key}_ex"])
-    
+
     st.write(
         f"<span style='font-size:0.9em;font-weight:600;color:#4B5563;'>{label}</span>",
         unsafe_allow_html=True,
     )
-    
+
     _sla_incl = st.multiselect(
         f"{label} ✅",
         _desfecho_options,
@@ -488,7 +534,7 @@ def render_outcome_type_filter(
         label_visibility="collapsed",
         placeholder=f"❌ Exclude {label}...",
     )
-    
+
     if _sla_incl:
         ui_tracker.append(
             {"text": f"✅ {label}: {', '.join(_sla_incl)}", "keys": [f"{key}_in"]}
@@ -499,10 +545,10 @@ def render_outcome_type_filter(
             _parts.append(f'("{column}" IS NULL OR "{column}" = \'\')')
             if _rest:
                 _safe = "', '".join(v.replace("'", "''") for v in _rest)
-                _parts.append(f'"{column}" IN (\'{_safe}\')')
+                _parts.append(f"\"{column}\" IN ('{_safe}')")
         else:
             _safe = "', '".join(v.replace("'", "''") for v in _sla_incl)
-            _parts.append(f'"{column}" IN (\'{_safe}\')')
+            _parts.append(f"\"{column}\" IN ('{_safe}')")
         builder.add_clausula_legado(f"({' OR '.join(_parts)})")
 
     if _sla_excl:
@@ -515,10 +561,10 @@ def render_outcome_type_filter(
             _parts_ex.append(f'("{column}" IS NOT NULL AND "{column}" != \'\')')
             if _rest_ex:
                 _safe_ex = "', '".join(v.replace("'", "''") for v in _rest_ex)
-                _parts_ex.append(f'"{column}" NOT IN (\'{_safe_ex}\')')
+                _parts_ex.append(f"\"{column}\" NOT IN ('{_safe_ex}')")
         else:
             _safe_ex = "', '".join(v.replace("'", "''") for v in _sla_excl)
-            _parts_ex.append(f'"{column}" NOT IN (\'{_safe_ex}\')')
+            _parts_ex.append(f"\"{column}\" NOT IN ('{_safe_ex}')")
         builder.add_clausula_legado(f"({' AND '.join(_parts_ex)})")
 
     return DuckDBCriteriaTranslator.translate(builder.build())
@@ -540,12 +586,24 @@ def render_pending_reasons_filter(
     )
     _pend_fields = [
         ("Type", "json_extract_string(\"motivoPendencia\", '$.tipo')", "mot_pend_tipo"),
-        ("Reason", "json_extract_string(\"motivoPendencia\", '$.motivo')", "mot_pend_mot"),
-        ("Description", "json_extract_string(\"motivoPendencia\", '$.descricao')", "mot_pend_desc"),
-        ("Status", "json_extract_string(\"motivoPendencia\", '$.status')", "mot_pend_sta"),
+        (
+            "Reason",
+            "json_extract_string(\"motivoPendencia\", '$.motivo')",
+            "mot_pend_mot",
+        ),
+        (
+            "Description",
+            "json_extract_string(\"motivoPendencia\", '$.descricao')",
+            "mot_pend_desc",
+        ),
+        (
+            "Status",
+            "json_extract_string(\"motivoPendencia\", '$.status')",
+            "mot_pend_sta",
+        ),
     ]
     _where_for_pend = current_where if current_where.strip() else "1=1"
-    
+
     for _pf_label, _pf_expr, _pf_key in _pend_fields:
         try:
             _pf_sql = (
@@ -580,19 +638,25 @@ def render_pending_reasons_filter(
             label_visibility="collapsed",
             placeholder=f"❌ Exclude {_pf_label}...",
         )
-        
+
         if _pf_incl:
             _pf_safe = "', '".join(v.replace("'", "''") for v in _pf_incl)
             builder.add_clausula_legado(f"{_pf_expr} IN ('{_pf_safe}')")
             ui_tracker.append(
-                {"text": f"✅ Pending {_pf_label}: {', '.join(_pf_incl)}", "keys": [f"{_pf_key}_in"]}
+                {
+                    "text": f"✅ Pending {_pf_label}: {', '.join(_pf_incl)}",
+                    "keys": [f"{_pf_key}_in"],
+                }
             )
-        
+
         if _pf_excl:
             _pf_safe_ex = "', '".join(v.replace("'", "''") for v in _pf_excl)
             builder.add_clausula_legado(f"{_pf_expr} NOT IN ('{_pf_safe_ex}')")
             ui_tracker.append(
-                {"text": f"❌ Pending {_pf_label}: {', '.join(_pf_excl)}", "keys": [f"{_pf_key}_ex"]}
+                {
+                    "text": f"❌ Pending {_pf_label}: {', '.join(_pf_excl)}",
+                    "keys": [f"{_pf_key}_ex"],
+                }
             )
 
     return DuckDBCriteriaTranslator.translate(builder.build())

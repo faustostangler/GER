@@ -33,10 +33,10 @@ async def run_daily_sync(ctx):
     print("✅ Processamento finalizado com sucesso!")
 
 
-
 async def on_startup(ctx):
     """Inicialização do Worker: Telemetria e Conexões"""
     from infrastructure.telemetry.metrics import init_prometheus
+
     init_prometheus(port=8000)
 
 

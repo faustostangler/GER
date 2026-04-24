@@ -2,7 +2,10 @@ import os
 from dotenv import load_dotenv
 
 from src.infrastructure.adapters.playwright_scraper import PlaywrightGerconAdapter
-from src.infrastructure.repositories.sqlite_raw_repository import SQLiteRawRepository, SQLiteDLQRepository
+from src.infrastructure.repositories.sqlite_raw_repository import (
+    SQLiteRawRepository,
+    SQLiteDLQRepository,
+)
 from src.infrastructure.repositories.parquet_data_repository import (
     ParquetDataRepository,
 )

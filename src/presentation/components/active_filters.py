@@ -1,11 +1,12 @@
 import streamlit as st
 from presentation.components.filters import clear_filter_state
 
+
 def render_active_filters_top_bar(ui_filters: dict, state_keys: dict):
     """
     Renders the top bar displaying currently active semantic filters.
     Allows the user to clear individual filters or all of them at once.
-    
+
     Args:
         ui_filters (dict): A dictionary mapping categories to lists of active filter dictionaries.
         state_keys (dict): A dictionary mapping categories to Streamlit session state keys.

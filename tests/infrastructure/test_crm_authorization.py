@@ -10,6 +10,7 @@ Key behavioral contracts:
 4. The CRM is NEVER read from the JWT payload (no payload.get('crm_numero')).
 5. The 403 reason distinguishes "domain not authorized" from "bad credentials".
 """
+
 import pytest
 from unittest.mock import MagicMock, patch
 from fastapi import HTTPException
@@ -51,7 +52,9 @@ class TestCRMAuthorizationGate:
         with patch("infrastructure.auth.jwt_validator.jwks_client") as mock_client:
             mock_client.get_signing_key_from_jwt.return_value = _make_mock_signing_key()
             with patch("jwt.get_unverified_header", return_value={"kid": "test-kid"}):
-                with patch("jwt.decode", return_value=_make_jwt_payload(sub="kc-no-profile")):
+                with patch(
+                    "jwt.decode", return_value=_make_jwt_payload(sub="kc-no-profile")
+                ):
                     with patch(
                         "infrastructure.auth.jwt_validator._lookup_doctor_profile",
                         return_value=None,  # No DoctorProfile found in DB
@@ -62,7 +65,10 @@ class TestCRMAuthorizationGate:
         assert exc_info.value.status_code == 403, (
             "Missing DoctorProfile must yield 403 (unauthorized), not 401 (unauthenticated)"
         )
-        assert "crm" in exc_info.value.detail.lower() or "authorized" in exc_info.value.detail.lower()
+        assert (
+            "crm" in exc_info.value.detail.lower()
+            or "authorized" in exc_info.value.detail.lower()
+        )
 
     def test_valid_jwt_with_unverified_crm_raises_403(self):
         """Identity OK + Domain FAIL (crm_verified=False) = 403 Forbidden.
@@ -82,7 +88,10 @@ class TestCRMAuthorizationGate:
         with patch("infrastructure.auth.jwt_validator.jwks_client") as mock_client:
             mock_client.get_signing_key_from_jwt.return_value = _make_mock_signing_key()
             with patch("jwt.get_unverified_header", return_value={"kid": "test-kid"}):
-                with patch("jwt.decode", return_value=_make_jwt_payload(sub="kc-uuid-unverified")):
+                with patch(
+                    "jwt.decode",
+                    return_value=_make_jwt_payload(sub="kc-uuid-unverified"),
+                ):
                     with patch(
                         "infrastructure.auth.jwt_validator._lookup_doctor_profile",
                         return_value=unverified_profile,
@@ -91,7 +100,10 @@ class TestCRMAuthorizationGate:
                             verify_token("valid.jwt.token")
 
         assert exc_info.value.status_code == 403
-        assert "crm" in exc_info.value.detail.lower() or "verified" in exc_info.value.detail.lower()
+        assert (
+            "crm" in exc_info.value.detail.lower()
+            or "verified" in exc_info.value.detail.lower()
+        )
 
     def test_valid_jwt_with_verified_crm_returns_token(self):
         """Identity OK + Domain OK (crm_verified=True) = ValidatedUserToken returned.
@@ -111,7 +123,9 @@ class TestCRMAuthorizationGate:
         with patch("infrastructure.auth.jwt_validator.jwks_client") as mock_client:
             mock_client.get_signing_key_from_jwt.return_value = _make_mock_signing_key()
             with patch("jwt.get_unverified_header", return_value={"kid": "test-kid"}):
-                with patch("jwt.decode", return_value=_make_jwt_payload(sub="kc-uuid-verified")):
+                with patch(
+                    "jwt.decode", return_value=_make_jwt_payload(sub="kc-uuid-verified")
+                ):
                     with patch(
                         "infrastructure.auth.jwt_validator._lookup_doctor_profile",
                         return_value=verified_profile,
@@ -132,9 +146,10 @@ class TestCRMAuthorizationGate:
         """
         import pathlib
 
-        validator_src = pathlib.Path(
-            __file__
-        ).parent.parent.parent / "src/infrastructure/auth/jwt_validator.py"
+        validator_src = (
+            pathlib.Path(__file__).parent.parent.parent
+            / "src/infrastructure/auth/jwt_validator.py"
+        )
         source_code = validator_src.read_text()
 
         assert 'payload.get("crm_numero")' not in source_code, (

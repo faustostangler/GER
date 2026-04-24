@@ -115,7 +115,9 @@ class ScraperUseCase(IScrapingUseCase):
             with tracer.start_as_current_span("vendor_login"):
                 if not self.scraper_client.login():
                     logger.error("Failed to login via Scraper Client.")
-                    SCRAPER_ERRORS_TOTAL.labels(error_type="LOGIN", target_list="ALL").inc()
+                    SCRAPER_ERRORS_TOTAL.labels(
+                        error_type="LOGIN", target_list="ALL"
+                    ).inc()
                     SCRAPER_FAILURE_TOTAL.inc()
                     final_status = IngestionStatus.FAILURE
                     error_msg = "Login failed"
@@ -183,12 +185,12 @@ class ScraperUseCase(IScrapingUseCase):
                             break
 
                         jsons = response_data.get("jsons", [])
-                        
+
                         # --- SRE FIX: PREVENÇÃO DE LOOP INFINITO (POISON PILLS) ---
                         if not jsons:
                             logger.info(
                                 f"Página {page_num} retornou vazia. Encerrando paginação com segurança.",
-                                extra={"lista": chave}
+                                extra={"lista": chave},
                             )
                             break
                         # WHY: Estimativa de bytes para auditoria de throughput
@@ -234,7 +236,9 @@ class ScraperUseCase(IScrapingUseCase):
                                     continue  # Ignora pílula envenenada
 
                                 if list_state["full_sync_completed"] and watermark > 0:
-                                    data_alt = j.get("dataAlterouUltimaSituacao", 0) or 0
+                                    data_alt = (
+                                        j.get("dataAlterouUltimaSituacao", 0) or 0
+                                    )
                                     if 0 < data_alt <= watermark:
                                         stop_scraping = True
                                         break
@@ -305,4 +309,3 @@ class ScraperUseCase(IScrapingUseCase):
                     logger.warning(f"Falha ao persistir audit log: {log_err}")
 
             logger.info("Processo principal concluído.", extra={"status": "DONE"})
-

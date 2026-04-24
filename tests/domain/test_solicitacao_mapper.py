@@ -12,34 +12,42 @@ from domain.solicitacao_mapper import (
 import pytest
 from domain.solicitacao_mapper import hash_pii, timestamp_to_date
 
-@pytest.mark.parametrize("input_val, expected", [
-    (True, True),
-    ("true", True),
-    ("True", True),
-    ("1", True),
-    (1, True),
-    ("yes", True),
-    ("sim", True),
-    ("s", True),
-    (False, False),
-    ("false", False),
-    ("0", False),
-    (0, False),
-    (None, False),
-    ("", False),
-    ("random_string", False)
-])
+
+@pytest.mark.parametrize(
+    "input_val, expected",
+    [
+        (True, True),
+        ("true", True),
+        ("True", True),
+        ("1", True),
+        (1, True),
+        ("yes", True),
+        ("sim", True),
+        ("s", True),
+        (False, False),
+        ("false", False),
+        ("0", False),
+        (0, False),
+        (None, False),
+        ("", False),
+        ("random_string", False),
+    ],
+)
 def test_safe_bool_exhaustive(input_val, expected):
     assert safe_bool(input_val) is expected
 
-@pytest.mark.parametrize("input_val, expected", [
-    (1700000000000, "2023"),
-    ("1700000000000", "2023"),
-    (None, ""),
-    ("", ""),
-    ("invalid_string", ""),
-    ({}, ""),
-])
+
+@pytest.mark.parametrize(
+    "input_val, expected",
+    [
+        (1700000000000, "2023"),
+        ("1700000000000", "2023"),
+        (None, ""),
+        ("", ""),
+        ("invalid_string", ""),
+        ({}, ""),
+    ],
+)
 def test_timestamp_to_date_exhaustive(input_val, expected):
     res = timestamp_to_date(input_val)
     if expected == "":
@@ -48,14 +56,18 @@ def test_timestamp_to_date_exhaustive(input_val, expected):
         assert isinstance(res, str)
         assert expected in res
 
-@pytest.mark.parametrize("input_val", [
-    ("Nome Completo"),
-    ("123.456.789-00"),
-    ("   Whitespace   "),
-    (None),
-    (""),
-    (0),
-])
+
+@pytest.mark.parametrize(
+    "input_val",
+    [
+        ("Nome Completo"),
+        ("123.456.789-00"),
+        ("   Whitespace   "),
+        (None),
+        (""),
+        (0),
+    ],
+)
 def test_hash_pii_exhaustive(input_val):
     res = hash_pii(input_val)
     if not input_val:
@@ -344,8 +356,10 @@ def test_flatten_solicitacao_handles_none_perfil():
     # V2: AGUARDA_REGULACAO é PING → conta como interação de regulação
     assert flat["SLA_Interacoes_Regulacao"] == 1
 
+
 def test_clean_data_row():
     from domain.solicitacao_mapper import clean_data_row
+
     data = {"numeroCMCE": "123\r\n456\n789"}
     cleaned = clean_data_row(data)
     assert cleaned["numeroCMCE"] == "123 456  789"

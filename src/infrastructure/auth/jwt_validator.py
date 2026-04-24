@@ -11,7 +11,9 @@ from domain.identity import (
 )
 from infrastructure.auth.token_acl import ValidatedUserToken
 from infrastructure.config import settings
-from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository
+from infrastructure.repositories.doctor_profile_repository import (
+    SQLDoctorProfileRepository,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -69,8 +71,12 @@ def verify_token(token: str) -> ValidatedUserToken:
                 try:
                     signing_key = jwks_client.get_signing_key_from_jwt(token)
                 except PyJWKClientError:
-                    logger.info("JWKS cache stale — refreshing from Keycloak (1 HTTP call).")
-                    jwks_client = PyJWKClient(settings.jwks_url, cache_keys=True, lifespan=86400)
+                    logger.info(
+                        "JWKS cache stale — refreshing from Keycloak (1 HTTP call)."
+                    )
+                    jwks_client = PyJWKClient(
+                        settings.jwks_url, cache_keys=True, lifespan=86400
+                    )
                     signing_key = jwks_client.get_signing_key_from_jwt(token)
 
         payload = jwt.decode(
@@ -92,11 +98,13 @@ def verify_token(token: str) -> ValidatedUserToken:
 
         if not profile or not profile.is_authorized():
             crm_raw = payload.get("crm_numero", "N/A")
-            logger.warning(f"Resilience Breach Attempt: User {sub} (CRM {crm_raw}) failed clinical authorization.")
+            logger.warning(
+                f"Resilience Breach Attempt: User {sub} (CRM {crm_raw}) failed clinical authorization."
+            )
             raise IdentityContractViolationException(
                 message="Seu acesso está bloqueado: CRM não verificado ou inexistente.",
                 user_id=sub,
-                crm_raw=crm_raw
+                crm_raw=crm_raw,
             )
 
         # Success: ACL mapping

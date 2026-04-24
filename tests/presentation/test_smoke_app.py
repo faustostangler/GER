@@ -1,5 +1,6 @@
 import pytest
 
+
 def test_app_analytics_compiles_and_imports_successfully():
     try:
         import app_analytics  # noqa: F401

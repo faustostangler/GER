@@ -22,7 +22,7 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
     def __init__(self):
         # Session is provided by the central database session manager
         self.SessionLocal = SessionLocal
-        
+
         # Configure Redis cache (Graceful Degradation)
         try:
             self.redis_client = redis.Redis(
@@ -31,11 +31,13 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
                 db=0,
                 socket_connect_timeout=2,
                 socket_timeout=2,
-                decode_responses=True
+                decode_responses=True,
             )
             self.redis_client.ping()
         except Exception:
-            logger.warning("Redis cache unavailable for DoctorProfileRepository. Falling back to SQL only.")
+            logger.warning(
+                "Redis cache unavailable for DoctorProfileRepository. Falling back to SQL only."
+            )
             self.redis_client = None
 
         self.cache_ttl = 3600  # 1 hour
@@ -54,10 +56,9 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
                     return DoctorProfile(
                         user_id=data["user_id"],
                         crm=MedicalCouncilRegistration(
-                            crm_numero=data["crm_numero"],
-                            crm_uf=data["crm_uf"]
+                            crm_numero=data["crm_numero"], crm_uf=data["crm_uf"]
                         ),
-                        crm_verified=data["crm_verified"]
+                        crm_verified=data["crm_verified"],
                     )
             except Exception as e:
                 logger.warning("Redis cache read failure for user %s: %s", user_id, e)
@@ -65,17 +66,20 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
         # 2. PostgreSQL Source of Truth
         db = self.SessionLocal()
         try:
-            model = db.query(DoctorProfileModel).filter(DoctorProfileModel.id == user_id).first()
+            model = (
+                db.query(DoctorProfileModel)
+                .filter(DoctorProfileModel.id == user_id)
+                .first()
+            )
             if not model:
                 return None
-            
+
             profile = DoctorProfile(
                 user_id=model.id,
                 crm=MedicalCouncilRegistration(
-                    crm_numero=model.crm_numero,
-                    crm_uf=model.crm_uf
+                    crm_numero=model.crm_numero, crm_uf=model.crm_uf
                 ),
-                crm_verified=model.crm_verified
+                crm_verified=model.crm_verified,
             )
 
             # 3. Cache Hydration
@@ -84,15 +88,19 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
                     self.redis_client.setex(
                         self._get_cache_key(user_id),
                         self.cache_ttl,
-                        json.dumps({
-                            "user_id": profile.user_id,
-                            "crm_numero": profile.crm.crm_numero,
-                            "crm_uf": profile.crm.crm_uf,
-                            "crm_verified": profile.crm_verified
-                        })
+                        json.dumps(
+                            {
+                                "user_id": profile.user_id,
+                                "crm_numero": profile.crm.crm_numero,
+                                "crm_uf": profile.crm.crm_uf,
+                                "crm_verified": profile.crm_verified,
+                            }
+                        ),
                     )
                 except Exception as e:
-                    logger.warning("Redis cache write failure for user %s: %s", user_id, e)
+                    logger.warning(
+                        "Redis cache write failure for user %s: %s", user_id, e
+                    )
 
             return profile
         except SQLAlchemyError as e:
@@ -106,7 +114,11 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
         db = self.SessionLocal()
         try:
             # Atomic UPSERT equivalent
-            model = db.query(DoctorProfileModel).filter(DoctorProfileModel.id == profile.user_id).first()
+            model = (
+                db.query(DoctorProfileModel)
+                .filter(DoctorProfileModel.id == profile.user_id)
+                .first()
+            )
             if model:
                 model.crm_numero = profile.crm.crm_numero
                 model.crm_uf = profile.crm.crm_uf
@@ -116,10 +128,10 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
                     id=profile.user_id,
                     crm_numero=profile.crm.crm_numero,
                     crm_uf=profile.crm.crm_uf,
-                    crm_verified=profile.crm_verified
+                    crm_verified=profile.crm_verified,
                 )
                 db.add(model)
-            
+
             db.commit()
 
             # 2. Redis Invalidation (Write-through/Update)
@@ -128,15 +140,19 @@ class SQLDoctorProfileRepository(IDoctorProfileRepository):
                     self.redis_client.setex(
                         self._get_cache_key(profile.user_id),
                         self.cache_ttl,
-                        json.dumps({
-                            "user_id": profile.user_id,
-                            "crm_numero": profile.crm.crm_numero,
-                            "crm_uf": profile.crm.crm_uf,
-                            "crm_verified": profile.crm_verified
-                        })
+                        json.dumps(
+                            {
+                                "user_id": profile.user_id,
+                                "crm_numero": profile.crm.crm_numero,
+                                "crm_uf": profile.crm.crm_uf,
+                                "crm_verified": profile.crm_verified,
+                            }
+                        ),
                     )
                 except Exception as e:
-                    logger.warning("Redis cache update failure for user %s: %s", profile.user_id, e)
+                    logger.warning(
+                        "Redis cache update failure for user %s: %s", profile.user_id, e
+                    )
         except SQLAlchemyError as e:
             db.rollback()
             logger.error("PostgreSQL save failure for user %s: %s", profile.user_id, e)

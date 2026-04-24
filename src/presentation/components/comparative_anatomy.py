@@ -103,9 +103,7 @@ def render_comparative_anatomy(df_dist, kpi_data):
 
     # Escala Unificada para comparação direta (Adicionamos margem negativa para os textos não cortarem)
     max_val = (
-        max(
-            df_plot_fila["dias_fila"].max(), df_plot_esq["dias_esquecido"].max()
-        )
+        max(df_plot_fila["dias_fila"].max(), df_plot_esq["dias_esquecido"].max())
         if not df_plot_fila.empty and not df_plot_esq.empty
         else 100
     )
@@ -160,9 +158,7 @@ def render_comparative_anatomy(df_dist, kpi_data):
     )
 
     # Aplica a anotação SOTA
-    annotate_boxplot(
-        fig_fila, df_plot_fila, "dias_fila", p10_fila, p90_fila, "#3b82f6"
-    )
+    annotate_boxplot(fig_fila, df_plot_fila, "dias_fila", p10_fila, p90_fila, "#3b82f6")
 
     # Remove Hover (SRE UX: Zero Distraction)
     fig_fila.update_traces(hoverinfo="skip", hovertemplate=None)
@@ -208,7 +204,7 @@ def render_comparative_anatomy(df_dist, kpi_data):
     g1, g2 = st.columns(2)
     taxa_urgencia = getattr(kpi_data, "taxa_urgencia", 0.0)
     taxa_vencidos = getattr(kpi_data, "taxa_vencidos", 0.0)
-    
+
     with g1:
         fig_gauge1 = go.Figure(
             go.Indicator(
@@ -218,9 +214,7 @@ def render_comparative_anatomy(df_dist, kpi_data):
                 title={"text": "Severity Index", "font": {"size": 14}},
                 gauge={
                     "axis": {"range": [0, 100]},
-                    "bar": {
-                        "color": "#ef4444" if taxa_urgencia > 30 else "#f97316"
-                    },
+                    "bar": {"color": "#ef4444" if taxa_urgencia > 30 else "#f97316"},
                     "bgcolor": "rgba(0,0,0,0)",
                     "steps": [
                         {"range": [0, 15], "color": "#dcfce7"},

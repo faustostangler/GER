@@ -165,7 +165,6 @@ class FiltroAvancadoSpec(BaseModel, Specification):
         description="Critérios complexos de busca textual tolerante a acentos",
     )
 
-
     def is_satisfied_by(self, candidate: Any) -> bool:
         """Avalia o candidato contra todos os critérios semânticos em memória.
 
@@ -198,7 +197,7 @@ class FiltroAvancadoSpec(BaseModel, Specification):
             except (TypeError, ValueError):
                 return False
 
-        # WHY: terms for busca_avancada, booleanos_nullable, and presenca_campos 
+        # WHY: terms for busca_avancada, booleanos_nullable, and presenca_campos
         # are deferred to infrastructure (SQL) evaluation.
 
         return True
@@ -206,7 +205,7 @@ class FiltroAvancadoSpec(BaseModel, Specification):
 
 class FiltroAvancadoSpecBuilder:
     """Builder mutável para montagem progressiva da especificação imutável.
-    
+
     WHY: Permite que os widgets da UI adicionem predicados progressivamente
     (ex: render_include_exclude, render_age_slider) preenchendo os dicionários,
     sem precisarem gerenciar tuplas imutáveis ou vazar listas SQL.
@@ -223,12 +222,16 @@ class FiltroAvancadoSpecBuilder:
         self._presenca_campos: dict[str, bool] = {}
         self._busca_avancada: list[AdvancedSearchCriteria] = []
 
-    def add_inclusao(self, column: str, values: list[str]) -> "FiltroAvancadoSpecBuilder":
+    def add_inclusao(
+        self, column: str, values: list[str]
+    ) -> "FiltroAvancadoSpecBuilder":
         if values:
             self._colunas_inclusao[column] = values
         return self
 
-    def add_exclusao(self, column: str, values: list[str]) -> "FiltroAvancadoSpecBuilder":
+    def add_exclusao(
+        self, column: str, values: list[str]
+    ) -> "FiltroAvancadoSpecBuilder":
         if values:
             self._colunas_exclusao[column] = values
         return self
@@ -237,7 +240,9 @@ class FiltroAvancadoSpecBuilder:
         self._booleanos[column] = value
         return self
 
-    def add_booleano_nullable(self, column: str, value: bool) -> "FiltroAvancadoSpecBuilder":
+    def add_booleano_nullable(
+        self, column: str, value: bool
+    ) -> "FiltroAvancadoSpecBuilder":
         self._booleanos_nullable[column] = value
         return self
 
@@ -245,11 +250,15 @@ class FiltroAvancadoSpecBuilder:
         self._presenca_campos[column] = value
         return self
 
-    def add_limite_numerico(self, column: str, vmin: int | float, vmax: int | float) -> "FiltroAvancadoSpecBuilder":
+    def add_limite_numerico(
+        self, column: str, vmin: int | float, vmax: int | float
+    ) -> "FiltroAvancadoSpecBuilder":
         self._limites_numericos[column] = (vmin, vmax)
         return self
 
-    def add_limite_data(self, column: str, data_inicio: str, data_fim: str) -> "FiltroAvancadoSpecBuilder":
+    def add_limite_data(
+        self, column: str, data_inicio: str, data_fim: str
+    ) -> "FiltroAvancadoSpecBuilder":
         self._limites_data[column] = (data_inicio, data_fim)
         return self
 
@@ -268,7 +277,7 @@ class FiltroAvancadoSpecBuilder:
     ) -> "FiltroAvancadoSpecBuilder":
         if not (or_terms or and_terms or not_terms):
             return self
-        
+
         crit = AdvancedSearchCriteria(
             column=column,
             or_terms=or_terms or [],

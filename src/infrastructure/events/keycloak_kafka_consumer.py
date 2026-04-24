@@ -21,6 +21,7 @@ SRE Resilience:
 
 Ref: docs/adr/ADR-006-iam-zero-trust-crm-authorization.md
 """
+
 import asyncio
 import json
 import logging
@@ -32,7 +33,9 @@ import redis.asyncio as redis
 
 from infrastructure.config import settings
 from domain.identity import DoctorProfile, MedicalCouncilRegistration
-from infrastructure.repositories.doctor_profile_repository import SQLDoctorProfileRepository
+from infrastructure.repositories.doctor_profile_repository import (
+    SQLDoctorProfileRepository,
+)
 from infrastructure.adapters.cfm_client import CFMClient
 from application.use_cases.interfaces import ICFMClient
 
@@ -67,13 +70,16 @@ async def is_already_processed(event_id: str) -> bool:
     )
     return result is None
 
+
 # WHY (long-lived producer): Creating a new AIOKafkaProducer per DLQ message
 # would exhaust TCP sockets under load (socket exhaustion). One shared producer
 # per consumer lifecycle is the correct pattern.
 dlq_producer: Optional[AIOKafkaProducer] = None
 
 
-async def validate_cfm_api(crm_numero: str, crm_uf: str, cfm_client: ICFMClient) -> bool:
+async def validate_cfm_api(
+    crm_numero: str, crm_uf: str, cfm_client: ICFMClient
+) -> bool:
     """Validate CRM registration against the CFM (Conselho Federal de Medicina) API.
 
     WHY (ACL boundary): This function is the Anti-Corruption Layer between our domain
@@ -169,9 +175,7 @@ async def _process_register_event(
     # WHY: MedicalCouncilRegistration validators (digits-only, 2-letter UF) run
     # at construction time. A malformed CRM from Keycloak is caught here, not
     # silently stored as garbage in the domain store.
-    crm_registration = MedicalCouncilRegistration(
-        crm_numero=crm_numero, crm_uf=crm_uf
-    )
+    crm_registration = MedicalCouncilRegistration(crm_numero=crm_numero, crm_uf=crm_uf)
 
     logger.info(
         "Starting async CFM validation for user_id=%s CRM=%s/%s",

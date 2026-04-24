@@ -1,5 +1,6 @@
 import streamlit as st
 
+
 def render_amber_alert(kpis, policy) -> None:
     """Renders the Amber Alert banner if data freshness violates the SLA.
 
@@ -105,4 +106,3 @@ def render_auth_violation_alert(exception: Exception) -> None:
         """,
         unsafe_allow_html=True,
     )
-

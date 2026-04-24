@@ -1,11 +1,9 @@
 import streamlit as st
 import plotly.express as px
 
+
 def render_macro_strategy(
-    use_case,
-    filters,
-    MAPA_NOMENCLATURAS: dict,
-    MAPA_CORES_RISCO: dict
+    use_case, filters, MAPA_NOMENCLATURAS: dict, MAPA_CORES_RISCO: dict
 ):
     """
     Renders the Macro Strategy (Dynamic Explorer, Golden Signals, and Overviews)
@@ -18,9 +16,7 @@ def render_macro_strategy(
     to know about SQL syntax.
     """
     # --- BLOCO 1: EXPLORADOR DINÂMICO SOTA (EXPLOSÃO SOLAR BIVARIADA) ---
-    st.subheader(
-        "📊 Dynamic Queue Explorer: Bivariate (Load vs Latency/Risk)"
-    )
+    st.subheader("📊 Dynamic Queue Explorer: Bivariate (Load vs Latency/Risk)")
 
     st.info(
         "💡 **How to read (SRE Bivariate Chart):** \n"
@@ -137,9 +133,7 @@ def render_macro_strategy(
         if not df_plot_sun.empty:
             for col in niveis_sunburst:
                 df_plot_sun[col] = (
-                    df_plot_sun[col]
-                    .replace("", "Not Informed")
-                    .fillna("Not Informed")
+                    df_plot_sun[col].replace("", "Not Informed").fillna("Not Informed")
                 )
 
             paleta = "RdYlBu_r"
@@ -160,13 +154,9 @@ def render_macro_strategy(
             )
 
             fig_sun.update_layout(height=700, margin=dict(l=0, r=0, t=40, b=0))
-            st.plotly_chart(
-                fig_sun, width="stretch", config={"displayModeBar": False}
-            )
+            st.plotly_chart(fig_sun, width="stretch", config={"displayModeBar": False})
         else:
-            st.warning(
-                "⚠️ No data available for the Sunburst with the current filters."
-            )
+            st.warning("⚠️ No data available for the Sunburst with the current filters.")
     else:
         st.warning("⚠️ Select at least 1 level to render the chart.")
 

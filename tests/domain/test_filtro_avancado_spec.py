@@ -6,6 +6,7 @@ WHY: FilterCriteria was corrupted by SQL infrastructure concerns (list[str] clau
 
 Related: Issue — SQL Leak from Infrastructure into Core Domain (ADR-004 candidate).
 """
+
 from domain.specifications import FiltroAvancadoSpec
 
 
@@ -26,18 +27,16 @@ class TestFiltroAvancadoSpecCreation:
         spec = FiltroAvancadoSpec(
             colunas_inclusao={"entidade_especialidade_descricao": ["CARDIOLOGIA"]}
         )
-        assert spec.colunas_inclusao == {"entidade_especialidade_descricao": ["CARDIOLOGIA"]}
+        assert spec.colunas_inclusao == {
+            "entidade_especialidade_descricao": ["CARDIOLOGIA"]
+        }
 
     def test_creates_with_exclusao(self):
-        spec = FiltroAvancadoSpec(
-            colunas_exclusao={"entidade_complexidade": ["ALTA"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_exclusao={"entidade_complexidade": ["ALTA"]})
         assert spec.colunas_exclusao == {"entidade_complexidade": ["ALTA"]}
 
     def test_creates_with_texto_entry(self):
-        spec = FiltroAvancadoSpec(
-            termos_texto={"justificativaRetorno": ["urgente"]}
-        )
+        spec = FiltroAvancadoSpec(termos_texto={"justificativaRetorno": ["urgente"]})
         assert spec.termos_texto == {"justificativaRetorno": ["urgente"]}
 
     def test_creates_with_limite_numerico(self):
@@ -53,9 +52,7 @@ class TestFiltroAvancadoSpecCreation:
         assert spec.limites_data["dataSolicitacao"] == ("2023-01-01", "2024-12-31")
 
     def test_creates_with_booleano(self):
-        spec = FiltroAvancadoSpec(
-            booleanos={"SLA_Marco_Autorizada": True}
-        )
+        spec = FiltroAvancadoSpec(booleanos={"SLA_Marco_Autorizada": True})
         assert spec.booleanos["SLA_Marco_Autorizada"] is True
 
 
@@ -75,21 +72,15 @@ class TestFiltroAvancadoSpecSatisfiedBy:
         assert spec.is_satisfied_by({"origem_lista": "LISTA_A"}) is True
 
     def test_inclusao_rejects_non_matching_candidate(self):
-        spec = FiltroAvancadoSpec(
-            colunas_inclusao={"origem_lista": ["LISTA_A"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_inclusao={"origem_lista": ["LISTA_A"]})
         assert spec.is_satisfied_by({"origem_lista": "LISTA_C"}) is False
 
     def test_exclusao_rejects_matching_candidate(self):
-        spec = FiltroAvancadoSpec(
-            colunas_exclusao={"entidade_complexidade": ["ALTA"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_exclusao={"entidade_complexidade": ["ALTA"]})
         assert spec.is_satisfied_by({"entidade_complexidade": "ALTA"}) is False
 
     def test_exclusao_allows_non_matching_candidate(self):
-        spec = FiltroAvancadoSpec(
-            colunas_exclusao={"entidade_complexidade": ["ALTA"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_exclusao={"entidade_complexidade": ["ALTA"]})
         assert spec.is_satisfied_by({"entidade_complexidade": "BAIXA"}) is True
 
     def test_booleano_true_matches(self):
@@ -124,9 +115,7 @@ class TestFiltroAvancadoSpecSatisfiedBy:
 
     def test_non_dict_candidate_is_rejected(self):
         """The specification must handle non-dict gracefully (defensive programming)."""
-        spec = FiltroAvancadoSpec(
-            colunas_inclusao={"origem_lista": ["LISTA_A"]}
-        )
+        spec = FiltroAvancadoSpec(colunas_inclusao={"origem_lista": ["LISTA_A"]})
         assert spec.is_satisfied_by(None) is False
         assert spec.is_satisfied_by("not_a_dict") is False
 
@@ -138,9 +127,7 @@ class TestFiltroAvancadoSpecIsComposable:
         from domain.specifications import PacienteUrgenteSpec
 
         urgentes = PacienteUrgenteSpec(cores_alvo=["VERMELHO"])
-        filtro = FiltroAvancadoSpec(
-            colunas_inclusao={"origem_lista": ["LISTA_SUS"]}
-        )
+        filtro = FiltroAvancadoSpec(colunas_inclusao={"origem_lista": ["LISTA_SUS"]})
         composite = urgentes & filtro
         # Candidate matches both specs
         candidate_ok = {

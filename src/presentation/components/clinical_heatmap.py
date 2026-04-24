@@ -2,6 +2,7 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 
+
 def render_clinical_heatmap(
     df_math: pd.DataFrame,
     df_pivot_vol: pd.DataFrame,
@@ -12,7 +13,7 @@ def render_clinical_heatmap(
     top_x_cid: int,
 ):
     """Componente isolado de renderização do Heatmap (SOTA).
-    
+
     WHY: Design System (UI) fica separado de lógica de negócios.
     Recebe os DataFrames pré-calculados e foca apenas na exibição
     visual utilizando Plotly Express e Streamlit.
@@ -50,6 +51,4 @@ def render_clinical_heatmap(
         height=altura_dinamica,
         margin=dict(l=250, b=120),
     )
-    st.plotly_chart(
-        fig_heat, width="stretch", config={"displayModeBar": False}
-    )
+    st.plotly_chart(fig_heat, width="stretch", config={"displayModeBar": False})

@@ -7,6 +7,7 @@ testes e sem rastreamento GitOps.
 
 Ref: ADR-005 (a criar) — Business Policy Extraction
 """
+
 import pytest
 from domain.models import ClinicaPolicy
 
@@ -49,6 +50,7 @@ class TestClinicaPolicyImmutability:
         enquanto dataclasses lançam TypeError. Ambos são contratos válidos de imutabilidade.
         """
         from pydantic import ValidationError as PydanticValidationError
+
         policy = ClinicaPolicy()
         with pytest.raises((TypeError, AttributeError, PydanticValidationError)):
             policy.sla_dias_vencimento = 999  # type: ignore[misc]
@@ -110,12 +112,11 @@ class TestClinicaPolicyDomainProtocol:
     def test_instancia_sem_settings(self):
         """CRÍTICO: domínio NÃO pode importar infrastructure.config."""
         import sys
+
         # Se ClinicaPolicy importar 'infrastructure', este teste falha
         policy = ClinicaPolicy()
         for mod_name in sys.modules:
             if "infrastructure" in mod_name and "config" in mod_name:
                 # só verifica que ClinicaPolicy em si não é um alias de settings
-                assert "ClinicaPolicy" not in str(
-                    sys.modules[mod_name].__dict__.keys()
-                )
+                assert "ClinicaPolicy" not in str(sys.modules[mod_name].__dict__.keys())
         assert policy is not None

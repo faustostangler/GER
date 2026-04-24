@@ -5,6 +5,7 @@ ClinicaPolicy por injeção de dependência — sem acoplamento direto a setting
 Estes testes garantem que o contrato de DI é honrado e que não há regressão
 no comportamento central do Use Case.
 """
+
 import ast
 import pathlib
 import pandas as pd

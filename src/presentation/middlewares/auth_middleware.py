@@ -15,6 +15,7 @@ Consumers:
 
 Ref: ADR-006 — IAM Adapter Isolation (Phase 3 / SRP extraction).
 """
+
 from __future__ import annotations
 
 import streamlit as st
@@ -45,7 +46,9 @@ def render_user_widget(user: ValidatedUserToken, logout_url: Optional[str]) -> N
     if logout_url is None:
         # Cloud Run: Simple logout — clears Streamlit session_state (no proxy/Keycloak).
         st.sidebar.markdown(f"👤 **{display_name}**")
-        if st.sidebar.button("🚪 Logout", use_container_width=True, key="cloud_run_logout"):
+        if st.sidebar.button(
+            "🚪 Logout", use_container_width=True, key="cloud_run_logout"
+        ):
             for key in list(st.session_state.keys()):
                 del st.session_state[key]
             st.rerun()

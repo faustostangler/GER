@@ -12,6 +12,7 @@ New semantic fields under test:
 
 Ref: ADR-004 — SQL Leak refactoring (migration shim removal).
 """
+
 from __future__ import annotations
 
 import pytest
@@ -56,9 +57,7 @@ class TestAdvancedSearchCriteria:
         """WHY: Domain Value Objects must be immutable after creation."""
         from pydantic import ValidationError
 
-        criteria = AdvancedSearchCriteria(
-            column="col", or_terms=["x"]
-        )
+        criteria = AdvancedSearchCriteria(column="col", or_terms=["x"])
         with pytest.raises((ValidationError, TypeError)):
             criteria.column = "mutated"  # type: ignore[misc]
 
@@ -117,6 +116,7 @@ class TestFiltroAvancadoSpecNewFields:
     def test_spec_remains_immutable_with_new_fields(self):
         """WHY: frozen=True must hold — no field mutation after creation."""
         from pydantic import ValidationError
+
         spec = FiltroAvancadoSpec(presenca_campos={"col": True})
         with pytest.raises((ValidationError, TypeError)):
             spec.presenca_campos = {"col": False}  # type: ignore[misc]
@@ -286,7 +286,9 @@ class TestBuilderBuscaAvancada:
     def test_add_busca_avancada_no_op_when_all_empty(self):
         """WHY: An empty search (all term lists empty) must not add noise to the spec."""
         builder = FiltroAvancadoSpecBuilder()
-        builder.add_busca_avancada(column="col", or_terms=[], and_terms=[], not_terms=[])
+        builder.add_busca_avancada(
+            column="col", or_terms=[], and_terms=[], not_terms=[]
+        )
         spec = builder.build()
         assert spec.busca_avancada == []
 
@@ -326,4 +328,3 @@ class TestBuilderFullRoundTrip:
         assert spec.limites_numericos["entidade_idade_idadeInteiro"] == (0, 120)
         assert spec.limites_data["dataSolicitacao"] == ("2024-01-01", "2024-12-31")
         assert len(spec.busca_avancada) == 1
-

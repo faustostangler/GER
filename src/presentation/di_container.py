@@ -2,6 +2,7 @@ import os
 import streamlit as st
 from infrastructure.config import settings
 
+
 @st.cache_resource
 def get_use_case():
     """WHY: Builds ClinicaPolicy from AppSettings here (presentation/infra),
@@ -44,6 +45,7 @@ def get_use_case():
 
     return AnalyticsUseCase(repo, policy=policy)
 
+
 @st.cache_resource
 def get_identity_service():
     def _is_cloud_run() -> bool:
@@ -54,7 +56,12 @@ def get_identity_service():
         allow_dev = os.getenv("ALLOW_UNAUTHENTICATED_DEV", "false").lower() == "true"
         return environment in ("local", "dev") and allow_dev
 
-    from infrastructure.auth.adapters import CloudRunIdentityAdapter, MockIdentityAdapter, IAPIdentityAdapter
+    from infrastructure.auth.adapters import (
+        CloudRunIdentityAdapter,
+        MockIdentityAdapter,
+        IAPIdentityAdapter,
+    )
+
     if _is_cloud_run():
         return CloudRunIdentityAdapter(settings)
     if _is_dev_mock_allowed():

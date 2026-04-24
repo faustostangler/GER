@@ -10,11 +10,7 @@ except ImportError:
 from presentation.components.clinical_heatmap import render_clinical_heatmap
 
 
-def render_clinical_intelligence(
-    use_case,
-    filters,
-    MAPA_NOMENCLATURAS: dict
-):
+def render_clinical_intelligence(use_case, filters, MAPA_NOMENCLATURAS: dict):
     """
     Renders the Clinical Intelligence & Demographic Profile
     for the Clinical tab in the application.
@@ -266,9 +262,7 @@ def render_clinical_intelligence(
                 color_continuous_scale="Teal",
                 title=f"Profile: {_label_ator} ➔ {_label_diag} (Click to expand)",
             )
-            fig_tree_med.update_layout(
-                height=500, margin=dict(t=40, l=10, r=10, b=10)
-            )
+            fig_tree_med.update_layout(height=500, margin=dict(t=40, l=10, r=10, b=10))
             st.plotly_chart(
                 fig_tree_med, width="stretch", config={"displayModeBar": False}
             )

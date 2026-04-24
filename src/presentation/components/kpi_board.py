@@ -3,7 +3,14 @@ import pandas as pd
 import re
 from domain.models import AnalyticKPIs, ClinicaPolicy
 
-def render_kpi(container, label_with_icon: str, value: str, help_text: str = "", alert: bool = False):
+
+def render_kpi(
+    container,
+    label_with_icon: str,
+    value: str,
+    help_text: str = "",
+    alert: bool = False,
+):
     alert_class = "alert" if alert else ""
     help_clean = str(help_text).replace('"', "&quot;")
 
@@ -28,15 +35,18 @@ def render_kpi(container, label_with_icon: str, value: str, help_text: str = "",
     """
     container.markdown(html, unsafe_allow_html=True)
 
-def render_kpi_board(kpi_data: AnalyticKPIs, container=None, policy: ClinicaPolicy = None):
+
+def render_kpi_board(
+    kpi_data: AnalyticKPIs, container=None, policy: ClinicaPolicy = None
+):
     """Componente que encapsula o painel de KPIs executivos.
-    
+
     WHY: Isola a renderização das métricas de forma que o script
     principal app_analytics.py fique focado apenas na orquestração.
     """
     if container is None:
         container = st
-        
+
     container.markdown(
         "<div class='sre-section-title'>Performance Dashboard (SLA and Load)</div>",
         unsafe_allow_html=True,
@@ -109,9 +119,7 @@ def render_kpi_board(kpi_data: AnalyticKPIs, container=None, policy: ClinicaPoli
     )
 
     lead_str = (
-        f"{lead_time} dias | {max_lead_time} dias"
-        if pd.notna(lead_time)
-        else "0 dias"
+        f"{lead_time} dias | {max_lead_time} dias" if pd.notna(lead_time) else "0 dias"
     )
     render_kpi(
         r2_c4,

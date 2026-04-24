@@ -13,7 +13,7 @@ from src.infrastructure.telemetry.logger import (
 from infrastructure.telemetry.metrics import (
     INGEST_PIPELINE_DURATION,
     PIPELINE_LAST_SUCCESS_TIMESTAMP,
-    init_prometheus
+    init_prometheus,
 )
 from src.infrastructure.telemetry.tracing import tracer
 
@@ -25,7 +25,6 @@ except ImportError:
     GerconPipeline = None
 
 logger = setup_structured_logger("pipeline_worker")
-
 
 
 # --- SOTA PIPELINE ORCHESTRATOR ---

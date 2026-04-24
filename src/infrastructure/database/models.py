@@ -3,11 +3,13 @@ from sqlalchemy.orm import declarative_base
 
 Base = declarative_base()
 
+
 class DoctorProfileModel(Base):
     """PostgreSQL model for DoctorProfile persistence.
-    
+
     Maps the Bounded Context of Authorization (DoctorProfile) to the relational schema.
     """
+
     __tablename__ = "doctor_profiles"
 
     id = Column(String, primary_key=True)  # Keycloak UUID / 'sub' mapping

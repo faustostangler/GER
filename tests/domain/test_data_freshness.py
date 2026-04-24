@@ -9,6 +9,7 @@ SLA business rule so the Presentation layer stays a thin Humble Object.
 Glossary: Amber Alert — Banner signals "Silence of Data" — Scraper might
 have stopped. Ref: docs/GLOSSARY.md
 """
+
 import time
 import pytest
 from domain.models import AnalyticKPIs
@@ -90,19 +91,23 @@ class TestIsStaleProperty:
         "age_seconds, threshold_hours, expected",
         [
             # --- Stale cases ---
-            (3 * 3600, 2.0, True),       # 3h > 2h threshold → stale
-            (2 * 3600 + 1, 2.0, True),   # 1 second over threshold → stale
-            (7200.5, 2.0, True),         # fractional second over → stale
+            (3 * 3600, 2.0, True),  # 3h > 2h threshold → stale
+            (2 * 3600 + 1, 2.0, True),  # 1 second over threshold → stale
+            (7200.5, 2.0, True),  # fractional second over → stale
             # --- Fresh cases ---
-            (0.5 * 3600, 2.0, False),    # 30min < 2h → fresh
-            (1 * 3600, 2.0, False),      # exactly 1h → fresh
-            (1 * 3600, 0.5, True),       # 1h > 0.5h custom threshold → stale
+            (0.5 * 3600, 2.0, False),  # 30min < 2h → fresh
+            (1 * 3600, 2.0, False),  # exactly 1h → fresh
+            (1 * 3600, 0.5, True),  # 1h > 0.5h custom threshold → stale
             # --- Boundary: 1s under threshold is fresh (strict > semantics)
-            (7199, 2.0, False),          # 1s under threshold → NOT stale (strict >)
+            (7199, 2.0, False),  # 1s under threshold → NOT stale (strict >)
         ],
     )
     def test_is_stale_boundary_values(
-        self, base_kpi_kwargs, age_seconds: float, threshold_hours: float, expected: bool
+        self,
+        base_kpi_kwargs,
+        age_seconds: float,
+        threshold_hours: float,
+        expected: bool,
     ):
         """Truth table for the Amber Alert staleness predicate."""
         sync_ts = time.time() - age_seconds

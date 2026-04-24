@@ -52,7 +52,7 @@ def test_paciente_urgente_spec():
     assert spec.is_satisfied_by("not_a_dict") is False
     assert spec.is_satisfied_by({}) is False
 
-    # Testa o limite defensivo onde `.get` pode retornar fallback. 
+    # Testa o limite defensivo onde `.get` pode retornar fallback.
     # Isso mata o mutmut_10 (troca o fallback para 'XXXX')
     spec_empty = PacienteUrgenteSpec(cores_alvo=[""])
     assert spec_empty.is_satisfied_by({}) is True
@@ -79,7 +79,9 @@ def test_paciente_vencido_spec_boundaries():
 
     def gerar_data_passada(dias_atras: int) -> str:
         # Usamos 00:00:00 para garantir consistência no cálculo de 'days' do timedelta
-        return (hoje - datetime.timedelta(days=dias_atras)).strftime("%Y-%m-%d 00:00:00")
+        return (hoje - datetime.timedelta(days=dias_atras)).strftime(
+            "%Y-%m-%d 00:00:00"
+        )
 
     # 1. Seguro (29 dias) -> Dentro do prazo
     assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(29)}) is False
@@ -91,6 +93,7 @@ def test_paciente_vencido_spec_boundaries():
 
     # 3. Vencido de fato (31 dias) -> Fora do prazo
     assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(31)}) is True
+
 
 def test_lead_time_critico_spec():
     spec = LeadTimeCriticoSpec(max_dias=100)
@@ -113,15 +116,25 @@ def test_lead_time_critico_spec_boundaries():
 
     def gerar_data_passada(dias_atras: int) -> str:
         # Usamos 00:00:00 para garantir consistência no cálculo matematico do delta
-        return (hoje - datetime.timedelta(days=dias_atras)).strftime("%Y-%m-%d 00:00:00")
+        return (hoje - datetime.timedelta(days=dias_atras)).strftime(
+            "%Y-%m-%d 00:00:00"
+        )
 
     # 1. Seguro (13 dias) -> Dentro do prazo
-    assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite - 1)}) is False
+    assert (
+        spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite - 1)})
+        is False
+    )
 
     # 2. O LIMITE EXATO (14 dias) -> O TÚMULO DO MUTANTE ☠️
     # No código original (>), isso deve ser False (14 > 14 é Falso).
     # Se o mutante mudar para (>=), isso vira True e mata o mutante.
-    assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite)}) is False
+    assert (
+        spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite)}) is False
+    )
 
     # 3. Vencido de fato (15 dias) -> Fora do prazo
-    assert spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite + 1)}) is True
+    assert (
+        spec.is_satisfied_by({"dataSolicitacao": gerar_data_passada(limite + 1)})
+        is True
+    )

@@ -6,6 +6,7 @@ Validates that the Sentry initialization module:
 2. Filters LGPD-sensitive data from breadcrumbs.
 3. Doesn't crash the application on initialization failure.
 """
+
 from unittest.mock import patch, MagicMock
 
 from infrastructure.telemetry.sentry import init_sentry, _filter_health_data_breadcrumb
@@ -26,7 +27,10 @@ class TestSentryInit:
     def test_initializes_with_valid_dsn(self):
         """Com DSN válido, deve chamar sentry_sdk.init com os parâmetros corretos."""
         mock_sdk = MagicMock()
-        with patch.dict("sys.modules", {"sentry_sdk": mock_sdk, "sentry_sdk.integrations.logging": MagicMock()}):
+        with patch.dict(
+            "sys.modules",
+            {"sentry_sdk": mock_sdk, "sentry_sdk.integrations.logging": MagicMock()},
+        ):
             init_sentry(
                 dsn="https://key@sentry.io/123",
                 environment="production",
@@ -43,7 +47,10 @@ class TestSentryInit:
         """Se o SDK falhar, deve logar warning mas não crashar."""
         mock_sdk = MagicMock()
         mock_sdk.init.side_effect = Exception("Network error")
-        with patch.dict("sys.modules", {"sentry_sdk": mock_sdk, "sentry_sdk.integrations.logging": MagicMock()}):
+        with patch.dict(
+            "sys.modules",
+            {"sentry_sdk": mock_sdk, "sentry_sdk.integrations.logging": MagicMock()},
+        ):
             # Should NOT raise
             init_sentry(
                 dsn="https://key@sentry.io/123",

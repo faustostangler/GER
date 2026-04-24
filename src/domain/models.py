@@ -13,13 +13,17 @@ class DataNotReadyError(Exception):
     Raised when the underlying read-model (OLAP) data source is unavailable,
     missing, or corrupted.
     """
-    def __init__(self, message: str = "The analytics data source is not ready for querying."):
+
+    def __init__(
+        self, message: str = "The analytics data source is not ready for querying."
+    ):
         self.message = message
         super().__init__(self.message)
 
 
 class IngestionStatus(str, Enum):
     """Status possíveis de uma execução de ingestão."""
+
     SUCCESS = "SUCCESS"
     PARTIAL = "PARTIAL"
     FAILURE = "FAILURE"
@@ -28,17 +32,23 @@ class IngestionStatus(str, Enum):
 
 class IngestionLogEntry(BaseModel):
     """Value Object para auditoria de cada ciclo do Scraper/Worker."""
+
     timestamp: float = Field(description="Epoch UTC do início da execução")
     duration_seconds: float = Field(description="Duração total da sessão de ingestão")
     status: IngestionStatus
-    items_ingested: int = Field(default=0, description="Registros novos/atualizados com sucesso")
+    items_ingested: int = Field(
+        default=0, description="Registros novos/atualizados com sucesso"
+    )
     items_failed: int = Field(default=0, description="Poison pills enviadas para DLQ")
-    bytes_processed: int = Field(default=0, description="Volume estimado de payload processado")
-    target_lists: list[str] = Field(default_factory=list, description="Listas-alvo processadas neste ciclo")
-    error_message: str = Field(default="", description="Mensagem de erro se status != SUCCESS")
-
-
-
+    bytes_processed: int = Field(
+        default=0, description="Volume estimado de payload processado"
+    )
+    target_lists: list[str] = Field(
+        default_factory=list, description="Listas-alvo processadas neste ciclo"
+    )
+    error_message: str = Field(
+        default="", description="Mensagem de erro se status != SUCCESS"
+    )
 
 
 class AnalyticKPIs(BaseModel):
@@ -57,7 +67,8 @@ class AnalyticKPIs(BaseModel):
     p90_lead_time: float
     p90_esquecido: float
     last_sync_at: float = Field(
-        default=0.0, description="Timestamp de modificação do Parquet para checagem de SLA de dados"
+        default=0.0,
+        description="Timestamp de modificação do Parquet para checagem de SLA de dados",
     )
     mes_comercial: float = Field(
         default=30.416, description="Dias do mês comercial inserido por Use Case"
@@ -138,7 +149,6 @@ class AnalyticKPIs(BaseModel):
         return self.age_hours > threshold_hours
 
 
-
 """Política de Negócio Clínica — Value Object do Core Domain.
 
 WHY: As invariantes de negócio do domínio hospitalar (faixas etárias, SLAs clínicos,
@@ -155,7 +165,6 @@ valores via variáveis de ambiente, mas o ponto de verdade é o domínio, não o
 
 Ref: ADR-005 — Business Policy Extraction from Infrastructure Config
 """
-
 
 
 class ClinicaPolicy(BaseModel):
@@ -183,16 +192,31 @@ class ClinicaPolicy(BaseModel):
 
     model_config = {"frozen": True}  # Value Object: imutável após criação
 
-    idade_min: Annotated[int, Field(ge=0, description="Menor idade válida para paciente (anos)")] = 0
-    idade_max: Annotated[int, Field(le=150, description="Maior idade válida para paciente (anos)")] = 120
+    idade_min: Annotated[
+        int, Field(ge=0, description="Menor idade válida para paciente (anos)")
+    ] = 0
+    idade_max: Annotated[
+        int, Field(le=150, description="Maior idade válida para paciente (anos)")
+    ] = 120
     sla_dias_vencimento: Annotated[
-        int, Field(gt=0, description="Dias sem atendimento que caracterizam solicitação vencida")
+        int,
+        Field(
+            gt=0,
+            description="Dias sem atendimento que caracterizam solicitação vencida",
+        ),
     ] = 180
     mes_comercial_dias: Annotated[
-        float, Field(gt=0.0, description="Duração do mês comercial em dias para cálculo de taxa")
+        float,
+        Field(
+            gt=0.0, description="Duração do mês comercial em dias para cálculo de taxa"
+        ),
     ] = 30.416
     data_sla_threshold_horas: Annotated[
-        float, Field(gt=0.0, description="Horas máximas sem atualização do Parquet antes do Amber Alert")
+        float,
+        Field(
+            gt=0.0,
+            description="Horas máximas sem atualização do Parquet antes do Amber Alert",
+        ),
     ] = 2.0
     cores_urgencia: tuple[str, ...] = Field(
         default=("VERMELHO", "LARANJA", "AMARELO"),

@@ -14,6 +14,7 @@ from presentation.components.audit_micro import render_audit_micro
 from domain.constants import MAPA_CORES_RISCO, MAPA_NOMENCLATURAS
 from presentation.di_container import get_use_case, get_identity_service
 
+
 def setup_ui():
     # --- 0. SENTRY INITIALIZATION (Antes de qualquer renderização) ---
     init_sentry(
@@ -55,7 +56,6 @@ def get_dynamic_options(column: str, current_where: str, current_user) -> list:
 @st.cache_data(ttl=3600)
 def get_global_bounds(column: str, is_date=False):
     return get_use_case().get_global_bounds(column, is_date)
-
 
 
 # --- 4.5 BFF: IDENTITY AWARE PROXY (IAP) & BFF MOCK ---
@@ -126,8 +126,9 @@ def main():
     # SRE FIX: MASTER DICTIONARY (KEEPS UI/UX ORDER CONSISTENCY)
     # ==========================================
     # 🪄 A mágica arquitetural: Centenas de linhas viraram uma só.
-    ui_filters, state_keys, curr_where = build_sidebar(use_case, builder, st.session_state.user)
-
+    ui_filters, state_keys, curr_where = build_sidebar(
+        use_case, builder, st.session_state.user
+    )
 
     # ==========================================
     # VISUALIZE AND CLEAR ACTIVE FILTERS (TOP BAR)
@@ -157,11 +158,7 @@ def main():
     # to know about SQL syntax (Hexagonal Architecture, ADR-004).
     filters = builder.build()
 
-
-
-    with st.spinner(
-        "Processing Read Model (OLAP) and Tail Latency (P90)..."
-    ):
+    with st.spinner("Processing Read Model (OLAP) and Tail Latency (P90)..."):
         dashboard_state = use_case.get_executive_summary(filters, st.session_state.user)
         kpi_data = dashboard_state.kpis
         policy = dashboard_state.policy
@@ -178,7 +175,10 @@ def main():
 
         # --- BLOCO 2 CONSOLIDADO: ANATOMIA COMPARATIVA E RISCO ---
         df_dist = use_case.get_distribution_analysis(filters, st.session_state.user)
-        from presentation.components.comparative_anatomy import render_comparative_anatomy
+        from presentation.components.comparative_anatomy import (
+            render_comparative_anatomy,
+        )
+
         render_comparative_anatomy(df_dist, kpi_data)
 
         st.divider()

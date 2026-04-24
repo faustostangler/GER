@@ -45,6 +45,7 @@ class RedisSettings(BaseModel):
 
 class CFMSettings(BaseModel):
     """Configurações para integração com a API do CFM (Conselho Federal de Medicina)."""
+
     api_url: HttpUrl = Field(default="https://api.cfm.org.br/v1", alias="CFM_API_URL")
     api_token: SecretStr = Field(default="mock-token", alias="CFM_API_TOKEN")
     timeout: int = Field(default=10, alias="CFM_API_TIMEOUT")
@@ -77,8 +78,13 @@ class AppSettings(BaseSettings):
     PROTOCOL: str = Field(default="http")
 
     # Observability & Error Tracking
-    SENTRY_DSN: Optional[str] = Field(default=None, description="Sentry DSN for production error tracking")
-    GIT_SHA: str = Field(default="local-dev", description="Git commit SHA injected at build time for release tracking")
+    SENTRY_DSN: Optional[str] = Field(
+        default=None, description="Sentry DSN for production error tracking"
+    )
+    GIT_SHA: str = Field(
+        default="local-dev",
+        description="Git commit SHA injected at build time for release tracking",
+    )
 
     # Keycloak OIDC Settings — hostname público (browser-facing)
     # WHY: KEYCLOAK_SERVER_URL e KEYCLOAK_REALM definem o 'iss' claim dos JWTs
@@ -113,10 +119,19 @@ class AppSettings(BaseSettings):
     # construir ClinicaPolicy com esses valores.
     AGE_MIN: int = Field(default=0, description="Override: ClinicaPolicy.idade_min")
     AGE_MAX: int = Field(default=120, description="Override: ClinicaPolicy.idade_max")
-    SLA_DIAS_VENCIMENTO: int = Field(default=180, description="Override: ClinicaPolicy.sla_dias_vencimento")
-    DATA_SLA_THRESHOLD: float = Field(default=2.0, description="Override: ClinicaPolicy.data_sla_threshold_horas")
-    MES_COMERCIAL_DIAS: float = Field(default=30.416, description="Override: ClinicaPolicy.mes_comercial_dias")
-    CORES_URGENCIA: list[str] = Field(default=["VERMELHO", "LARANJA", "AMARELO"], description="Override: ClinicaPolicy.cores_urgencia")
+    SLA_DIAS_VENCIMENTO: int = Field(
+        default=180, description="Override: ClinicaPolicy.sla_dias_vencimento"
+    )
+    DATA_SLA_THRESHOLD: float = Field(
+        default=2.0, description="Override: ClinicaPolicy.data_sla_threshold_horas"
+    )
+    MES_COMERCIAL_DIAS: float = Field(
+        default=30.416, description="Override: ClinicaPolicy.mes_comercial_dias"
+    )
+    CORES_URGENCIA: list[str] = Field(
+        default=["VERMELHO", "LARANJA", "AMARELO"],
+        description="Override: ClinicaPolicy.cores_urgencia",
+    )
     GERCON_URL: HttpUrl = Field(default="https://gercon.procempa.com.br/gerconweb/")
 
     @field_validator("CORES_URGENCIA", mode="before")

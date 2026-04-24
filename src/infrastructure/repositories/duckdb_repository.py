@@ -16,12 +16,10 @@ from infrastructure.repositories.criteria_translator import DuckDBCriteriaTransl
 log = logging.getLogger(__name__)
 
 
-
 class DuckDBAnalyticsRepository(IAnalyticsRepository):
     def __init__(self, db_file: str):
         self.db_file = db_file
         self.con = duckdb.connect(database=":memory:")
-
 
         # Limite explícito de RAM para proteção de OOMKilled no Cluster K8s (Reserva memória para Pandas)
         self.con.execute(f"PRAGMA memory_limit='{settings.db.memory_limit}';")
@@ -43,25 +41,38 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
             # ==========================================
             try:
                 schema_df = self.con.execute("PRAGMA table_info('gercon')").df()
-                available_cols = set(schema_df['name'].tolist())
-                crit_cols = {"numeroCMCE", "entidade_classificacaoRisco_cor", "entidade_especialidade_descricao", "dataSolicitacao", "dataCadastro"}
+                available_cols = set(schema_df["name"].tolist())
+                crit_cols = {
+                    "numeroCMCE",
+                    "entidade_classificacaoRisco_cor",
+                    "entidade_especialidade_descricao",
+                    "dataSolicitacao",
+                    "dataCadastro",
+                }
                 missing = crit_cols - available_cols
                 if missing:
-                    raise ValueError(f"Data Contract Quebrado! Colunas faltantes no Parquet: {missing}")
+                    raise ValueError(
+                        f"Data Contract Quebrado! Colunas faltantes no Parquet: {missing}"
+                    )
             except duckdb.BinderException:
                 self._no_data = True
 
         # Redis Client for Distributed Caching (Graceful Degradation)
         import redis
+
         try:
             self.redis_client = redis.Redis(
-                host=settings.redis.host, port=settings.redis.port, db=0,
-                socket_connect_timeout=2, socket_timeout=2,
+                host=settings.redis.host,
+                port=settings.redis.port,
+                db=0,
+                socket_connect_timeout=2,
+                socket_timeout=2,
             )
             self.redis_client.ping()
 
         except Exception:
             import logging
+
             logging.getLogger(__name__).critical(
                 "Redis indisponível — fallback para query direta no Parquet (sem cache distribuído)."
             )
@@ -69,6 +80,7 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
 
     def verify_data_readiness(self) -> None:
         from domain.models import DataNotReadyError
+
         if not os.path.isfile(self.db_file):
             raise DataNotReadyError(
                 f"Parquet database not found or invalid ({self.db_file})."
@@ -126,9 +138,20 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         # WHY: Modo sem dados no cold-start (Parquet vazio/inexistente antes do 1º ciclo do Worker)
         if self._no_data:
             return AnalyticKPIs(
-                pacientes=0, eventos=0, esp_mae=0, sub_esp=0, medicos=0,
-                cids=0, origens=0, lead_time=0.0, max_lead_time=0, span_dias=0,
-                pac_urgentes=0, pac_vencidos=0, p90_lead_time=0.0, p90_esquecido=0.0,
+                pacientes=0,
+                eventos=0,
+                esp_mae=0,
+                sub_esp=0,
+                medicos=0,
+                cids=0,
+                origens=0,
+                lead_time=0.0,
+                max_lead_time=0,
+                span_dias=0,
+                pac_urgentes=0,
+                pac_vencidos=0,
+                p90_lead_time=0.0,
+                p90_esquecido=0.0,
                 last_sync_at=0.0,
             )
         final_where = DuckDBCriteriaTranslator.translate(spec)
@@ -254,10 +277,10 @@ class DuckDBAnalyticsRepository(IAnalyticsRepository):
         if self._no_data:
             return pd.DataFrame()
         cte = self._get_rls_cte(user)
-        
+
         # 0. Tradução semântica do Specification via DuckDBCriteriaTranslator
         final_where = DuckDBCriteriaTranslator.translate(spec) if spec else "1=1"
-        
+
         # SRE FIX: Injeção Segura do WHERE dinâmico na query customizada
         sql_final_where = sql.replace("{FINAL_WHERE}", final_where)
 
