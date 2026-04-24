@@ -8,10 +8,18 @@ if src_path not in sys.path:
 
 import pytest  # noqa: E402
 
-# SRE FIX: Força o carregamento de C-Extensions no Main Interpreter
-# antes que o Streamlit AppTest ou pytest-cov alterem os import hooks.
 import numpy  # noqa: E402, F401
 import pandas  # noqa: E402, F401
+import os
+
+# --- SRE: CRITICAL ENVIRONMENT INITIALIZATION ---
+# WHY: These must be set BEFORE any infrastructure modules are imported during
+# pytest collection. Moving them here ensures that src.infrastructure.database.session
+# correctly identifies the testing environment even when imported at the top level
+# of a test file.
+os.environ["APP__ENVIRONMENT"] = "testing"
+os.environ["ENVIRONMENT"] = "testing"
+os.environ["OUTPUT_FILE"] = "test_gercon_consolidado.parquet"
 
 
 @pytest.fixture(autouse=True)
@@ -108,12 +116,14 @@ def seed_test_database(test_parquet_path, monkeypatch_session):
     durante todos os testes, sem jamais tocar no arquivo de produção em /app/.
     """
     monkeypatch_session.setenv("OUTPUT_FILE", test_parquet_path)
+    monkeypatch_session.setenv("APP__ENVIRONMENT", "testing")
 
     # Patch direto no objeto settings já instanciado (necessário pois o settings
     # é um singleton criado no import de infrastructure.config)
     from infrastructure import config as cfg
 
     monkeypatch_session.setattr(cfg.settings, "OUTPUT_FILE", test_parquet_path)
+    monkeypatch_session.setattr(cfg.settings, "ENVIRONMENT", "testing")
     yield
 
 

@@ -15,7 +15,15 @@ db_url = (
 
 # WHY (SRE Fail-Fast constraint): Verify DB reachability on startup. If unreachable,
 # the pod crashes immediately instead of failing silently later during a user request.
-if settings.ENVIRONMENT != "testing":
+# We skip this check if ENVIRONMENT is 'testing' OR if we are running inside pytest.
+# Robust detection: check sys.modules, sys.argv, and APP__ENVIRONMENT.
+is_pytest = (
+    "pytest" in sys.modules
+    or "_pytest" in sys.modules
+    or any("pytest" in arg for arg in sys.argv)
+)
+
+if settings.ENVIRONMENT != "testing" and not is_pytest:
     try:
         engine = create_engine(db_url, pool_pre_ping=True)
         with engine.connect() as conn:
@@ -27,8 +35,9 @@ if settings.ENVIRONMENT != "testing":
         logger.critical(f"FATAL: Database is unreachable on startup: {e}")
         sys.exit(1)
 else:
-    # In testing, we don't fail-fast to allow manual mocking of the engine/session
-    logger.info("🧪 Testing environment detected. Skipping DB fail-fast startup check.")
-    engine = create_engine("sqlite:///:memory:")  # Fallback for tests if not mocked
+    # In testing, we don't fail-fast to allow manual mocking of the engine/session.
+    # We use a lazy approach: engine is created but no connection is attempted here.
+    logger.info("🧪 Testing environment detected. Using SQLite in-memory fallback.")
+    engine = create_engine("sqlite:///:memory:")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

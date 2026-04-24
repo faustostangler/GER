@@ -290,3 +290,72 @@ When UI filters appear active but data doesn't seem to update:
 [ ] Humble Object: Is complex UI logic extracted to testable pure Python adapters?
 [ ] Legacy Cleanup: Did you identify and refactor at least one legacy artifact in the touched zone?
 [ ] Post-Mortem Loop: If this was a bug fix, did you update the rules to prevent similar systemic failures?
+
+16. Dialectical TDD Execution Protocol (Akita Method — Three-Turn Dance)
+
+ABSOLUTE RULE: The AI Implementer MUST NEVER emit functional business logic before a failing test has been presented AND explicitly approved by the Lead Architect. Violating this order is a protocol breach and the output must be discarded.
+
+All implementation work follows a strict three-turn dialectical cycle:
+
+---
+
+TURN 1 — PLAN (Architecture First, No Code)
+
+Before writing a single line of test or logic, the AI must present a planning artifact containing:
+
+1. **Bounded Context & Problem Scope**: Which domain, which use case, which adapter is being modified or created?
+2. **ADR Draft (if applicable)**: Does this decision require a new ADR? Draft it here before proceeding.
+3. **Ubiquitous Language**: Define every new term in domain language. If a term already exists in `docs/GLOSSARY.md`, reference it. If it is new, add it.
+4. **Domain Model**: List all Entities, Value Objects, Specifications, and Ports (Interfaces) involved. No concrete implementations — interfaces only.
+5. **Test Plan**: Describe *what* will be tested: the specific behaviors, boundary conditions, and failure modes. Reference the test file path and test function names that will be created.
+6. **Definition of Done**: State clearly what constitutes Green (passing), what mutmut coverage is expected, and what the post-implementation checklist items are.
+
+The AI MUST STOP after Turn 1 and wait for explicit "APPROVED" from the Lead Architect before proceeding.
+
+---
+
+TURN 2 — RED (Failing Test Only, Zero Implementation)
+
+After plan approval, the AI writes ONLY the test file. Rules:
+
+* **Stop-at-Red**: The test must be written so that it FAILS with `pytest` immediately — because the implementation does not exist yet. The AI must confirm this failure in its response (show the expected `FAILED` output or explain why it will fail).
+* **Mock-First**: All external dependencies (repositories, APIs, infrastructure adapters) MUST be mocked using `unittest.mock` or `pytest-mock`. The test must be pure and hermetic — no real I/O, no real DB, no real Redis.
+* **Regression-Gate (Bug Fixes Only)**: When the task is a bug fix, the test must first reproduce the exact bug — it must fail for the *same reason* the bug manifests in production. No test that "happens to pass" is acceptable as a regression gate.
+* **No Business Logic**: The implementation file either does not exist or contains only a stub (e.g., `raise NotImplementedError`). No functional logic is written in Turn 2.
+* **Naming Convention**: Test files must mirror the `src/` structure under `tests/`. Example: `src/domain/specifications.py` → `tests/domain/test_specifications.py`.
+
+The AI MUST STOP after Turn 2 and wait for the Lead Architect to run `uv run pytest <test_file> -x` and confirm the RED state before proceeding.
+
+---
+
+TURN 3 — GREEN + REFACTOR (Minimum Logic → Clean Architecture)
+
+After RED confirmation, the AI implements the *minimum* production code required to make the test pass, then immediately refactors:
+
+* **Green (Minimum Viable Logic)**: Write only what the failing test demands. No premature generalization. No "while I'm at it" additions.
+* **Refactor (Clean Architecture)**: Once green, apply the full design standards:
+  - Strict hexagonal layering (Domain → Application → Infrastructure, never reversed).
+  - Type hints on all signatures (`-> None`, `-> str`, etc.).
+  - Google Style structured docstrings on all public methods.
+  - Zero `src.` prefixes in imports (Module Identity Mismatch prevention).
+  - Inline comments ONLY for ACL boundaries, infra limits, or non-obvious exceptions.
+* **Mutation Check**: Run `uv run mutmut run --paths-to-mutate src/domain/` and confirm 0 survivors in Core Domain for the touched files.
+* **Checklist Sweep**: Complete all items in Section 15 before declaring the cycle done.
+
+After Turn 3, the cycle closes. A new feature or sub-task begins a new three-turn cycle from Turn 1.
+
+---
+
+Summary Table:
+
+| Turn | Name    | AI Output                          | Gate (Human Action)                      |
+|------|---------|------------------------------------|------------------------------------------|
+| 1    | Plan    | ADR draft, model, test plan        | Explicit "APPROVED" from Lead Architect  |
+| 2    | Red     | Failing test file + stub only      | Run pytest, confirm FAILED               |
+| 3    | Green   | Min implementation + refactor      | Run pytest + mutmut, confirm 0 survivors |
+
+Anti-Patterns Explicitly Forbidden:
+* Emitting implementation in the same response as the test ("Red-Green in one shot") — FORBIDDEN.
+* Writing tests that pass immediately because they test a mock, not behavior — FORBIDDEN.
+* Skipping the Plan turn for "small" features — FORBIDDEN. Every change, no matter how small, starts with Turn 1.
+* Using `# type: ignore` or `# noqa` to silence warnings instead of fixing the root cause — FORBIDDEN.

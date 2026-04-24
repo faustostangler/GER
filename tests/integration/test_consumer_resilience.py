@@ -10,9 +10,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "src"))
 
 from infrastructure.events.keycloak_kafka_consumer import consume_keycloak_events  # noqa: E402
+import pytest
+
+# WHY: Standardize async test markers to prevent 'never awaited' issues in full runs
+pytestmark = pytest.mark.asyncio
 
 
-@pytest.mark.asyncio
 async def test_consumer_forwards_to_dlq_after_max_retries():
     """
     Integration Test: Consumer Resilience & DLQ
@@ -86,7 +89,6 @@ async def test_consumer_forwards_to_dlq_after_max_retries():
         assert mock_producer_instance.send_and_wait.called
 
 
-@pytest.mark.asyncio
 async def test_consumer_skips_non_register_events():
     """
     Test that the consumer ignores events that are not of type 'REGISTER'.

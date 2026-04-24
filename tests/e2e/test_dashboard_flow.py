@@ -1,18 +1,25 @@
 import os
 import subprocess
 import pytest
-import requests
-from tenacity import retry, wait_fixed, stop_after_attempt
-from playwright.sync_api import Page, expect
+import httpx
+from tenacity import AsyncRetrying, wait_fixed, stop_after_attempt
+from playwright.async_api import async_playwright, expect
+
+# WHY: Standardize on async but avoid pytest-playwright fixture conflicts
+pytestmark = pytest.mark.asyncio
 
 
-@retry(wait=wait_fixed(1), stop=stop_after_attempt(15))
-def wait_for_streamlit(url="http://localhost:8509/_stcore/health"):
-    try:
-        response = requests.get(url, timeout=1)
-        response.raise_for_status()
-    except Exception as e:
-        raise Exception(f"Streamlit not ready: {e}")
+def wait_for_streamlit_sync(url="http://localhost:8509/_stcore/health"):
+    import requests
+    import time
+    for _ in range(15):
+        try:
+            response = requests.get(url, timeout=1)
+            response.raise_for_status()
+            return
+        except Exception:
+            time.sleep(1)
+    raise Exception("Streamlit not ready")
 
 
 @pytest.fixture(scope="module")
@@ -40,7 +47,7 @@ def streamlit_server():
 
     # Wait for the healthcheck to be successful
     try:
-        wait_for_streamlit()
+        wait_for_streamlit_sync()
     except Exception as e:
         process.kill()
         raise e
@@ -52,21 +59,29 @@ def streamlit_server():
     process.wait(timeout=5)
 
 
-def test_dashboard_e2e_flow(page: Page, streamlit_server: str):
-    # Navigate to the local server
-    page.goto(streamlit_server)
+async def test_dashboard_e2e_flow(streamlit_server: str):
+    async with async_playwright() as p:
+        browser = await p.chromium.launch()
+        context = await browser.new_context()
+        page = await context.new_page()
 
-    # Wait for the main app container to load
-    app_container = page.locator(".block-container").first
-    expect(app_container).to_be_visible(timeout=30000)
+        # Navigate to the local server
+        await page.goto(streamlit_server)
 
-    # Assert that a metric eventually gets rendered
-    metric = page.locator(".kpi-value").first
-    try:
-        expect(metric).to_be_visible(timeout=30000)
-    except Exception as e:
-        print("Page text content:", page.locator("body").inner_text())
-        raise e
+        # Wait for the main app container to load
+        app_container = page.locator(".block-container").first
+        await expect(app_container).to_be_visible(timeout=30000)
 
-    # Verify that the title is loaded
-    expect(page).to_have_title("Gercon Analytics | RCA", timeout=5000)
+        # Assert that a metric eventually gets rendered
+        metric = page.locator(".kpi-value").first
+        try:
+            await expect(metric).to_be_visible(timeout=30000)
+        except Exception as e:
+            body_text = await page.locator("body").inner_text()
+            print("Page text content:", body_text)
+            raise e
+
+        # Verify that the title is loaded
+        await expect(page).to_have_title("Gercon Analytics | RCA", timeout=5000)
+
+        await browser.close()

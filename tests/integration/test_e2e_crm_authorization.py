@@ -40,7 +40,7 @@ from infrastructure.auth.jwt_validator import (
 )  # noqa: E402
 import infrastructure.auth.jwt_validator as jwt_validator  # noqa: E402
 
-# We'll use the pytest-asyncio to run async tests
+# WHY: Standardize async test markers to prevent 'never awaited' issues in full runs
 pytestmark = pytest.mark.asyncio
 
 
@@ -168,10 +168,10 @@ async def test_e2e_crm_authorization_blocked_for_unverified_user():
         mock_jwks.return_value = MagicMock(key="fake_key")
         mock_jwt_decode.return_value = mock_jwt_payload
 
-        # The verify_token should raise IdentityContractViolationException
-        with pytest.raises(IdentityContractViolationException) as exc_info:
+        # The verify_token should raise HTTPException(403)
+        from fastapi import HTTPException
+        with pytest.raises(HTTPException) as exc_info:
             verify_token("fake.jwt.token")
 
-        assert exc_info.value.user_id == unverified_user_id
-        assert exc_info.value.crm_raw == "00000"
-        assert "CRM não verificado ou inexistente" in str(exc_info.value)
+        assert exc_info.value.status_code == 403
+        assert "CRM não verificado ou inexistente" in exc_info.value.detail

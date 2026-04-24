@@ -1,11 +1,13 @@
 import pytest
 from unittest.mock import AsyncMock, patch
+import httpx
 from infrastructure.adapters.cfm_client import CFMClient
 from infrastructure.config import settings
-import httpx
+
+# WHY: Standardize async test markers to prevent 'never awaited' issues in full runs
+pytestmark = pytest.mark.asyncio
 
 
-@pytest.mark.asyncio
 async def test_cfm_client_validate_success():
     """Test successful CRM validation with active status.
 
@@ -39,7 +41,6 @@ async def test_cfm_client_validate_success():
         assert kwargs["headers"]["Authorization"] == f"Bearer {expected_token}"
 
 
-@pytest.mark.asyncio
 async def test_cfm_client_validate_inactive():
     """Test CRM validation for an inactive registration.
 
@@ -56,7 +57,6 @@ async def test_cfm_client_validate_inactive():
         assert result is False
 
 
-@pytest.mark.asyncio
 async def test_cfm_client_validate_http_error():
     """Test CRM validation when API returns a 500 error.
 
@@ -72,7 +72,6 @@ async def test_cfm_client_validate_http_error():
             await client.validate("12345", "SP")
 
 
-@pytest.mark.asyncio
 async def test_cfm_client_validate_timeout():
     """Test CRM validation on request timeout.
 

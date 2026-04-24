@@ -54,6 +54,7 @@ packages = ["src"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+asyncio_mode = "strict"
 # WHY: --cov removed from addopts because mutmut 3.x calls pytest.main()
 # directly and coverage plugins corrupt its stats collection.
 # Use explicit: uv run pytest --cov=src --cov-report=term-missing --cov-fail-under=85

@@ -118,8 +118,9 @@ def verify_token(token: str) -> ValidatedUserToken:
             exp=payload.get("exp"),
         )
 
-    except IdentityContractViolationException:
-        raise
+    except IdentityContractViolationException as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail=str(e))
     except jwt.ExpiredSignatureError:
         raise ValueError("Token expirado.")
     except (jwt.PyJWTError, PyJWKClientError, ValueError) as e:
