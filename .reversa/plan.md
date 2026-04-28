@@ -14,7 +14,7 @@
 
 ## Fase 2: Escavação 🏗️
 
-- [ ] **Archaeologist** — Análise do módulo `analytics`
+- [x] **Archaeologist** — Análise do módulo `analytics`
 - [ ] **Archaeologist** — Análise do módulo `scraper`
 
 ## Fase 3: Interpretação 🧠
