@@ -1,54 +1,40 @@
-# Análise de Código - Módulo Analytics
+# Análise de Código - GER
 
-Este documento detalha o funcionamento interno do módulo `analytics` da plataforma GER, mapeando suas responsabilidades, algoritmos e fluxos de dados sob a ótica da Arquitetura Hexagonal e do Domain-Driven Design (DDD).
+Este documento detalha o funcionamento interno da plataforma GER sob a ótica da Arquitetura Hexagonal e do Domain-Driven Design (DDD).
 
-## 1. Arquitetura e Componentes
+---
 
+## Módulo 1: Analytics
+
+### 1. Arquitetura e Componentes
 O módulo `analytics` é estruturado seguindo o padrão de Portas e Adaptadores:
+*   **Presentation**: `app_analytics.py`, `presentation.di_container`.
+*   **Application**: `analytics_use_case.py`.
+*   **Domain**: `FiltroAvancadoSpec`, `PacienteUrgenteSpec`, `PacienteVencidoSpec`.
+*   **Infrastructure**: `DuckDBAnalyticsRepository`, `DuckDBCriteriaTranslator`.
 
-*   **Presentation (Adapters Primários)**
-    *   `app_analytics.py`: Interface do usuário construída em Streamlit. Atua como um *Humble Object*, delegando toda a lógica de negócio.
-    *   `presentation.di_container`: Resolve as dependências de infraestrutura e casos de uso.
-*   **Application (Casos de Uso)**
-    *   `analytics_use_case.py`: Orquestrador das operações analíticas. Transforma objetos de domínio em respostas estruturadas para a UI.
-*   **Domain (Regras de Negócio)**
-    *   `FiltroAvancadoSpec`, `PacienteUrgenteSpec`, `PacienteVencidoSpec`: Especificações de filtragem baseadas no *Specification Pattern*.
-*   **Infrastructure (Adapters Secundários)**
-    *   `DuckDBAnalyticsRepository`: Implementação concreta do repositório analítico baseado em OLAP (Parquet).
-    *   `DuckDBCriteriaTranslator`: Tradutor puro de Especificações para o dialeto SQL do DuckDB.
+### 2. Análise Detalhada das Classes
+*   **AnalyticsUseCase**: Orquestra o read model. Destaque para `get_clinical_audit_heatmap` (Z-Score em Pandas).
+*   **DuckDBAnalyticsRepository**: Modo OLAP colunar. Cache PyArrow Feather + Redis. RLS em nível de linha.
 
-## 2. Análise Detalhada das Classes e Métodos
+---
 
-### 2.1. `AnalyticsUseCase`
+## Módulo 2: Scraper (Ingestão Assíncrona)
 
-Classe core do processamento de regras analíticas.
+### 1. Arquitetura e Componentes
+*   **Application**: `ScraperUseCase` (Orquestrador principal de fluxos, paginação e segurança).
+*   **Domain Contract (ACL)**: `GerconPayloadContract` (Garante que pílulas venenosas externas não quebrem o domínio).
+*   **Infrastructure Adapters**: 
+    *   `PlaywrightGerconAdapter`: Automação e navegação JS no frontend Angular legado do Vendor.
+    *   `SQLiteRawRepository`: Camada de buffer e auditoria técnica Post-Mortem.
+    *   `ParquetDataRepository`: Persistência em formato colunar otimizado para escrita e leitura DuckDB (S3/Local).
 
-*   `verify_data_readiness()`: Verifica se o arquivo Parquet de leitura está disponível.
-*   `get_clinical_audit_heatmap(spec, user)`: Computa uma matriz de risco de atores clínicos (Médicos vs Diagnósticos) utilizando Z-Score.
-    *   *Complexidade Algorítmica*: Alta. Utiliza CTEs (`TopAtores`, `TopDiags`) e operações de vetorização em Pandas (`df_math.sub(...).div(...)`).
-*   `get_executive_summary(spec, user)`: Consolida as principais métricas da plataforma.
+### 2. Máquina de Estados e Circuit Breaker
+A ingestão implementa salvaguardas rigorosas contra APIs instáveis:
+*   **DLQ Fail-Fast**: Validações falhas no Pydantic isolam o payload quebrado na tabela `dead_letter_queue`.
+*   **Circuit Breaker**: Taxa máxima de 5% de falhas sobre o volume processado (mínimo de 100 iterações). Caso ultrapassado, aborta preventivamente o processamento para barrar custos de armazenamento e CPU.
 
-### 2.2. `DuckDBAnalyticsRepository`
+### 3. Mecanismos de Resiliência I/O
+*   Utilização estratégica do Tenacity para controle de conexões intermitentes.
+*   Gravações atômicas com POSIX Sync (`os.replace`) para arquivos de checkpoint.
 
-Gerencia o estado OLAP e a persistência otimizada.
-
-*   *Mecanismo de Cache*: Implementa cache via PyArrow IPC (Feather) serializado e persistido no Redis.
-*   *Segurança e Isolamento (RLS)*: Aplica filtros de acesso utilizando expressões CTE dinâmicas (`_get_rls_cte`).
-
-### 2.3. `DuckDBCriteriaTranslator`
-
-Mapeia especificações para predicados SQL.
-
-*   Suporta operações booleanas (`AND`, `OR`, `NOT`), faixas de data (`BETWEEN`), limites numéricos e pesquisas avançadas tolerantes a acentos (`strip_accents`).
-
-## 3. Máquinas de Estado e Fluxos de Controle
-
-A interface Streamlit opera em um ciclo reativo padrão, dividindo-se em 3 fases:
-1.  **Boot Infra/DX**: Configuração de Sentry, estilos CSS customizados e limites de renderização.
-2.  **Identity Gatekeeper**: Autenticação validada através do Identity Aware Proxy.
-3.  **Domain Execution**: Resolução dos KPIs analíticos a partir dos critérios de filtragem ativos.
-
-## 4. Algoritmos Críticos e Salvaguardas
-
-*   **Proteção OOM**: Limitação explícita de RAM no DuckDB (`PRAGMA memory_limit`).
-*   **Fallback de Falhas**: Em caso de desconexão do Redis, o sistema degrada suavemente para leitura direta do Parquet sem interromper o fluxo de atendimento.
