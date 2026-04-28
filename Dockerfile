@@ -62,6 +62,6 @@ COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENV PATH="/app/.venv/bin:$PATH"
-EXPOSE 8501 6080 50051 
 
 ENTRYPOINT ["/entrypoint.sh"]
+CMD uvicorn src.presentation.api.main:app --host 0.0.0.0 --port $PORT

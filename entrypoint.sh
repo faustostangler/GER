@@ -44,7 +44,10 @@ elif [ "$ROLE" = "worker" ]; then
 elif [ "$ROLE" = "identity-consumer" ]; then
     echo "Starting Identity Event Consumer..."
     exec python -m infrastructure.events.keycloak_kafka_consumer
+elif [ -n "$1" ]; then
+    echo "Executing command: $@"
+    exec "$@"
 else
-    echo "Error: Unknown ROLE '$ROLE'"
+    echo "Error: Unknown ROLE '$ROLE' and no command provided"
     exit 1
 fi

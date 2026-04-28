@@ -62,6 +62,8 @@ class AppSettings(BaseSettings):
     ENVIRONMENT: str = Field(default="local", alias="APP__ENVIRONMENT")
     DEBUG: bool = Field(default=True, alias="APP__DEBUG")
     LOG_LEVEL: str = Field(default="INFO", alias="LOG_LEVEL")
+    port: int = Field(alias="PORT")
+    host: str = "0.0.0.0"
 
     # Nested Settings
     db: DatabaseSettings = Field(default_factory=DatabaseSettings)
