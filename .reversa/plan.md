@@ -15,16 +15,16 @@
 ## Fase 2: Escavação 🏗️
 
 - [x] **Archaeologist** — Análise do módulo `analytics`
-- [ ] **Archaeologist** — Análise do módulo `scraper`
+- [x] **Archaeologist** — Análise do módulo `scraper`
 
 ## Fase 3: Interpretação 🧠
 
-- [ ] **Detetive** — Arqueologia Git e ADRs retroativos
-- [ ] **Detetive** — Regras de negócio implícitas e máquinas de estado
-- [ ] **Detetive** — Matriz de permissões (RBAC/ACL)
-- [ ] **Arquiteto** — Diagramas C4 (Contexto, Containers, Componentes)
-- [ ] **Arquiteto** — ERD completo e integrações externas
-- [ ] **Arquiteto** — Spec Impact Matrix
+- [x] **Detetive** — Arqueologia Git e ADRs retroativos
+- [x] **Detetive** — Regras de negócio implícitas e máquinas de estado
+- [x] **Detetive** — Matriz de permissões (RBAC/ACL)
+- [x] **Arquiteto** — Diagramas C4 (Contexto, Containers, Componentes)
+- [x] **Arquiteto** — ERD completo e integrações externas
+- [x] **Arquiteto** — Spec Impact Matrix
 
 ## Fase 4: Geração 📝
 
