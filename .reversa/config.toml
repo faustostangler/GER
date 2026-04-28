@@ -1,0 +1,40 @@
+# Reversa — Configuração do Projeto
+# Este arquivo é gerenciado pelo instalador. Para customizações, edite config.user.toml
+
+[project]
+name = "GER"
+version = "1.0.0"
+
+[user]
+name = "Fausto"
+chat_language = "en"
+doc_language = "en"
+
+[output]
+folder = "_reversa_sdd"
+
+[agents]
+installed = [
+  "reversa",
+  "reversa-scout",
+  "reversa-archaeologist",
+  "reversa-detective",
+  "reversa-architect",
+  "reversa-writer",
+  "reversa-reviewer",
+  "reversa-visor",
+  "reversa-data-master",
+  "reversa-design-system",
+  "reversa-agents-help",
+  "reversa-reconstructor"
+]
+
+[engines]
+installed = [
+  "gemini-cli",
+  "antigravity"
+]
+
+[analysis]
+answer_mode = "file"
+doc_level = "completo"
