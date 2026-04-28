@@ -1,0 +1,31 @@
+openapi: 3.0.3
+info:
+  title: GER API
+  version: 1.0.0
+  description: API para gestão e análise de lead time clínico.
+paths:
+  /api/v1/kpis:
+    get:
+      summary: Retorna KPIs analíticos consolidados.
+      responses:
+        '200':
+          description: Sucesso.
+          content:
+            application/json:
+              example:
+                pacientes: 1250
+                eventos: 5000
+                lead_time: 14.5
+  /api/v1/auth/crm:
+    post:
+      summary: Valida registro no CFM.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            example:
+              crm_numero: "123456"
+              crm_uf: "SP"
+      responses:
+        '200':
+          description: Validado.
